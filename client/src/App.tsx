@@ -297,8 +297,14 @@ function Router() {
   const { data: user, isLoading, error } = useAuth();
   const [location] = useLocation();
 
+  // Patient portal route - uses wouter Route for proper token extraction
   if (location.startsWith("/p/")) {
-    return <PatientPortal />;
+    return (
+      <Switch>
+        <Route path="/p/:token" component={PatientPortal} />
+        <Route component={NotFound} />
+      </Switch>
+    );
   }
 
   if (isLoading) {
