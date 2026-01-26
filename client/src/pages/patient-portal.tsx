@@ -9,6 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import { 
@@ -50,6 +57,7 @@ export default function PatientPortal() {
   const [attemptsRemaining, setAttemptsRemaining] = useState(3);
   const [isLocked, setIsLocked] = useState(false);
   const [showEnglish, setShowEnglish] = useState(false);
+  const [showOriginalDocument, setShowOriginalDocument] = useState(false);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [checkInSubmitted, setCheckInSubmitted] = useState(false);
   const [checkInResponse, setCheckInResponse] = useState<"green" | "yellow" | "red" | null>(null);
@@ -827,7 +835,7 @@ export default function PatientPortal() {
         </div>
 
         {/* Original Document Access */}
-        {carePlan.originalFileName && (
+        {carePlan.originalFileName && carePlan.originalContent && (
           <div className="pt-4 border-t">
             <p className="text-sm text-muted-foreground mb-2">
               Need the original hospital document?
@@ -836,17 +844,7 @@ export default function PatientPortal() {
               variant="ghost"
               size="sm"
               className="text-muted-foreground"
-              onClick={() => {
-                if (carePlan.originalContent) {
-                  const blob = new Blob([carePlan.originalContent], { type: 'text/plain' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = carePlan.originalFileName || 'discharge-document.txt';
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }
-              }}
+              onClick={() => setShowOriginalDocument(true)}
               data-testid="button-view-original"
             >
               <FileText className="h-4 w-4 mr-2" />
@@ -854,6 +852,26 @@ export default function PatientPortal() {
             </Button>
           </div>
         )}
+
+        {/* Original Document Modal */}
+        <Dialog open={showOriginalDocument} onOpenChange={setShowOriginalDocument}>
+          <DialogContent className="max-w-2xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Original Discharge Document
+              </DialogTitle>
+              <DialogDescription>
+                This is the original hospital document before simplification
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[50vh] mt-4">
+              <pre className="whitespace-pre-wrap text-sm font-mono bg-muted p-4 rounded-lg">
+                {carePlan.originalContent}
+              </pre>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
       </main>
 
       {/* Bottom Action Bar */}
