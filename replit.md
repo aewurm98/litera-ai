@@ -7,6 +7,7 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 ## Recent Changes
 
 - **January 2026**: MVP improvements and refinements
+  - **View as Patient**: Clinicians can preview patient portal with secure demo tokens (5-minute expiry, requires clinician auth)
   - **PDF Upload Fix**: Using pdfjs-dist legacy build for Node.js compatibility with AI fallback for scanned/invalid PDFs
   - **Review Interface Enhancements**: 
     - Collapsible Accordion sections in Original column
