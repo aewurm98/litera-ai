@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -127,24 +127,29 @@ export default function PatientPortal() {
     return languageMap[code] || "en-US";
   };
 
-  const checkTTSSupport = (): boolean => {
-    if (typeof window === 'undefined') return false;
-    if (!('speechSynthesis' in window)) return false;
-    try {
+  const [voicesLoaded, setVoicesLoaded] = useState(false);
+
+  const isTTSSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  // Load voices when they become available
+  useEffect(() => {
+    if (!isTTSSupported) return;
+    const loadVoices = () => {
       const voices = window.speechSynthesis.getVoices();
-      return voices.length > 0 || navigator.userAgent.includes('Chrome');
-    } catch {
-      return false;
-    }
-  };
-  
-  const isTTSSupported = checkTTSSupport();
+      if (voices.length > 0) {
+        setVoicesLoaded(true);
+      }
+    };
+    loadVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+  }, [isTTSSupported]);
 
   const speakContent = useCallback(() => {
     if (!carePlan) return;
     
     // Check for TTS support first
-    if (!('speechSynthesis' in window)) {
+    if (!isTTSSupported) {
       toast({ 
         title: "Text-to-speech not supported", 
         description: "Your browser doesn't support this feature. Try Chrome or Safari on desktop.",
@@ -191,13 +196,27 @@ export default function PatientPortal() {
 
     const fullText = textParts.join(" ");
     const utterance = new SpeechSynthesisUtterance(fullText);
-    utterance.lang = showEnglish ? "en-US" : getLanguageCode(carePlan.translatedLanguage || "en");
+    const targetLang = showEnglish ? "en-US" : getLanguageCode(carePlan.translatedLanguage || "en");
+    utterance.lang = targetLang;
     utterance.rate = 0.9;
     
+    // Try to find a voice matching the language
+    const voices = window.speechSynthesis.getVoices();
+    const matchingVoice = voices.find(v => v.lang.startsWith(targetLang.split('-')[0]));
+    if (matchingVoice) {
+      utterance.voice = matchingVoice;
+    }
+    
     utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => {
+    utterance.onerror = (e) => {
       setIsSpeaking(false);
-      toast({ title: "Text-to-speech unavailable", variant: "destructive" });
+      if (e.error !== 'canceled') {
+        toast({ 
+          title: "Text-to-speech error", 
+          description: "Unable to read aloud. Try using the Print option instead.",
+          variant: "destructive" 
+        });
+      }
     };
 
     setIsSpeaking(true);
@@ -210,6 +229,16 @@ export default function PatientPortal() {
 
   const handleDownloadPDF = useCallback(() => {
     if (!carePlan) return;
+    
+    // Check for non-Latin scripts that jsPDF can't render properly
+    const nonLatinLanguages = ['zh', 'ja', 'ko', 'ar', 'hi', 'ur', 'fa'];
+    const currentLang = carePlan.translatedLanguage || 'en';
+    if (!showEnglish && nonLatinLanguages.includes(currentLang)) {
+      toast({
+        title: "PDF may not display correctly",
+        description: "For best results with this language, use Print and select 'Save as PDF'."
+      });
+    }
     
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();

@@ -6,15 +6,19 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 
 ## Recent Changes
 
-- **January 2026**: Initial MVP implementation
-  - Clinician Dashboard with 3-column review interface
-  - Patient Portal with magic link verification and traffic light check-in
-  - Admin Dashboard with patient management and CSV export
+- **January 2026**: Complete MVP implementation
+  - Clinician Dashboard with 3-column review interface and per-column scroll tracking
+  - Patient Portal with magic link verification, traffic light check-in, and multi-modal outputs
+  - Admin Dashboard with patient management, alerts, and CSV export
   - OpenAI GPT-4o integration for extraction/simplification/translation
   - Resend integration for email delivery
   - Server-side rate limiting for patient verification
   - Zod validation on all API endpoints
   - Comprehensive audit logging
+  - PDF download (jsPDF) with language fallback for non-Latin scripts
+  - Text-to-speech (Web Speech API) with voice selection
+  - Print-friendly styles for care plans
+  - Phase 2 placeholder pages (Analytics, Provider Directory, Video Library, Settings)
 
 ## Architecture
 
@@ -108,10 +112,32 @@ Runs Express backend and Vite frontend on port 5000.
 - **TCM Billing**: Check-in tracking for CPT 99495/99496
 - **HIPAA**: Access token expiry, verification lockout, audit trails
 
+## Multi-Modal Features
+
+### PDF Download
+- Uses jsPDF for client-side PDF generation
+- Supports English and Latin-script languages natively
+- For non-Latin scripts (Chinese, Japanese, Korean, Arabic, Hindi, Urdu, Farsi), displays a warning and recommends using browser Print > Save as PDF
+
+### Text-to-Speech
+- Uses Web Speech API with voice selection
+- Supports all 16 languages via browser voices
+- Graceful fallback if TTS not available (disabled button, helpful error message)
+
+### Print
+- CSS @media print styles for clean output
+- Hides interactive elements and navigation
+- Preserves warning card styling with red borders
+
+## Demo Credentials
+
+- **Clinician**: nurse/password123 (Maria Chen, RN)
+- **Admin**: admin/password123 (Angela Torres)
+- **Provider**: drsmith/password123 (Dr. James Smith)
+
 ## Future Improvements
 
-- Proper authentication with sessions/JWT
-- PostgreSQL database for production
-- Scheduled cron job for check-in emails
-- Text-to-speech for patient portal
+- Custom font embedding for non-Latin PDF export
 - SMS notifications via Twilio
+- Scheduled cron job for check-in emails
+- Video tutorials in patient portal
