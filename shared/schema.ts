@@ -3,6 +3,13 @@ import { pgTable, text, varchar, integer, timestamp, boolean, jsonb } from "driz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Sessions table for connect-pg-simple
+export const sessions = pgTable("session", {
+  sid: varchar("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire", { precision: 6 }).notNull(),
+});
+
 // Users table (clinicians and admins)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
