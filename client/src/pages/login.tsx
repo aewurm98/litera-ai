@@ -101,9 +101,19 @@ export default function Login() {
 
           <div className="mt-6 p-4 bg-muted rounded-lg">
             <p className="text-sm font-medium mb-2">Demo Credentials:</p>
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p><strong>Clinician:</strong> nurse / password123</p>
-              <p><strong>Admin:</strong> admin / password123</p>
+            <div className="text-sm text-muted-foreground space-y-2">
+              <div className="p-2 bg-background rounded border">
+                <p className="font-medium text-foreground">Clinician (Maria Chen, RN):</p>
+                <p className="font-mono text-xs">nurse / password123</p>
+              </div>
+              <div className="p-2 bg-background rounded border">
+                <p className="font-medium text-foreground">Clinician (Dr. James Smith):</p>
+                <p className="font-mono text-xs">drsmith / password123</p>
+              </div>
+              <div className="p-2 bg-background rounded border">
+                <p className="font-medium text-foreground">Admin (Angela Torres):</p>
+                <p className="font-mono text-xs">admin / password123</p>
+              </div>
             </div>
           </div>
         </CardContent>
