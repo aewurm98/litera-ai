@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { jsPDF } from "jspdf";
 import { 
   Heart, 
   Pill, 
@@ -23,7 +24,10 @@ import {
   ChevronRight,
   MapPin,
   Clock,
-  Volume2
+  Volume2,
+  VolumeX,
+  Printer,
+  Download
 } from "lucide-react";
 import type { CarePlan, Patient, CheckIn } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
@@ -43,6 +47,7 @@ export default function PatientPortal() {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [checkInSubmitted, setCheckInSubmitted] = useState(false);
   const [checkInResponse, setCheckInResponse] = useState<"green" | "yellow" | "red" | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Fetch care plan by token
   const { data: carePlan, isLoading, error } = useQuery<CarePlanWithPatient>({
@@ -112,6 +117,237 @@ export default function PatientPortal() {
   const getLanguageName = (code: string) => {
     return SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code;
   };
+
+  const getLanguageCode = (code: string): string => {
+    const languageMap: Record<string, string> = {
+      en: "en-US", es: "es-ES", zh: "zh-CN", vi: "vi-VN", tl: "fil-PH",
+      ko: "ko-KR", ru: "ru-RU", ar: "ar-SA", fr: "fr-FR", pt: "pt-BR",
+      hi: "hi-IN", ur: "ur-PK", fa: "fa-IR", pl: "pl-PL", ht: "fr-HT", ja: "ja-JP"
+    };
+    return languageMap[code] || "en-US";
+  };
+
+  const checkTTSSupport = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    if (!('speechSynthesis' in window)) return false;
+    try {
+      const voices = window.speechSynthesis.getVoices();
+      return voices.length > 0 || navigator.userAgent.includes('Chrome');
+    } catch {
+      return false;
+    }
+  };
+  
+  const isTTSSupported = checkTTSSupport();
+
+  const speakContent = useCallback(() => {
+    if (!carePlan) return;
+    
+    // Check for TTS support first
+    if (!('speechSynthesis' in window)) {
+      toast({ 
+        title: "Text-to-speech not supported", 
+        description: "Your browser doesn't support this feature. Try Chrome or Safari on desktop.",
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    const diagnosis = showEnglish ? carePlan.simplifiedDiagnosis : carePlan.translatedDiagnosis;
+    const instructions = showEnglish ? carePlan.simplifiedInstructions : carePlan.translatedInstructions;
+    const warnings = showEnglish ? carePlan.simplifiedWarnings : carePlan.translatedWarnings;
+    const medications = showEnglish ? carePlan.simplifiedMedications : carePlan.translatedMedications;
+
+    const textParts: string[] = [];
+    
+    if (diagnosis) {
+      textParts.push(showEnglish ? "What's wrong: " : "");
+      textParts.push(diagnosis);
+    }
+    
+    if (medications && medications.length > 0) {
+      textParts.push(showEnglish ? "Your medications: " : "");
+      medications.forEach((med: { name: string; dose: string; frequency: string; instructions?: string }) => {
+        textParts.push(`${med.name}, ${med.dose}, ${med.frequency}.`);
+        if (med.instructions) textParts.push(med.instructions);
+      });
+    }
+    
+    if (instructions) {
+      textParts.push(showEnglish ? "What to do: " : "");
+      textParts.push(instructions);
+    }
+    
+    if (warnings) {
+      textParts.push(showEnglish ? "Warning signs: " : "");
+      textParts.push(warnings);
+    }
+
+    const fullText = textParts.join(" ");
+    const utterance = new SpeechSynthesisUtterance(fullText);
+    utterance.lang = showEnglish ? "en-US" : getLanguageCode(carePlan.translatedLanguage || "en");
+    utterance.rate = 0.9;
+    
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      toast({ title: "Text-to-speech unavailable", variant: "destructive" });
+    };
+
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }, [carePlan, showEnglish, isSpeaking, toast]);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleDownloadPDF = useCallback(() => {
+    if (!carePlan) return;
+    
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = 20;
+    
+    const diagnosis = showEnglish ? carePlan.simplifiedDiagnosis : carePlan.translatedDiagnosis;
+    const instructions = showEnglish ? carePlan.simplifiedInstructions : carePlan.translatedInstructions;
+    const warnings = showEnglish ? carePlan.simplifiedWarnings : carePlan.translatedWarnings;
+    const medications = showEnglish ? carePlan.simplifiedMedications : carePlan.translatedMedications;
+    const appointments = showEnglish ? carePlan.simplifiedAppointments : carePlan.translatedAppointments;
+    
+    // Title
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.text("Your Care Plan", pageWidth / 2, y, { align: "center" });
+    y += 10;
+    
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "normal");
+    doc.text(carePlan.patient.name, pageWidth / 2, y, { align: "center" });
+    y += 15;
+    
+    // Helper to add wrapped text
+    const addSection = (title: string, content: string | null) => {
+      if (!content) return;
+      if (y > 270) { doc.addPage(); y = 20; }
+      
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(title, margin, y);
+      y += 7;
+      
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(content, contentWidth);
+      lines.forEach((line: string) => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.text(line, margin, y);
+        y += 5.5;
+      });
+      y += 8;
+    };
+    
+    addSection("What's Wrong", diagnosis);
+    
+    // Medications
+    if (medications && medications.length > 0) {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Your Medications", margin, y);
+      y += 8;
+      
+      medications.forEach((med: { name: string; dose: string; frequency: string; instructions?: string }) => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${med.name} - ${med.dose}`, margin, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        doc.text(med.frequency, margin, y);
+        y += 5;
+        if (med.instructions) {
+          const lines = doc.splitTextToSize(med.instructions, contentWidth);
+          lines.forEach((line: string) => {
+            doc.text(line, margin, y);
+            y += 5;
+          });
+        }
+        y += 3;
+      });
+      y += 5;
+    }
+    
+    // Appointments
+    if (appointments && appointments.length > 0) {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Your Appointments", margin, y);
+      y += 8;
+      
+      appointments.forEach((apt: { purpose: string; date: string; time: string; location: string }) => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text(apt.purpose, margin, y);
+        y += 5;
+        doc.setFont("helvetica", "normal");
+        doc.text(`${apt.date} at ${apt.time}`, margin, y);
+        y += 5;
+        doc.text(apt.location, margin, y);
+        y += 8;
+      });
+      y += 5;
+    }
+    
+    addSection("What to Do", instructions);
+    
+    // Warnings with emphasis
+    if (warnings) {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(220, 38, 38);
+      doc.text("Warning Signs - Seek Emergency Care", margin, y);
+      y += 7;
+      
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(warnings, contentWidth);
+      lines.forEach((line: string) => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.text(line, margin, y);
+        y += 5.5;
+      });
+      doc.setTextColor(0, 0, 0);
+      y += 8;
+    }
+    
+    // Footer
+    if (y > 260) { doc.addPage(); y = 20; }
+    y = doc.internal.pageSize.getHeight() - 20;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("Emergency: Call 911 | Clinic: (555) 123-4567", pageWidth / 2, y, { align: "center" });
+    
+    // Save
+    const fileName = `care-plan-${carePlan.patient.name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+    doc.save(fileName);
+    
+    toast({
+      title: "PDF Downloaded",
+      description: "Your care plan has been saved to your device."
+    });
+  }, [carePlan, showEnglish, toast]);
 
   // Verification Screen
   if (!isVerified) {
@@ -504,16 +740,48 @@ export default function PatientPortal() {
           </Card>
         )}
 
-        {/* Read Aloud Button (Coming Soon) */}
-        <Button 
-          variant="outline" 
-          className="w-full h-14 text-lg gap-3"
-          disabled
-        >
-          <Volume2 className="h-5 w-5" />
-          Read Aloud
-          <Badge variant="secondary" className="ml-2">Coming Soon</Badge>
-        </Button>
+        {/* Read Aloud and Download/Print Buttons */}
+        <div className="space-y-3">
+          <Button 
+            variant="outline" 
+            className="w-full h-14 text-lg gap-3"
+            onClick={speakContent}
+            disabled={!isTTSSupported}
+            data-testid="button-read-aloud"
+          >
+            {isSpeaking ? (
+              <>
+                <VolumeX className="h-5 w-5" />
+                Stop Reading
+              </>
+            ) : (
+              <>
+                <Volume2 className="h-5 w-5" />
+                {isTTSSupported ? "Read Aloud" : "Read Aloud (Not Available)"}
+              </>
+            )}
+          </Button>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              className="flex-1 h-14 text-lg gap-3"
+              onClick={handleDownloadPDF}
+              data-testid="button-download-pdf"
+            >
+              <Download className="h-5 w-5" />
+              Save as PDF
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex-1 h-14 text-lg gap-3"
+              onClick={handlePrint}
+              data-testid="button-print"
+            >
+              <Printer className="h-5 w-5" />
+              Print
+            </Button>
+          </div>
+        </div>
       </main>
 
       {/* Bottom Action Bar */}
