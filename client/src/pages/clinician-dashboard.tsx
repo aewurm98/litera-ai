@@ -1,26 +1,48 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Upload, 
-  FileText, 
-  Check, 
-  Send, 
-  Loader2, 
-  AlertTriangle, 
+import {
+  Upload,
+  FileText,
+  Check,
+  Send,
+  Loader2,
+  AlertTriangle,
   Languages,
   Stethoscope,
   Pill,
@@ -31,15 +53,28 @@ import {
   Clock,
   MapPin,
   User,
-  ExternalLink
+  ExternalLink,
 } from "lucide-react";
-import type { CarePlan, Patient, SimplifiedMedication, SimplifiedAppointment } from "@shared/schema";
+import type {
+  CarePlan,
+  Patient,
+  SimplifiedMedication,
+  SimplifiedAppointment,
+} from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
 
 // Helper component to render medications in a structured format
-function MedicationsList({ medications, title, columnId }: { medications?: SimplifiedMedication[] | null; title: string; columnId: string }) {
+function MedicationsList({
+  medications,
+  title,
+  columnId,
+}: {
+  medications?: SimplifiedMedication[] | null;
+  title: string;
+  columnId: string;
+}) {
   if (!medications || medications.length === 0) return null;
-  
+
   return (
     <div className="space-y-2">
       <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
@@ -48,10 +83,18 @@ function MedicationsList({ medications, title, columnId }: { medications?: Simpl
       </Label>
       <div className="space-y-2">
         {medications.map((med, index) => (
-          <div key={index} className="bg-muted/50 rounded-lg p-3 border border-border/50" data-testid={`medication-${columnId}-${index}`}>
+          <div
+            key={index}
+            className="bg-muted/50 rounded-lg p-3 border border-border/50"
+            data-testid={`medication-${columnId}-${index}`}
+          >
             <div className="flex items-start justify-between gap-2 flex-wrap">
               <span className="font-medium text-sm">{med.name}</span>
-              {med.dose && <Badge variant="outline" className="text-xs flex-shrink-0">{med.dose}</Badge>}
+              {med.dose && (
+                <Badge variant="outline" className="text-xs flex-shrink-0">
+                  {med.dose}
+                </Badge>
+              )}
             </div>
             {med.frequency && (
               <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
@@ -60,7 +103,9 @@ function MedicationsList({ medications, title, columnId }: { medications?: Simpl
               </div>
             )}
             {med.instructions && (
-              <p className="text-xs text-muted-foreground mt-1 italic">{med.instructions}</p>
+              <p className="text-xs text-muted-foreground mt-1 italic">
+                {med.instructions}
+              </p>
             )}
           </div>
         ))}
@@ -70,9 +115,17 @@ function MedicationsList({ medications, title, columnId }: { medications?: Simpl
 }
 
 // Helper component to render appointments in a structured format
-function AppointmentsList({ appointments, title, columnId }: { appointments?: SimplifiedAppointment[] | null; title: string; columnId: string }) {
+function AppointmentsList({
+  appointments,
+  title,
+  columnId,
+}: {
+  appointments?: SimplifiedAppointment[] | null;
+  title: string;
+  columnId: string;
+}) {
   if (!appointments || appointments.length === 0) return null;
-  
+
   return (
     <div className="space-y-2">
       <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
@@ -81,8 +134,14 @@ function AppointmentsList({ appointments, title, columnId }: { appointments?: Si
       </Label>
       <div className="space-y-2">
         {appointments.map((apt, index) => (
-          <div key={index} className="bg-muted/50 rounded-lg p-3 border border-border/50" data-testid={`appointment-${columnId}-${index}`}>
-            {apt.purpose && <p className="font-medium text-sm">{apt.purpose}</p>}
+          <div
+            key={index}
+            className="bg-muted/50 rounded-lg p-3 border border-border/50"
+            data-testid={`appointment-${columnId}-${index}`}
+          >
+            {apt.purpose && (
+              <p className="font-medium text-sm">{apt.purpose}</p>
+            )}
             <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
               {apt.date && (
                 <span className="flex items-center gap-1">
@@ -120,12 +179,17 @@ type CarePlanWithPatient = CarePlan & { patient?: Patient };
 
 export default function ClinicianDashboard() {
   const { toast } = useToast();
-  const [selectedCarePlan, setSelectedCarePlan] = useState<CarePlanWithPatient | null>(null);
+  const [selectedCarePlan, setSelectedCarePlan] =
+    useState<CarePlanWithPatient | null>(null);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [columnsScrolled, setColumnsScrolled] = useState<boolean[]>([false, false, false]);
+  const [columnsScrolled, setColumnsScrolled] = useState<boolean[]>([
+    false,
+    false,
+    false,
+  ]);
 
   // Patient form state
   const [patientName, setPatientName] = useState("");
@@ -133,16 +197,16 @@ export default function ClinicianDashboard() {
   const [patientPhone, setPatientPhone] = useState("");
   const [patientYearOfBirth, setPatientYearOfBirth] = useState("");
   const [patientLanguage, setPatientLanguage] = useState("es");
-  
+
   const scrollAreaRefs = useRef<(HTMLDivElement | null)[]>([]);
-  
+
   // Check if all content is visible without scrolling
   useEffect(() => {
     if (selectedCarePlan?.status === "pending_review") {
       setColumnsScrolled([false, false, false]);
       // Check after a short delay for DOM to settle
       const timer = setTimeout(() => {
-        const newScrolled = scrollAreaRefs.current.map(ref => {
+        const newScrolled = scrollAreaRefs.current.map((ref) => {
           if (!ref) return true;
           return ref.scrollHeight <= ref.clientHeight + 10;
         });
@@ -151,11 +215,13 @@ export default function ClinicianDashboard() {
       return () => clearTimeout(timer);
     }
   }, [selectedCarePlan?.id, selectedCarePlan?.status]);
-  
+
   const hasScrolledAll = columnsScrolled.every(Boolean);
 
   // Fetch care plans
-  const { data: carePlans = [], isLoading: isLoadingCarePlans } = useQuery<CarePlanWithPatient[]>({
+  const { data: carePlans = [], isLoading: isLoadingCarePlans } = useQuery<
+    CarePlanWithPatient[]
+  >({
     queryKey: ["/api/care-plans"],
   });
 
@@ -176,26 +242,42 @@ export default function ClinicianDashboard() {
       setSelectedCarePlan(data);
       setIsUploadDialogOpen(false);
       setUploadFile(null);
-      toast({ title: "Document uploaded", description: "AI is processing your discharge summary..." });
+      toast({
+        title: "Document uploaded",
+        description: "AI is processing your discharge summary...",
+      });
     },
     onError: () => {
-      toast({ title: "Upload failed", description: "Please try again", variant: "destructive" });
+      toast({
+        title: "Upload failed",
+        description: "Please try again",
+        variant: "destructive",
+      });
     },
   });
 
   // Process mutation (simplify + translate)
   const processMutation = useMutation({
     mutationFn: async ({ id, language }: { id: string; language: string }) => {
-      const res = await apiRequest("POST", `/api/care-plans/${id}/process`, { language });
+      const res = await apiRequest("POST", `/api/care-plans/${id}/process`, {
+        language,
+      });
       return res.json() as Promise<CarePlanWithPatient>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
       setSelectedCarePlan(data);
-      toast({ title: "Processing complete", description: "Content has been simplified and translated" });
+      toast({
+        title: "Processing complete",
+        description: "Content has been simplified and translated",
+      });
     },
     onError: () => {
-      toast({ title: "Processing failed", description: "Please try again", variant: "destructive" });
+      toast({
+        title: "Processing failed",
+        description: "Please try again",
+        variant: "destructive",
+      });
     },
   });
 
@@ -208,7 +290,10 @@ export default function ClinicianDashboard() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
       setSelectedCarePlan(data);
-      toast({ title: "Care plan approved", description: "Ready to send to patient" });
+      toast({
+        title: "Care plan approved",
+        description: "Ready to send to patient",
+      });
     },
     onError: () => {
       toast({ title: "Approval failed", variant: "destructive" });
@@ -218,7 +303,11 @@ export default function ClinicianDashboard() {
   // Send mutation
   const sendMutation = useMutation({
     mutationFn: async (data: { carePlanId: string; patient: any }) => {
-      const res = await apiRequest("POST", `/api/care-plans/${data.carePlanId}/send`, data.patient);
+      const res = await apiRequest(
+        "POST",
+        `/api/care-plans/${data.carePlanId}/send`,
+        data.patient,
+      );
       return res.json() as Promise<CarePlanWithPatient>;
     },
     onSuccess: (data) => {
@@ -226,7 +315,11 @@ export default function ClinicianDashboard() {
       setSelectedCarePlan(data);
       setIsSendDialogOpen(false);
       resetPatientForm();
-      toast({ title: "Care plan sent!", description: "Patient will receive an email with their care instructions" });
+      toast({
+        title: "Care plan sent!",
+        description:
+          "Patient will receive an email with their care instructions",
+      });
     },
     onError: () => {
       toast({ title: "Failed to send", variant: "destructive" });
@@ -254,7 +347,10 @@ export default function ClinicianDashboard() {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file && (file.type === "application/pdf" || file.type.startsWith("image/"))) {
+    if (
+      file &&
+      (file.type === "application/pdf" || file.type.startsWith("image/"))
+    ) {
       setUploadFile(file);
     }
   };
@@ -287,7 +383,13 @@ export default function ClinicianDashboard() {
   };
 
   const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; label: string }> = {
+    const statusConfig: Record<
+      string,
+      {
+        variant: "default" | "secondary" | "outline" | "destructive";
+        label: string;
+      }
+    > = {
       draft: { variant: "outline", label: "Draft" },
       pending_review: { variant: "secondary", label: "Pending Review" },
       approved: { variant: "default", label: "Approved" },
@@ -300,20 +402,22 @@ export default function ClinicianDashboard() {
 
   const handleViewAsPatient = () => {
     if (!selectedCarePlan?.accessToken) return;
-    window.open(`/p/${selectedCarePlan.accessToken}?demo=1`, '_blank');
+    window.open(`/p/${selectedCarePlan.accessToken}?demo=1`, "_blank");
   };
 
-  const handleScroll = (columnIndex: number) => (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLDivElement;
-    const isScrolledToBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 50;
-    if (isScrolledToBottom && !columnsScrolled[columnIndex]) {
-      setColumnsScrolled(prev => {
-        const newState = [...prev];
-        newState[columnIndex] = true;
-        return newState;
-      });
-    }
-  };
+  const handleScroll =
+    (columnIndex: number) => (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLDivElement;
+      const isScrolledToBottom =
+        target.scrollHeight - target.scrollTop <= target.clientHeight + 50;
+      if (isScrolledToBottom && !columnsScrolled[columnIndex]) {
+        setColumnsScrolled((prev) => {
+          const newState = [...prev];
+          newState[columnIndex] = true;
+          return newState;
+        });
+      }
+    };
 
   // Pre-populate patient form when opening send dialog for care plan with existing patient
   useEffect(() => {
@@ -323,19 +427,28 @@ export default function ClinicianDashboard() {
       setPatientEmail(patient.email);
       setPatientPhone(patient.phone || "");
       setPatientYearOfBirth(patient.yearOfBirth?.toString() || "");
-      setPatientLanguage(patient.preferredLanguage || selectedCarePlan.translatedLanguage || "es");
+      setPatientLanguage(
+        patient.preferredLanguage ||
+          selectedCarePlan.translatedLanguage ||
+          "es",
+      );
     }
   }, [isSendDialogOpen, selectedCarePlan]);
 
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* Sidebar - Care Plans List */}
-      <div className="w-72 min-w-[200px] max-w-[320px] border-r bg-card flex flex-col flex-shrink-0">
+    // FIX APPLIED: Using Flexbox correctly.
+    // h-full w-full ensures it takes the parent's space.
+    <div className="flex h-full w-full overflow-hidden">
+      {/* Sidebar - Care Plans List 
+          FIX: Fixed width (w-80), no shrink (flex-shrink-0).
+          This ensures the list never collapses or gets squished.
+      */}
+      <div className="w-80 flex-shrink-0 border-r bg-card flex flex-col z-10">
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Care Plans</h2>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={() => setIsUploadDialogOpen(true)}
               data-testid="button-new-care-plan"
             >
@@ -344,7 +457,7 @@ export default function ClinicianDashboard() {
             </Button>
           </div>
         </div>
-        
+
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-2">
             {isLoadingCarePlans ? (
@@ -354,15 +467,21 @@ export default function ClinicianDashboard() {
             ) : carePlans.length === 0 ? (
               <div className="text-center py-8 px-4">
                 <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                <p className="text-sm text-muted-foreground">No care plans yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Upload a discharge summary to get started</p>
+                <p className="text-sm text-muted-foreground">
+                  No care plans yet
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Upload a discharge summary to get started
+                </p>
               </div>
             ) : (
               carePlans.map((plan) => (
-                <Card 
+                <Card
                   key={plan.id}
                   className={`cursor-pointer transition-colors hover-elevate ${
-                    selectedCarePlan?.id === plan.id ? "border-primary bg-primary/5" : ""
+                    selectedCarePlan?.id === plan.id
+                      ? "border-primary bg-primary/5"
+                      : ""
                   }`}
                   onClick={() => setSelectedCarePlan(plan)}
                   data-testid={`card-care-plan-${plan.id}`}
@@ -374,7 +493,9 @@ export default function ClinicianDashboard() {
                           {plan.patient?.name || "New Patient"}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {plan.diagnosis ? plan.diagnosis.slice(0, 40) + "..." : "Processing..."}
+                          {plan.diagnosis
+                            ? plan.diagnosis.slice(0, 40) + "..."
+                            : "Processing..."}
                         </p>
                       </div>
                       <div className="flex-shrink-0">
@@ -387,30 +508,41 @@ export default function ClinicianDashboard() {
             )}
           </div>
         </ScrollArea>
-        
+
         {/* Demo Patient Portal Link */}
-        {carePlans.some(p => p.status === "sent" && p.accessToken) && (
+        {carePlans.some((p) => p.status === "sent" && p.accessToken) && (
           <div className="p-3 border-t bg-muted/30">
-            <p className="text-xs text-muted-foreground mb-2">Test Patient View</p>
-            {carePlans.filter(p => p.status === "sent" && p.accessToken).slice(0, 1).map(plan => (
-              <Button
-                key={plan.id}
-                variant="outline"
-                size="sm"
-                className="w-full text-xs"
-                onClick={() => window.open(`/p/${plan.accessToken}`, '_blank')}
-                data-testid="button-demo-patient-portal"
-              >
-                <Eye className="h-3 w-3 mr-1" />
-                View as {plan.patient?.name?.split(' ')[0] || 'Patient'}
-              </Button>
-            ))}
+            <p className="text-xs text-muted-foreground mb-2">
+              Test Patient View
+            </p>
+            {carePlans
+              .filter((p) => p.status === "sent" && p.accessToken)
+              .slice(0, 1)
+              .map((plan) => (
+                <Button
+                  key={plan.id}
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() =>
+                    window.open(`/p/${plan.accessToken}`, "_blank")
+                  }
+                  data-testid="button-demo-patient-portal"
+                >
+                  <Eye className="h-3 w-3 mr-1" />
+                  View as {plan.patient?.name?.split(" ")[0] || "Patient"}
+                </Button>
+              ))}
           </div>
         )}
       </div>
 
-      {/* Main Content - Care Plan Editor */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Main Content - Care Plan Editor 
+          FIX: flex-1 takes remaining space. 
+          min-w-0 forces it to respect boundaries (prevents overlap).
+          overflow-hidden handles inner scrolling.
+      */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-background">
         {selectedCarePlan ? (
           <>
             {/* Header */}
@@ -427,10 +559,12 @@ export default function ClinicianDashboard() {
               <div className="flex items-center gap-2">
                 {selectedCarePlan.status === "draft" && (
                   <Button
-                    onClick={() => processMutation.mutate({ 
-                      id: selectedCarePlan.id, 
-                      language: patientLanguage 
-                    })}
+                    onClick={() =>
+                      processMutation.mutate({
+                        id: selectedCarePlan.id,
+                        language: patientLanguage,
+                      })
+                    }
                     disabled={processMutation.isPending}
                     data-testid="button-process"
                   >
@@ -465,22 +599,27 @@ export default function ClinicianDashboard() {
                     Send to Patient
                   </Button>
                 )}
-                {(selectedCarePlan.status === "sent" || selectedCarePlan.status === "completed") && selectedCarePlan.accessToken && (
-                  <Button
-                    variant="outline"
-                    onClick={handleViewAsPatient}
-                    data-testid="button-view-as-patient"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    View as Patient
-                  </Button>
-                )}
+                {(selectedCarePlan.status === "sent" ||
+                  selectedCarePlan.status === "completed") &&
+                  selectedCarePlan.accessToken && (
+                    <Button
+                      variant="outline"
+                      onClick={handleViewAsPatient}
+                      data-testid="button-view-as-patient"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      View as Patient
+                    </Button>
+                  )}
                 {getStatusBadge(selectedCarePlan.status)}
               </div>
             </div>
 
             {/* Content Tabs */}
-            {selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "approved" || selectedCarePlan.status === "sent" || selectedCarePlan.status === "completed" ? (
+            {selectedCarePlan.status === "pending_review" ||
+            selectedCarePlan.status === "approved" ||
+            selectedCarePlan.status === "sent" ||
+            selectedCarePlan.status === "completed" ? (
               <div className="flex-1 overflow-hidden p-4">
                 <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-auto">
                   {/* Original Column */}
@@ -493,14 +632,29 @@ export default function ClinicianDashboard() {
                       <CardDescription>Source document content</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-hidden p-0">
-                      <div 
-                        className="h-full px-4 pb-4 overflow-y-auto" 
-                        ref={(el) => { scrollAreaRefs.current[0] = el; }}
+                      <div
+                        className="h-full px-4 pb-4 overflow-y-auto"
+                        ref={(el) => {
+                          scrollAreaRefs.current[0] = el;
+                        }}
                         onScroll={handleScroll(0)}
                       >
-                        <Accordion type="multiple" defaultValue={["diagnosis", "medications", "appointments", "instructions", "warnings"]} className="space-y-2">
+                        <Accordion
+                          type="multiple"
+                          defaultValue={[
+                            "diagnosis",
+                            "medications",
+                            "appointments",
+                            "instructions",
+                            "warnings",
+                          ]}
+                          className="space-y-2"
+                        >
                           {selectedCarePlan.diagnosis && (
-                            <AccordionItem value="diagnosis" className="border rounded-lg px-3 bg-muted/30">
+                            <AccordionItem
+                              value="diagnosis"
+                              className="border rounded-lg px-3 bg-muted/30"
+                            >
                               <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
                                 <span className="flex items-center gap-1">
                                   <Stethoscope className="h-3 w-3" />
@@ -508,54 +662,96 @@ export default function ClinicianDashboard() {
                                 </span>
                               </AccordionTrigger>
                               <AccordionContent>
-                                <p className="text-sm">{selectedCarePlan.diagnosis}</p>
+                                <p className="text-sm">
+                                  {selectedCarePlan.diagnosis}
+                                </p>
                               </AccordionContent>
                             </AccordionItem>
                           )}
-                          {selectedCarePlan.medications && selectedCarePlan.medications.length > 0 && (
-                            <AccordionItem value="medications" className="border rounded-lg px-3 bg-muted/30">
-                              <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
-                                <span className="flex items-center gap-1">
-                                  <Pill className="h-3 w-3" />
-                                  Medications ({selectedCarePlan.medications.length})
-                                </span>
-                              </AccordionTrigger>
-                              <AccordionContent>
-                                <div className="space-y-2">
-                                  {selectedCarePlan.medications.map((med, i) => (
-                                    <div key={i} className="text-sm">
-                                      <span className="font-medium">{med.name}</span>
-                                      {med.dose && <span className="text-muted-foreground"> - {med.dose}</span>}
-                                      {med.frequency && <span className="text-muted-foreground">, {med.frequency}</span>}
-                                    </div>
-                                  ))}
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          )}
-                          {selectedCarePlan.appointments && selectedCarePlan.appointments.length > 0 && (
-                            <AccordionItem value="appointments" className="border rounded-lg px-3 bg-muted/30">
-                              <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  Appointments ({selectedCarePlan.appointments.length})
-                                </span>
-                              </AccordionTrigger>
-                              <AccordionContent>
-                                <div className="space-y-2">
-                                  {selectedCarePlan.appointments.map((apt, i) => (
-                                    <div key={i} className="text-sm">
-                                      <span className="font-medium">{apt.purpose || "Follow-up"}</span>
-                                      {apt.date && <span className="text-muted-foreground"> - {apt.date}</span>}
-                                      {apt.time && <span className="text-muted-foreground"> at {apt.time}</span>}
-                                    </div>
-                                  ))}
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          )}
+                          {selectedCarePlan.medications &&
+                            selectedCarePlan.medications.length > 0 && (
+                              <AccordionItem
+                                value="medications"
+                                className="border rounded-lg px-3 bg-muted/30"
+                              >
+                                <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+                                  <span className="flex items-center gap-1">
+                                    <Pill className="h-3 w-3" />
+                                    Medications (
+                                    {selectedCarePlan.medications.length})
+                                  </span>
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                  <div className="space-y-2">
+                                    {selectedCarePlan.medications.map(
+                                      (med, i) => (
+                                        <div key={i} className="text-sm">
+                                          <span className="font-medium">
+                                            {med.name}
+                                          </span>
+                                          {med.dose && (
+                                            <span className="text-muted-foreground">
+                                              {" "}
+                                              - {med.dose}
+                                            </span>
+                                          )}
+                                          {med.frequency && (
+                                            <span className="text-muted-foreground">
+                                              , {med.frequency}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ),
+                                    )}
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            )}
+                          {selectedCarePlan.appointments &&
+                            selectedCarePlan.appointments.length > 0 && (
+                              <AccordionItem
+                                value="appointments"
+                                className="border rounded-lg px-3 bg-muted/30"
+                              >
+                                <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    Appointments (
+                                    {selectedCarePlan.appointments.length})
+                                  </span>
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                  <div className="space-y-2">
+                                    {selectedCarePlan.appointments.map(
+                                      (apt, i) => (
+                                        <div key={i} className="text-sm">
+                                          <span className="font-medium">
+                                            {apt.purpose || "Follow-up"}
+                                          </span>
+                                          {apt.date && (
+                                            <span className="text-muted-foreground">
+                                              {" "}
+                                              - {apt.date}
+                                            </span>
+                                          )}
+                                          {apt.time && (
+                                            <span className="text-muted-foreground">
+                                              {" "}
+                                              at {apt.time}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ),
+                                    )}
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            )}
                           {selectedCarePlan.instructions && (
-                            <AccordionItem value="instructions" className="border rounded-lg px-3 bg-muted/30">
+                            <AccordionItem
+                              value="instructions"
+                              className="border rounded-lg px-3 bg-muted/30"
+                            >
                               <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
                                 <span className="flex items-center gap-1">
                                   <ClipboardList className="h-3 w-3" />
@@ -563,12 +759,17 @@ export default function ClinicianDashboard() {
                                 </span>
                               </AccordionTrigger>
                               <AccordionContent>
-                                <p className="text-sm whitespace-pre-wrap">{selectedCarePlan.instructions}</p>
+                                <p className="text-sm whitespace-pre-wrap">
+                                  {selectedCarePlan.instructions}
+                                </p>
                               </AccordionContent>
                             </AccordionItem>
                           )}
                           {selectedCarePlan.warnings && (
-                            <AccordionItem value="warnings" className="border rounded-lg px-3 bg-destructive/10">
+                            <AccordionItem
+                              value="warnings"
+                              className="border rounded-lg px-3 bg-destructive/10"
+                            >
                               <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-destructive hover:no-underline">
                                 <span className="flex items-center gap-1">
                                   <AlertTriangle className="h-3 w-3" />
@@ -576,7 +777,9 @@ export default function ClinicianDashboard() {
                                 </span>
                               </AccordionTrigger>
                               <AccordionContent>
-                                <p className="text-sm whitespace-pre-wrap">{selectedCarePlan.warnings}</p>
+                                <p className="text-sm whitespace-pre-wrap">
+                                  {selectedCarePlan.warnings}
+                                </p>
                               </AccordionContent>
                             </AccordionItem>
                           )}
@@ -595,9 +798,11 @@ export default function ClinicianDashboard() {
                       <CardDescription>5th grade reading level</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-hidden p-0">
-                      <div 
-                        className="h-full px-4 pb-4 overflow-y-auto" 
-                        ref={(el) => { scrollAreaRefs.current[1] = el; }}
+                      <div
+                        className="h-full px-4 pb-4 overflow-y-auto"
+                        ref={(el) => {
+                          scrollAreaRefs.current[1] = el;
+                        }}
                         onScroll={handleScroll(1)}
                       >
                         <div className="space-y-4">
@@ -607,7 +812,7 @@ export default function ClinicianDashboard() {
                                 <Stethoscope className="h-3 w-3" />
                                 What's Wrong
                               </Label>
-                              <Textarea 
+                              <Textarea
                                 className="mt-2 min-h-[60px] resize-none bg-background"
                                 value={selectedCarePlan.simplifiedDiagnosis}
                                 readOnly
@@ -615,14 +820,16 @@ export default function ClinicianDashboard() {
                               />
                             </div>
                           )}
-                          <MedicationsList 
-                            medications={selectedCarePlan.simplifiedMedications} 
-                            title="Your Medicines" 
+                          <MedicationsList
+                            medications={selectedCarePlan.simplifiedMedications}
+                            title="Your Medicines"
                             columnId="simplified"
                           />
-                          <AppointmentsList 
-                            appointments={selectedCarePlan.simplifiedAppointments} 
-                            title="Your Appointments" 
+                          <AppointmentsList
+                            appointments={
+                              selectedCarePlan.simplifiedAppointments
+                            }
+                            title="Your Appointments"
                             columnId="simplified"
                           />
                           {selectedCarePlan.simplifiedInstructions && (
@@ -631,7 +838,7 @@ export default function ClinicianDashboard() {
                                 <ClipboardList className="h-3 w-3" />
                                 What to Do
                               </Label>
-                              <Textarea 
+                              <Textarea
                                 className="mt-2 min-h-[100px] resize-none bg-background"
                                 value={selectedCarePlan.simplifiedInstructions}
                                 readOnly
@@ -645,7 +852,7 @@ export default function ClinicianDashboard() {
                                 <AlertTriangle className="h-3 w-3" />
                                 Warning Signs
                               </Label>
-                              <Textarea 
+                              <Textarea
                                 className="mt-2 min-h-[60px] resize-none bg-background border-destructive/50"
                                 value={selectedCarePlan.simplifiedWarnings}
                                 readOnly
@@ -663,14 +870,20 @@ export default function ClinicianDashboard() {
                     <CardHeader className="pb-2 flex-shrink-0 bg-primary/5">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <Languages className="h-4 w-4 text-primary" />
-                        {SUPPORTED_LANGUAGES.find(l => l.code === selectedCarePlan.translatedLanguage)?.name || "Translated"}
+                        {SUPPORTED_LANGUAGES.find(
+                          (l) => l.code === selectedCarePlan.translatedLanguage,
+                        )?.name || "Translated"}
                       </CardTitle>
-                      <CardDescription>Patient's language (hover for back-translation)</CardDescription>
+                      <CardDescription>
+                        Patient's language (hover for back-translation)
+                      </CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-hidden p-0">
-                      <div 
-                        className="h-full px-4 pb-4 overflow-y-auto" 
-                        ref={(el) => { scrollAreaRefs.current[2] = el; }}
+                      <div
+                        className="h-full px-4 pb-4 overflow-y-auto"
+                        ref={(el) => {
+                          scrollAreaRefs.current[2] = el;
+                        }}
                         onScroll={handleScroll(2)}
                       >
                         <div className="space-y-4">
@@ -680,7 +893,7 @@ export default function ClinicianDashboard() {
                                 <Stethoscope className="h-3 w-3" />
                                 Diagnosis
                               </Label>
-                              <Textarea 
+                              <Textarea
                                 className="mt-2 min-h-[60px] resize-none bg-background"
                                 value={selectedCarePlan.translatedDiagnosis}
                                 readOnly
@@ -688,20 +901,26 @@ export default function ClinicianDashboard() {
                               />
                               {selectedCarePlan.backTranslatedDiagnosis && (
                                 <div className="mt-2 p-2 bg-muted rounded text-xs border">
-                                  <span className="font-medium text-muted-foreground">Back-translation: </span>
-                                  <span className="text-foreground">{selectedCarePlan.backTranslatedDiagnosis}</span>
+                                  <span className="font-medium text-muted-foreground">
+                                    Back-translation:{" "}
+                                  </span>
+                                  <span className="text-foreground">
+                                    {selectedCarePlan.backTranslatedDiagnosis}
+                                  </span>
                                 </div>
                               )}
                             </div>
                           )}
-                          <MedicationsList 
-                            medications={selectedCarePlan.translatedMedications} 
-                            title="Medications" 
+                          <MedicationsList
+                            medications={selectedCarePlan.translatedMedications}
+                            title="Medications"
                             columnId="translated"
                           />
-                          <AppointmentsList 
-                            appointments={selectedCarePlan.translatedAppointments} 
-                            title="Appointments" 
+                          <AppointmentsList
+                            appointments={
+                              selectedCarePlan.translatedAppointments
+                            }
+                            title="Appointments"
                             columnId="translated"
                           />
                           {selectedCarePlan.translatedInstructions && (
@@ -710,7 +929,7 @@ export default function ClinicianDashboard() {
                                 <ClipboardList className="h-3 w-3" />
                                 Instructions
                               </Label>
-                              <Textarea 
+                              <Textarea
                                 className="mt-2 min-h-[100px] resize-none bg-background"
                                 value={selectedCarePlan.translatedInstructions}
                                 readOnly
@@ -718,8 +937,14 @@ export default function ClinicianDashboard() {
                               />
                               {selectedCarePlan.backTranslatedInstructions && (
                                 <div className="mt-2 p-2 bg-muted rounded text-xs border max-h-[100px] overflow-y-auto">
-                                  <span className="font-medium text-muted-foreground">Back-translation: </span>
-                                  <span className="text-foreground">{selectedCarePlan.backTranslatedInstructions}</span>
+                                  <span className="font-medium text-muted-foreground">
+                                    Back-translation:{" "}
+                                  </span>
+                                  <span className="text-foreground">
+                                    {
+                                      selectedCarePlan.backTranslatedInstructions
+                                    }
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -730,7 +955,7 @@ export default function ClinicianDashboard() {
                                 <AlertTriangle className="h-3 w-3" />
                                 Warning Signs
                               </Label>
-                              <Textarea 
+                              <Textarea
                                 className="mt-2 min-h-[60px] resize-none bg-background border-destructive/50"
                                 value={selectedCarePlan.translatedWarnings}
                                 readOnly
@@ -738,8 +963,12 @@ export default function ClinicianDashboard() {
                               />
                               {selectedCarePlan.backTranslatedWarnings && (
                                 <div className="mt-2 p-2 bg-muted rounded text-xs border">
-                                  <span className="font-medium text-muted-foreground">Back-translation: </span>
-                                  <span className="text-foreground">{selectedCarePlan.backTranslatedWarnings}</span>
+                                  <span className="font-medium text-muted-foreground">
+                                    Back-translation:{" "}
+                                  </span>
+                                  <span className="text-foreground">
+                                    {selectedCarePlan.backTranslatedWarnings}
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -749,30 +978,41 @@ export default function ClinicianDashboard() {
                     </CardContent>
                   </Card>
                 </div>
-                
-                {selectedCarePlan.status === "pending_review" && !hasScrolledAll && (
-                  <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm shadow-lg flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Scroll through all content to enable approval
-                  </div>
-                )}
+
+                {selectedCarePlan.status === "pending_review" &&
+                  !hasScrolledAll && (
+                    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm shadow-lg flex items-center gap-2">
+                      <Eye className="h-4 w-4" />
+                      Scroll through all content to enable approval
+                    </div>
+                  )}
               </div>
             ) : (
-              <div className="flex-1 flex items-center justify-center">
+              <div className="flex-1 flex items-center justify-center p-8">
                 <div className="text-center">
                   {selectedCarePlan.status === "draft" ? (
                     <>
                       <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
                       <p className="text-lg font-medium">Document Uploaded</p>
-                      <p className="text-muted-foreground">Select a language and click Process to continue</p>
+                      <p className="text-muted-foreground">
+                        Select a language and click Process to continue
+                      </p>
                       <div className="mt-4 flex items-center justify-center gap-2">
                         <Label>Target Language:</Label>
-                        <Select value={patientLanguage} onValueChange={setPatientLanguage}>
-                          <SelectTrigger className="w-[180px]" data-testid="select-language">
+                        <Select
+                          value={patientLanguage}
+                          onValueChange={setPatientLanguage}
+                        >
+                          <SelectTrigger
+                            className="w-[180px]"
+                            data-testid="select-language"
+                          >
                             <SelectValue placeholder="Select language" />
                           </SelectTrigger>
                           <SelectContent>
-                            {SUPPORTED_LANGUAGES.filter(l => l.code !== "en").map((lang) => (
+                            {SUPPORTED_LANGUAGES.filter(
+                              (l) => l.code !== "en",
+                            ).map((lang) => (
                               <SelectItem key={lang.code} value={lang.code}>
                                 {lang.name}
                               </SelectItem>
@@ -785,7 +1025,9 @@ export default function ClinicianDashboard() {
                     <>
                       <Check className="h-12 w-12 text-accent mx-auto mb-4" />
                       <p className="text-lg font-medium">Care Plan Sent</p>
-                      <p className="text-muted-foreground">Patient has been notified via email</p>
+                      <p className="text-muted-foreground">
+                        Patient has been notified via email
+                      </p>
                     </>
                   )}
                 </div>
@@ -793,14 +1035,21 @@ export default function ClinicianDashboard() {
             )}
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center max-w-md">
               <Stethoscope className="h-16 w-16 text-primary/30 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Welcome to Litera.ai</h2>
+              <h2 className="text-xl font-semibold mb-2">
+                Welcome to Litera.ai
+              </h2>
               <p className="text-muted-foreground mb-6">
-                Upload a discharge summary to create simplified, translated care instructions for your patients.
+                Upload a discharge summary to create simplified, translated care
+                instructions for your patients.
               </p>
-              <Button size="lg" onClick={() => setIsUploadDialogOpen(true)} data-testid="button-upload-main">
+              <Button
+                size="lg"
+                onClick={() => setIsUploadDialogOpen(true)}
+                data-testid="button-upload-main"
+              >
                 <Upload className="h-5 w-5 mr-2" />
                 Upload Discharge Summary
               </Button>
@@ -820,7 +1069,9 @@ export default function ClinicianDashboard() {
           </DialogHeader>
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+              isDragging
+                ? "border-primary bg-primary/5"
+                : "border-muted-foreground/25"
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -841,7 +1092,9 @@ export default function ClinicianDashboard() {
                   Drag and drop your file here, or
                 </p>
                 <Label htmlFor="file-upload" className="cursor-pointer">
-                  <span className="text-primary hover:underline">browse files</span>
+                  <span className="text-primary hover:underline">
+                    browse files
+                  </span>
                   <Input
                     id="file-upload"
                     type="file"
@@ -858,11 +1111,17 @@ export default function ClinicianDashboard() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setIsUploadDialogOpen(false); setUploadFile(null); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsUploadDialogOpen(false);
+                setUploadFile(null);
+              }}
+            >
               Cancel
             </Button>
-            <Button 
-              onClick={handleUpload} 
+            <Button
+              onClick={handleUpload}
               disabled={!uploadFile || uploadMutation.isPending}
               data-testid="button-upload-confirm"
             >
@@ -883,10 +1142,9 @@ export default function ClinicianDashboard() {
           <DialogHeader>
             <DialogTitle>Send Care Plan to Patient</DialogTitle>
             <DialogDescription>
-              {selectedCarePlan?.patient 
+              {selectedCarePlan?.patient
                 ? "Confirm patient information and send their care instructions via email."
-                : "Enter the patient's contact information to send them their care instructions."
-              }
+                : "Enter the patient's contact information to send them their care instructions."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -935,7 +1193,10 @@ export default function ClinicianDashboard() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="patient-language">Preferred Language</Label>
-              <Select value={patientLanguage} onValueChange={setPatientLanguage}>
+              <Select
+                value={patientLanguage}
+                onValueChange={setPatientLanguage}
+              >
                 <SelectTrigger data-testid="select-patient-language">
                   <SelectValue placeholder="Select language" />
                 </SelectTrigger>
@@ -950,12 +1211,20 @@ export default function ClinicianDashboard() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSendDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsSendDialogOpen(false)}
+            >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleSendToPatient}
-              disabled={!patientName || !patientEmail || !patientYearOfBirth || sendMutation.isPending}
+              disabled={
+                !patientName ||
+                !patientEmail ||
+                !patientYearOfBirth ||
+                sendMutation.isPending
+              }
               data-testid="button-send-confirm"
             >
               {sendMutation.isPending ? (
