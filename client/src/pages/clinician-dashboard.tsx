@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -40,7 +40,7 @@ export default function ClinicianDashboard() {
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [hasScrolledAll, setHasScrolledAll] = useState(false);
+  const [columnsScrolled, setColumnsScrolled] = useState<boolean[]>([false, false, false]);
 
   // Patient form state
   const [patientName, setPatientName] = useState("");
@@ -48,6 +48,26 @@ export default function ClinicianDashboard() {
   const [patientPhone, setPatientPhone] = useState("");
   const [patientYearOfBirth, setPatientYearOfBirth] = useState("");
   const [patientLanguage, setPatientLanguage] = useState("es");
+  
+  const scrollAreaRefs = useRef<(HTMLDivElement | null)[]>([]);
+  
+  // Check if all content is visible without scrolling
+  useEffect(() => {
+    if (selectedCarePlan?.status === "pending_review") {
+      setColumnsScrolled([false, false, false]);
+      // Check after a short delay for DOM to settle
+      const timer = setTimeout(() => {
+        const newScrolled = scrollAreaRefs.current.map(ref => {
+          if (!ref) return true;
+          return ref.scrollHeight <= ref.clientHeight + 10;
+        });
+        setColumnsScrolled(newScrolled);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedCarePlan?.id, selectedCarePlan?.status]);
+  
+  const hasScrolledAll = columnsScrolled.every(Boolean);
 
   // Fetch care plans
   const { data: carePlans = [], isLoading: isLoadingCarePlans } = useQuery<CarePlanWithPatient[]>({
@@ -81,7 +101,8 @@ export default function ClinicianDashboard() {
   // Process mutation (simplify + translate)
   const processMutation = useMutation({
     mutationFn: async ({ id, language }: { id: string; language: string }) => {
-      return apiRequest("POST", `/api/care-plans/${id}/process`, { language });
+      const res = await apiRequest("POST", `/api/care-plans/${id}/process`, { language });
+      return res.json() as Promise<CarePlanWithPatient>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
@@ -96,7 +117,8 @@ export default function ClinicianDashboard() {
   // Approve mutation
   const approveMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("POST", `/api/care-plans/${id}/approve`);
+      const res = await apiRequest("POST", `/api/care-plans/${id}/approve`);
+      return res.json() as Promise<CarePlanWithPatient>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
@@ -111,7 +133,8 @@ export default function ClinicianDashboard() {
   // Send mutation
   const sendMutation = useMutation({
     mutationFn: async (data: { carePlanId: string; patient: any }) => {
-      return apiRequest("POST", `/api/care-plans/${data.carePlanId}/send`, data.patient);
+      const res = await apiRequest("POST", `/api/care-plans/${data.carePlanId}/send`, data.patient);
+      return res.json() as Promise<CarePlanWithPatient>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
@@ -190,11 +213,15 @@ export default function ClinicianDashboard() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+  const handleScroll = (columnIndex: number) => (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
     const isScrolledToBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 50;
-    if (isScrolledToBottom) {
-      setHasScrolledAll(true);
+    if (isScrolledToBottom && !columnsScrolled[columnIndex]) {
+      setColumnsScrolled(prev => {
+        const newState = [...prev];
+        newState[columnIndex] = true;
+        return newState;
+      });
     }
   };
 
@@ -332,7 +359,11 @@ export default function ClinicianDashboard() {
                       <CardDescription>Source document content</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-hidden p-0">
-                      <ScrollArea className="h-full px-4 pb-4" onScroll={handleScroll}>
+                      <div 
+                        className="h-full px-4 pb-4 overflow-y-auto" 
+                        ref={(el) => { scrollAreaRefs.current[0] = el; }}
+                        onScroll={handleScroll(0)}
+                      >
                         <div className="space-y-4 bg-muted/30 p-3 rounded-lg">
                           {selectedCarePlan.diagnosis && (
                             <div>
@@ -353,7 +384,7 @@ export default function ClinicianDashboard() {
                             </div>
                           )}
                         </div>
-                      </ScrollArea>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -367,7 +398,11 @@ export default function ClinicianDashboard() {
                       <CardDescription>5th grade reading level</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-hidden p-0">
-                      <ScrollArea className="h-full px-4 pb-4" onScroll={handleScroll}>
+                      <div 
+                        className="h-full px-4 pb-4 overflow-y-auto" 
+                        ref={(el) => { scrollAreaRefs.current[1] = el; }}
+                        onScroll={handleScroll(1)}
+                      >
                         <div className="space-y-4">
                           {selectedCarePlan.simplifiedDiagnosis && (
                             <div>
@@ -403,7 +438,7 @@ export default function ClinicianDashboard() {
                             </div>
                           )}
                         </div>
-                      </ScrollArea>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -417,7 +452,11 @@ export default function ClinicianDashboard() {
                       <CardDescription>Patient's language</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-hidden p-0">
-                      <ScrollArea className="h-full px-4 pb-4" onScroll={handleScroll}>
+                      <div 
+                        className="h-full px-4 pb-4 overflow-y-auto" 
+                        ref={(el) => { scrollAreaRefs.current[2] = el; }}
+                        onScroll={handleScroll(2)}
+                      >
                         <div className="space-y-4">
                           {selectedCarePlan.translatedDiagnosis && (
                             <div className="group relative">
@@ -465,7 +504,7 @@ export default function ClinicianDashboard() {
                             </div>
                           )}
                         </div>
-                      </ScrollArea>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
