@@ -301,11 +301,17 @@ export default function ClinicianDashboard() {
   const handleViewAsPatient = async () => {
     if (!selectedCarePlan?.accessToken) return;
     
+    // Open window immediately to avoid popup blocker
+    const newWindow = window.open('about:blank', '_blank');
+    
     try {
       const response = await apiRequest("POST", `/api/care-plans/${selectedCarePlan.id}/demo-token`);
       const data = await response.json() as { demoToken: string };
-      window.open(`/p/${selectedCarePlan.accessToken}?demo=${data.demoToken}`, '_blank');
+      if (newWindow) {
+        newWindow.location.href = `/p/${selectedCarePlan.accessToken}?demo=${data.demoToken}`;
+      }
     } catch (error) {
+      if (newWindow) newWindow.close();
       toast({
         title: "Error",
         description: "Failed to generate preview link",
