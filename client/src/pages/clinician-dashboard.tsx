@@ -328,9 +328,9 @@ export default function ClinicianDashboard() {
   }, [isSendDialogOpen, selectedCarePlan]);
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Sidebar - Care Plans List */}
-      <div className="w-80 border-r bg-card flex flex-col">
+      <div className="w-72 min-w-[200px] max-w-[320px] border-r bg-card flex flex-col flex-shrink-0">
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Care Plans</h2>
@@ -482,7 +482,7 @@ export default function ClinicianDashboard() {
             {/* Content Tabs */}
             {selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "approved" || selectedCarePlan.status === "sent" || selectedCarePlan.status === "completed" ? (
               <div className="flex-1 overflow-hidden p-4">
-                <div className="h-full grid grid-cols-3 gap-4">
+                <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-auto">
                   {/* Original Column */}
                   <Card className="flex flex-col overflow-hidden">
                     <CardHeader className="pb-2 flex-shrink-0">

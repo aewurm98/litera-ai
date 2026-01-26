@@ -27,7 +27,8 @@ import {
   Volume2,
   VolumeX,
   Printer,
-  Download
+  Download,
+  FileText
 } from "lucide-react";
 import type { CarePlan, Patient, CheckIn } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
@@ -216,7 +217,7 @@ export default function PatientPortal() {
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = (e) => {
       setIsSpeaking(false);
-      if (e.error !== 'canceled') {
+      if (e.error !== 'canceled' && e.error !== 'interrupted') {
         toast({ 
           title: "Text-to-speech error", 
           description: "Unable to read aloud. Try using the Print option instead.",
@@ -824,6 +825,35 @@ export default function PatientPortal() {
             </Button>
           </div>
         </div>
+
+        {/* Original Document Access */}
+        {carePlan.originalFileName && (
+          <div className="pt-4 border-t">
+            <p className="text-sm text-muted-foreground mb-2">
+              Need the original hospital document?
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => {
+                if (carePlan.originalContent) {
+                  const blob = new Blob([carePlan.originalContent], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = carePlan.originalFileName || 'discharge-document.txt';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }
+              }}
+              data-testid="button-view-original"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              View Original Document
+            </Button>
+          </div>
+        )}
       </main>
 
       {/* Bottom Action Bar */}
