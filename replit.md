@@ -6,7 +6,15 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 
 ## Recent Changes
 
-- **January 2026**: Complete MVP implementation
+- **January 2026**: MVP improvements and refinements
+  - **PDF Upload Fix**: Using pdfjs-dist legacy build for Node.js compatibility with AI fallback for scanned/invalid PDFs
+  - **Review Interface Enhancements**: 
+    - Collapsible Accordion sections in Original column
+    - Structured MedicationsList and AppointmentsList components with unique test IDs
+    - Color-coded sections (primary for diagnosis, destructive for warnings)
+    - Inline back-translation display (not hover tooltips)
+    - Editable Textareas in Simplified/Translated columns (PRD FR-3.1 compliance)
+  - **Admin Dashboard**: Added Clinician column showing patient ownership across all care plans
   - Clinician Dashboard with 3-column review interface and per-column scroll tracking
   - Patient Portal with magic link verification, traffic light check-in, and multi-modal outputs
   - Admin Dashboard with patient management, alerts, and CSV export
