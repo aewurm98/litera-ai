@@ -243,7 +243,7 @@ export async function registerRoutes(
       // Extract text based on file type
       if (file.mimetype === "application/pdf") {
         // Parse PDF
-        const pdfData = await pdfParse.default(file.buffer);
+        const pdfData = await pdfParse(file.buffer);
         extractedText = pdfData.text;
       } else {
         // For images, we'll use GPT-4o Vision
