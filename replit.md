@@ -139,9 +139,8 @@ Runs Express backend and Vite frontend on port 5000.
 
 ## Demo Credentials
 
-- **Clinician**: nurse/password123 (Maria Chen, RN) - owns Rosa, Nguyen, Fatima
-- **Clinician**: drsmith/password123 (Dr. James Smith) - owns Wei, Maria
-- **Admin**: admin/password123 (Angela Torres) - sees all care plans
+- **Clinician**: nurse/password123 (Maria Chen, RN) - manages all 5 patients
+- **Admin**: admin/password123 (Angela Torres) - sees all care plans and alerts
 
 ## Demo Patients & Care Plan Statuses
 

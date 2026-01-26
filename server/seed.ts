@@ -32,13 +32,6 @@ async function seed() {
     name: "Maria Chen, RN",
   }).returning();
 
-  const [clinician2] = await db.insert(users).values({
-    username: "drsmith",
-    password: hashedPassword,
-    role: "clinician",
-    name: "Dr. James Smith",
-  }).returning();
-
   const [admin1] = await db.insert(users).values({
     username: "admin",
     password: hashedPassword,
@@ -46,7 +39,7 @@ async function seed() {
     name: "Angela Torres",
   }).returning();
 
-  console.log("Created users:", clinician1.name, clinician2.name, admin1.name);
+  console.log("Created users:", clinician1.name, admin1.name);
 
   // Create patients with various languages
   const [patient1] = await db.insert(patients).values({
@@ -196,7 +189,7 @@ async function seed() {
   // 3. Pending review care plan (Wei - Chinese)
   const [carePlan3] = await db.insert(carePlans).values({
     patientId: patient3.id,
-    clinicianId: clinician2.id,
+    clinicianId: clinician1.id,
     status: "pending_review",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Wei Zhang\nDiagnosis: Acute bronchitis\n\nMEDICATIONS:\n1. Cough syrup (Dextromethorphan) - Take 10ml every 4-6 hours\n2. Ibuprofen 400mg - Take every 6 hours as needed for fever\n3. Antibiotics (Azithromycin) 250mg - Take once daily for 5 days\n\nINSTRUCTIONS:\n- Rest and drink plenty of fluids\n- Use a humidifier\n- Avoid smoking and secondhand smoke",
     originalFileName: "wei_discharge.pdf",
@@ -240,7 +233,7 @@ async function seed() {
   // 4. Draft care plan (Maria - Tagalog)
   const [carePlan4] = await db.insert(carePlans).values({
     patientId: patient4.id,
-    clinicianId: clinician2.id,
+    clinicianId: clinician1.id,
     status: "draft",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Maria Santos\nDiagnosis: Migraine headaches\n\nMEDICATIONS:\n1. Sumatriptan 50mg - Take at onset of migraine\n2. Topiramate 25mg - Take daily for prevention\n\nLIFESTYLE CHANGES:\n- Maintain regular sleep schedule\n- Avoid trigger foods\n- Stay hydrated",
     originalFileName: "maria_discharge.pdf",
@@ -320,6 +313,18 @@ async function seed() {
     respondedAt: new Date(Date.now() - 1.5 * 24 * 60 * 60 * 1000),
     responseNotes: "I have a question about my medication timing",
     alertCreated: true,
+  });
+
+  // Second check-in for Rosa (unanswered - prompts for response on portal)
+  await db.insert(checkIns).values({
+    carePlanId: carePlan1.id,
+    patientId: patient1.id,
+    scheduledFor: new Date(),
+    sentAt: new Date(),
+    attemptNumber: 2,
+    response: null,
+    respondedAt: null,
+    responseNotes: null,
   });
 
   // Create audit logs for ALL care plans
@@ -426,28 +431,28 @@ async function seed() {
   await db.insert(auditLogs).values([
     {
       carePlanId: carePlan3.id,
-      userId: clinician2.id,
+      userId: clinician1.id,
       action: "created",
       details: { fileName: "wei_discharge.pdf" },
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
     },
     {
       carePlanId: carePlan3.id,
-      userId: clinician2.id,
+      userId: clinician1.id,
       action: "processed",
       details: { extractedSections: ["diagnosis", "medications", "appointments", "instructions", "warnings"] },
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 60000),
     },
     {
       carePlanId: carePlan3.id,
-      userId: clinician2.id,
+      userId: clinician1.id,
       action: "simplified",
       details: { language: "en", readingLevel: "5th grade" },
       createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
     },
     {
       carePlanId: carePlan3.id,
-      userId: clinician2.id,
+      userId: clinician1.id,
       action: "translated",
       details: { targetLanguage: "zh", languageName: "Chinese (Simplified)" },
       createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000 + 60000),
@@ -458,7 +463,7 @@ async function seed() {
   await db.insert(auditLogs).values([
     {
       carePlanId: carePlan4.id,
-      userId: clinician2.id,
+      userId: clinician1.id,
       action: "created",
       details: { fileName: "maria_discharge.pdf" },
       createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
@@ -530,7 +535,6 @@ async function seed() {
   console.log("\n=== SEED DATA SUMMARY ===");
   console.log("\nUSERS:");
   console.log(`  Clinician: nurse / password123 (${clinician1.name})`);
-  console.log(`  Clinician: drsmith / password123 (${clinician2.name})`);
   console.log(`  Admin: admin / password123 (${admin1.name})`);
   console.log("\nPATIENT PORTAL ACCESS TOKENS:");
   console.log(`  Rosa Martinez (Spanish): /p/${token1}`);
