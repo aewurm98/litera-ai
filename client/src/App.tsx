@@ -73,7 +73,7 @@ function AppSidebar({ user }: { user: User }) {
       title: "Clinician Dashboard",
       icon: Stethoscope,
       href: "/",
-      roles: ["clinician", "admin"],
+      roles: ["clinician"],
     },
     {
       title: "Admin Dashboard",
@@ -250,9 +250,13 @@ function AuthenticatedRoutes({ user }: { user: User }) {
   return (
     <Switch>
       <Route path="/">
-        <MainLayout user={user}>
-          <ClinicianDashboard />
-        </MainLayout>
+        {user.role === "admin" ? (
+          <Redirect to="/admin" />
+        ) : (
+          <MainLayout user={user}>
+            <ClinicianDashboard />
+          </MainLayout>
+        )}
       </Route>
       <Route path="/admin">
         {user.role === "admin" ? (

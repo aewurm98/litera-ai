@@ -35,6 +35,7 @@ import { format } from "date-fns";
 
 type CarePlanWithDetails = CarePlan & { 
   patient?: Patient; 
+  clinician?: { id: string; name: string };
   checkIns?: CheckIn[];
   auditLogs?: AuditLog[];
 };
@@ -291,6 +292,7 @@ export default function AdminDashboard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Patient</TableHead>
+                    <TableHead>Clinician</TableHead>
                     <TableHead>Discharge Date</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Check-in</TableHead>
@@ -301,13 +303,13 @@ export default function AdminDashboard() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
+                      <TableCell colSpan={7} className="text-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                       </TableCell>
                     </TableRow>
                   ) : filteredCarePlans.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No patients found
                       </TableCell>
                     </TableRow>
@@ -321,6 +323,9 @@ export default function AdminDashboard() {
                               {plan.diagnosis?.slice(0, 40)}...
                             </p>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{plan.clinician?.name || "-"}</span>
                         </TableCell>
                         <TableCell>
                           {plan.dischargeDate 

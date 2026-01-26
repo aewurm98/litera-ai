@@ -15,6 +15,12 @@ import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
 import * as pdfParseModule from "pdf-parse";
 const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 
+// Helper to extract string param safely
+function getParam(params: Record<string, string | string[]>, key: string): string {
+  const value = params[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
 // ============= Rate Limiting for Patient Verification =============
 const verificationAttempts = new Map<string, { count: number; lockedUntil?: Date }>();
 
@@ -211,7 +217,15 @@ export async function registerRoutes(
   // Get all care plans (for clinician dashboard)
   app.get("/api/care-plans", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
-      const carePlans = await storage.getAllCarePlans();
+      const clinicianId = req.session.userId;
+      const userRole = req.session.userRole;
+      
+      let carePlans = await storage.getAllCarePlans();
+      
+      // Clinicians only see their own care plans; admins see all
+      if (userRole === "clinician" && clinicianId) {
+        carePlans = carePlans.filter(plan => plan.clinicianId === clinicianId);
+      }
       
       // Enrich with patient data
       const enrichedPlans = await Promise.all(
@@ -310,7 +324,7 @@ export async function registerRoutes(
   // Process care plan (simplify + translate)
   app.post("/api/care-plans/:id/process", requireClinicianAuth, validateBody(processCarePlanSchema), async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { language } = req.body;
       const clinicianId = (req as any).clinicianId || "clinician-1";
 
@@ -370,7 +384,7 @@ export async function registerRoutes(
   // Approve care plan
   app.post("/api/care-plans/:id/approve", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const clinicianId = (req as any).clinicianId || "clinician-1";
 
       const carePlan = await storage.getCarePlan(id);
@@ -402,7 +416,7 @@ export async function registerRoutes(
   // Send care plan to patient
   app.post("/api/care-plans/:id/send", requireClinicianAuth, validateBody(sendCarePlanSchema), async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { name, email, phone, yearOfBirth, preferredLanguage } = req.body;
       const clinicianId = (req as any).clinicianId || "clinician-1";
 
@@ -484,7 +498,7 @@ export async function registerRoutes(
   // Verify patient access (with server-side rate limiting)
   app.post("/api/patient/:token/verify", validateBody(verifyPatientSchema), async (req: Request, res: Response) => {
     try {
-      const { token } = req.params;
+      const token = req.params.token as string;
       const { yearOfBirth } = req.body;
 
       // Check if locked out
@@ -553,7 +567,7 @@ export async function registerRoutes(
   // Get care plan by token (for patient view)
   app.get("/api/patient/:token", async (req: Request, res: Response) => {
     try {
-      const { token } = req.params;
+      const token = req.params.token as string;
 
       const carePlan = await storage.getCarePlanByToken(token);
       if (!carePlan) {
@@ -581,7 +595,7 @@ export async function registerRoutes(
   // Submit check-in response
   app.post("/api/patient/:token/check-in", validateBody(checkInResponseSchema), async (req: Request, res: Response) => {
     try {
-      const { token } = req.params;
+      const token = req.params.token as string;
       const { response } = req.body; // green, yellow, red
 
       const carePlan = await storage.getCarePlanByToken(token);
@@ -633,9 +647,16 @@ export async function registerRoutes(
       const enrichedPlans = await Promise.all(
         carePlans.map(async (plan) => {
           const patient = plan.patientId ? await storage.getPatient(plan.patientId) : undefined;
+          const clinician = plan.clinicianId ? await storage.getUser(plan.clinicianId) : undefined;
           const checkIns = await storage.getCheckInsByCarePlanId(plan.id);
           const auditLogs = await storage.getAuditLogsByCarePlanId(plan.id);
-          return { ...plan, patient, checkIns, auditLogs };
+          return { 
+            ...plan, 
+            patient, 
+            clinician: clinician ? { id: clinician.id, name: clinician.name } : undefined,
+            checkIns, 
+            auditLogs 
+          };
         })
       );
       
@@ -660,7 +681,7 @@ export async function registerRoutes(
   // Resolve alert
   app.post("/api/admin/alerts/:id/resolve", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const adminId = (req as any).adminId || "admin-1";
       await storage.resolveAlert(id, adminId);
       
