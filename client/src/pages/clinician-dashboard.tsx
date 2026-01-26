@@ -225,6 +225,18 @@ export default function ClinicianDashboard() {
     }
   };
 
+  // Pre-populate patient form when opening send dialog for care plan with existing patient
+  useEffect(() => {
+    if (isSendDialogOpen && selectedCarePlan?.patient) {
+      const patient = selectedCarePlan.patient;
+      setPatientName(patient.name);
+      setPatientEmail(patient.email);
+      setPatientPhone(patient.phone || "");
+      setPatientYearOfBirth(patient.yearOfBirth?.toString() || "");
+      setPatientLanguage(patient.preferredLanguage || selectedCarePlan.translatedLanguage || "es");
+    }
+  }, [isSendDialogOpen, selectedCarePlan]);
+
   return (
     <div className="flex h-full">
       {/* Sidebar - Care Plans List */}
@@ -272,10 +284,12 @@ export default function ClinicianDashboard() {
                           {plan.patient?.name || "New Patient"}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {plan.diagnosis ? plan.diagnosis.slice(0, 50) + "..." : "Processing..."}
+                          {plan.diagnosis ? plan.diagnosis.slice(0, 40) + "..." : "Processing..."}
                         </p>
                       </div>
-                      {getStatusBadge(plan.status)}
+                      <div className="flex-shrink-0">
+                        {getStatusBadge(plan.status)}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -283,6 +297,26 @@ export default function ClinicianDashboard() {
             )}
           </div>
         </ScrollArea>
+        
+        {/* Demo Patient Portal Link */}
+        {carePlans.some(p => p.status === "sent" && p.accessToken) && (
+          <div className="p-3 border-t bg-muted/30">
+            <p className="text-xs text-muted-foreground mb-2">Test Patient View</p>
+            {carePlans.filter(p => p.status === "sent" && p.accessToken).slice(0, 1).map(plan => (
+              <Button
+                key={plan.id}
+                variant="outline"
+                size="sm"
+                className="w-full text-xs"
+                onClick={() => window.open(`/p/${plan.accessToken}`, '_blank')}
+                data-testid="button-demo-patient-portal"
+              >
+                <Eye className="h-3 w-3 mr-1" />
+                View as {plan.patient?.name?.split(' ')[0] || 'Patient'}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Main Content - Care Plan Editor */}
@@ -642,7 +676,10 @@ export default function ClinicianDashboard() {
           <DialogHeader>
             <DialogTitle>Send Care Plan to Patient</DialogTitle>
             <DialogDescription>
-              Enter the patient's contact information to send them their care instructions.
+              {selectedCarePlan?.patient 
+                ? "Confirm patient information and send their care instructions via email."
+                : "Enter the patient's contact information to send them their care instructions."
+              }
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
