@@ -30,7 +30,8 @@ import {
   RefreshCw,
   Clock,
   MapPin,
-  User
+  User,
+  ExternalLink
 } from "lucide-react";
 import type { CarePlan, Patient, SimplifiedMedication, SimplifiedAppointment } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
@@ -297,6 +298,22 @@ export default function ClinicianDashboard() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  const handleViewAsPatient = async () => {
+    if (!selectedCarePlan?.accessToken) return;
+    
+    try {
+      const response = await apiRequest("POST", `/api/care-plans/${selectedCarePlan.id}/demo-token`);
+      const data = await response.json() as { demoToken: string };
+      window.open(`/p/${selectedCarePlan.accessToken}?demo=${data.demoToken}`, '_blank');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate preview link",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleScroll = (columnIndex: number) => (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
     const isScrolledToBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 50;
@@ -459,12 +476,22 @@ export default function ClinicianDashboard() {
                     Send to Patient
                   </Button>
                 )}
+                {(selectedCarePlan.status === "sent" || selectedCarePlan.status === "completed") && selectedCarePlan.accessToken && (
+                  <Button
+                    variant="outline"
+                    onClick={handleViewAsPatient}
+                    data-testid="button-view-as-patient"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View as Patient
+                  </Button>
+                )}
                 {getStatusBadge(selectedCarePlan.status)}
               </div>
             </div>
 
             {/* Content Tabs */}
-            {selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "approved" || selectedCarePlan.status === "sent" ? (
+            {selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "approved" || selectedCarePlan.status === "sent" || selectedCarePlan.status === "completed" ? (
               <div className="flex-1 overflow-hidden p-4">
                 <div className="h-full grid grid-cols-3 gap-4">
                   {/* Original Column */}

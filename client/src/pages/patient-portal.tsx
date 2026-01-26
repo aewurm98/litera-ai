@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -37,7 +37,12 @@ type CarePlanWithPatient = CarePlan & { patient: Patient; checkIns?: CheckIn[] }
 export default function PatientPortal() {
   const { token } = useParams<{ token: string }>();
   const [, navigate] = useLocation();
+  const searchString = useSearch();
   const { toast } = useToast();
+  
+  // Check for demo mode (clinician preview with signed token)
+  const demoToken = new URLSearchParams(searchString).get("demo");
+  const [isDemoMode, setIsDemoMode] = useState(false);
   
   const [isVerified, setIsVerified] = useState(false);
   const [yearOfBirth, setYearOfBirth] = useState("");
@@ -48,6 +53,27 @@ export default function PatientPortal() {
   const [checkInSubmitted, setCheckInSubmitted] = useState(false);
   const [checkInResponse, setCheckInResponse] = useState<"green" | "yellow" | "red" | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  
+  // Validate demo token on mount
+  useEffect(() => {
+    if (demoToken && token) {
+      fetch(`/api/patient/${token}/validate-demo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ demoToken }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.valid) {
+            setIsDemoMode(true);
+            setIsVerified(true);
+          }
+        })
+        .catch(() => {
+          // Demo token invalid, require normal verification
+        });
+    }
+  }, [demoToken, token]);
 
   // Fetch care plan by token
   const { data: carePlan, isLoading, error } = useQuery<CarePlanWithPatient>({
@@ -613,6 +639,13 @@ export default function PatientPortal() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Demo Mode Banner */}
+      {isDemoMode && (
+        <div className="bg-yellow-500 text-yellow-950 text-center py-2 px-4 text-sm font-medium">
+          Clinician Preview Mode - This is how patients see their care plan
+        </div>
+      )}
+      
       {/* Header */}
       <header className="sticky top-0 z-50 bg-primary text-primary-foreground">
         <div className="max-w-2xl mx-auto px-4 py-4">
