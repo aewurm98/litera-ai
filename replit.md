@@ -139,9 +139,19 @@ Runs Express backend and Vite frontend on port 5000.
 
 ## Demo Credentials
 
-- **Clinician**: nurse/password123 (Maria Chen, RN)
-- **Admin**: admin/password123 (Angela Torres)
-- **Provider**: drsmith/password123 (Dr. James Smith)
+- **Clinician**: nurse/password123 (Maria Chen, RN) - owns Rosa, Nguyen, Fatima
+- **Clinician**: drsmith/password123 (Dr. James Smith) - owns Wei, Maria
+- **Admin**: admin/password123 (Angela Torres) - sees all care plans
+
+## Demo Patients & Care Plan Statuses
+
+1. **Rosa Martinez** (Spanish) - SENT with green check-in - Type 2 Diabetes with Hypertension
+2. **Nguyen Thi Lan** (Vietnamese) - APPROVED, ready to send - Post-appendectomy care
+3. **Wei Zhang** (Chinese) - PENDING_REVIEW - Acute bronchitis
+4. **Maria Santos** (Tagalog) - DRAFT - Migraine headaches  
+5. **Fatima Al-Hassan** (Arabic) - SENT with yellow alert - Gestational diabetes
+
+Each care plan has complete audit logs matching its status (created → processed → simplified → translated → approved → sent → viewed → check_in)
 
 ## Future Improvements
 
