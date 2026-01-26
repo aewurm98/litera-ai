@@ -12,8 +12,26 @@ import {
 } from "./services/openai";
 import { sendCarePlanEmail, sendCheckInEmail } from "./services/resend";
 import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
-import * as pdfParseModule from "pdf-parse";
-const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+// Import pdfjs-dist legacy build for Node.js compatibility (no DOM APIs needed)
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+
+// Helper function to extract text from PDF buffer
+async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+  const data = new Uint8Array(buffer);
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  let text = "";
+  
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map((item: any) => item.str || "")
+      .join(" ");
+    text += pageText + "\n";
+  }
+  
+  return text.trim();
+}
 
 // Helper to extract string param safely
 function getParam(params: Record<string, string | string[]>, key: string): string {
@@ -251,14 +269,53 @@ export async function registerRoutes(
       }
 
       const file = req.file;
+      
+      // Validate file size (must have content)
+      if (file.size < 100) {
+        return res.status(400).json({ error: "File appears to be empty or too small. Please upload a valid discharge document." });
+      }
+      
       const clinicianId = (req as any).clinicianId || "clinician-1";
       let extractedText = "";
 
       // Extract text based on file type
       if (file.mimetype === "application/pdf") {
-        // Parse PDF
-        const pdfData = await pdfParse(file.buffer);
-        extractedText = pdfData.text;
+        // Try parsing PDF using pdfjs-dist, fall back to AI extraction
+        try {
+          extractedText = await extractTextFromPdf(file.buffer);
+          // If PDF had no text (empty or scanned), use AI
+          if (!extractedText || extractedText.trim().length < 50) {
+            throw new Error("PDF appears empty or scanned");
+          }
+        } catch (pdfError) {
+          console.log("PDF parsing failed, falling back to AI extraction:", pdfError);
+          // Fall back to AI extraction - treat PDF as an image-like document
+          const base64Doc = file.buffer.toString("base64");
+          const extracted = await extractFromImage(base64Doc);
+          
+          const carePlan = await storage.createCarePlan({
+            clinicianId,
+            status: "draft",
+            originalContent: JSON.stringify(extracted),
+            originalFileName: file.originalname,
+            diagnosis: extracted.diagnosis,
+            medications: extracted.medications,
+            appointments: extracted.appointments,
+            instructions: extracted.instructions,
+            warnings: extracted.warnings,
+          });
+
+          await storage.createAuditLog({
+            carePlanId: carePlan.id,
+            userId: clinicianId,
+            action: "uploaded",
+            details: { fileName: file.originalname, fileType: file.mimetype, method: "ai-fallback" },
+            ipAddress: req.ip || null,
+            userAgent: req.get("user-agent") || null,
+          });
+
+          return res.json(carePlan);
+        }
       } else {
         // For images, we'll use GPT-4o Vision
         const base64Image = file.buffer.toString("base64");

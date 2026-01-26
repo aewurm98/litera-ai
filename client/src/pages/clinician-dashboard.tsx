@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Upload, 
@@ -26,10 +27,93 @@ import {
   Calendar,
   ClipboardList,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Clock,
+  MapPin,
+  User
 } from "lucide-react";
-import type { CarePlan, Patient } from "@shared/schema";
+import type { CarePlan, Patient, SimplifiedMedication, SimplifiedAppointment } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
+
+// Helper component to render medications in a structured format
+function MedicationsList({ medications, title, columnId }: { medications?: SimplifiedMedication[] | null; title: string; columnId: string }) {
+  if (!medications || medications.length === 0) return null;
+  
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+        <Pill className="h-3 w-3" />
+        {title}
+      </Label>
+      <div className="space-y-2">
+        {medications.map((med, index) => (
+          <div key={index} className="bg-muted/50 rounded-lg p-3 border border-border/50" data-testid={`medication-${columnId}-${index}`}>
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <span className="font-medium text-sm">{med.name}</span>
+              {med.dose && <Badge variant="outline" className="text-xs flex-shrink-0">{med.dose}</Badge>}
+            </div>
+            {med.frequency && (
+              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 flex-shrink-0" />
+                {med.frequency}
+              </div>
+            )}
+            {med.instructions && (
+              <p className="text-xs text-muted-foreground mt-1 italic">{med.instructions}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Helper component to render appointments in a structured format
+function AppointmentsList({ appointments, title, columnId }: { appointments?: SimplifiedAppointment[] | null; title: string; columnId: string }) {
+  if (!appointments || appointments.length === 0) return null;
+  
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+        <Calendar className="h-3 w-3" />
+        {title}
+      </Label>
+      <div className="space-y-2">
+        {appointments.map((apt, index) => (
+          <div key={index} className="bg-muted/50 rounded-lg p-3 border border-border/50" data-testid={`appointment-${columnId}-${index}`}>
+            {apt.purpose && <p className="font-medium text-sm">{apt.purpose}</p>}
+            <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
+              {apt.date && (
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3 flex-shrink-0" />
+                  {apt.date}
+                </span>
+              )}
+              {apt.time && (
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3 flex-shrink-0" />
+                  {apt.time}
+                </span>
+              )}
+              {apt.provider && (
+                <span className="flex items-center gap-1">
+                  <User className="h-3 w-3 flex-shrink-0" />
+                  {apt.provider}
+                </span>
+              )}
+            </div>
+            {apt.location && (
+              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                <MapPin className="h-3 w-3 flex-shrink-0" />
+                {apt.location}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 type CarePlanWithPatient = CarePlan & { patient?: Patient };
 
@@ -398,26 +482,89 @@ export default function ClinicianDashboard() {
                         ref={(el) => { scrollAreaRefs.current[0] = el; }}
                         onScroll={handleScroll(0)}
                       >
-                        <div className="space-y-4 bg-muted/30 p-3 rounded-lg">
+                        <Accordion type="multiple" defaultValue={["diagnosis", "medications", "appointments", "instructions", "warnings"]} className="space-y-2">
                           {selectedCarePlan.diagnosis && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Diagnosis</Label>
-                              <p className="text-sm mt-1">{selectedCarePlan.diagnosis}</p>
-                            </div>
+                            <AccordionItem value="diagnosis" className="border rounded-lg px-3 bg-muted/30">
+                              <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+                                <span className="flex items-center gap-1">
+                                  <Stethoscope className="h-3 w-3" />
+                                  Diagnosis
+                                </span>
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <p className="text-sm">{selectedCarePlan.diagnosis}</p>
+                              </AccordionContent>
+                            </AccordionItem>
+                          )}
+                          {selectedCarePlan.medications && selectedCarePlan.medications.length > 0 && (
+                            <AccordionItem value="medications" className="border rounded-lg px-3 bg-muted/30">
+                              <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+                                <span className="flex items-center gap-1">
+                                  <Pill className="h-3 w-3" />
+                                  Medications ({selectedCarePlan.medications.length})
+                                </span>
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <div className="space-y-2">
+                                  {selectedCarePlan.medications.map((med, i) => (
+                                    <div key={i} className="text-sm">
+                                      <span className="font-medium">{med.name}</span>
+                                      {med.dose && <span className="text-muted-foreground"> - {med.dose}</span>}
+                                      {med.frequency && <span className="text-muted-foreground">, {med.frequency}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          )}
+                          {selectedCarePlan.appointments && selectedCarePlan.appointments.length > 0 && (
+                            <AccordionItem value="appointments" className="border rounded-lg px-3 bg-muted/30">
+                              <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  Appointments ({selectedCarePlan.appointments.length})
+                                </span>
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <div className="space-y-2">
+                                  {selectedCarePlan.appointments.map((apt, i) => (
+                                    <div key={i} className="text-sm">
+                                      <span className="font-medium">{apt.purpose || "Follow-up"}</span>
+                                      {apt.date && <span className="text-muted-foreground"> - {apt.date}</span>}
+                                      {apt.time && <span className="text-muted-foreground"> at {apt.time}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
                           )}
                           {selectedCarePlan.instructions && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Instructions</Label>
-                              <p className="text-sm mt-1 whitespace-pre-wrap">{selectedCarePlan.instructions}</p>
-                            </div>
+                            <AccordionItem value="instructions" className="border rounded-lg px-3 bg-muted/30">
+                              <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+                                <span className="flex items-center gap-1">
+                                  <ClipboardList className="h-3 w-3" />
+                                  Instructions
+                                </span>
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <p className="text-sm whitespace-pre-wrap">{selectedCarePlan.instructions}</p>
+                              </AccordionContent>
+                            </AccordionItem>
                           )}
                           {selectedCarePlan.warnings && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Warnings</Label>
-                              <p className="text-sm mt-1 whitespace-pre-wrap">{selectedCarePlan.warnings}</p>
-                            </div>
+                            <AccordionItem value="warnings" className="border rounded-lg px-3 bg-destructive/10">
+                              <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-destructive hover:no-underline">
+                                <span className="flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Warning Signs
+                                </span>
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <p className="text-sm whitespace-pre-wrap">{selectedCarePlan.warnings}</p>
+                              </AccordionContent>
+                            </AccordionItem>
                           )}
-                        </div>
+                        </Accordion>
                       </div>
                     </CardContent>
                   </Card>
@@ -439,35 +586,54 @@ export default function ClinicianDashboard() {
                       >
                         <div className="space-y-4">
                           {selectedCarePlan.simplifiedDiagnosis && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground uppercase tracking-wide">What's Wrong</Label>
+                            <div className="bg-primary/5 rounded-lg p-3 border border-primary/20">
+                              <Label className="text-xs text-primary uppercase tracking-wide flex items-center gap-1">
+                                <Stethoscope className="h-3 w-3" />
+                                What's Wrong
+                              </Label>
                               <Textarea 
-                                className="mt-1 min-h-[80px] resize-none"
+                                className="mt-2 min-h-[60px] resize-none bg-background"
                                 value={selectedCarePlan.simplifiedDiagnosis}
                                 readOnly
+                                data-testid="textarea-simplified-diagnosis"
                               />
                             </div>
                           )}
+                          <MedicationsList 
+                            medications={selectedCarePlan.simplifiedMedications} 
+                            title="Your Medicines" 
+                            columnId="simplified"
+                          />
+                          <AppointmentsList 
+                            appointments={selectedCarePlan.simplifiedAppointments} 
+                            title="Your Appointments" 
+                            columnId="simplified"
+                          />
                           {selectedCarePlan.simplifiedInstructions && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground uppercase tracking-wide">What to Do</Label>
+                            <div className="bg-muted/50 rounded-lg p-3 border">
+                              <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                                <ClipboardList className="h-3 w-3" />
+                                What to Do
+                              </Label>
                               <Textarea 
-                                className="mt-1 min-h-[120px] resize-none"
+                                className="mt-2 min-h-[100px] resize-none bg-background"
                                 value={selectedCarePlan.simplifiedInstructions}
                                 readOnly
+                                data-testid="textarea-simplified-instructions"
                               />
                             </div>
                           )}
                           {selectedCarePlan.simplifiedWarnings && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3 text-destructive" />
+                            <div className="bg-destructive/10 rounded-lg p-3 border border-destructive/30">
+                              <Label className="text-xs text-destructive uppercase tracking-wide flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
                                 Warning Signs
                               </Label>
                               <Textarea 
-                                className="mt-1 min-h-[80px] resize-none border-destructive/50"
+                                className="mt-2 min-h-[60px] resize-none bg-background border-destructive/50"
                                 value={selectedCarePlan.simplifiedWarnings}
                                 readOnly
+                                data-testid="textarea-simplified-warnings"
                               />
                             </div>
                           )}
@@ -477,13 +643,13 @@ export default function ClinicianDashboard() {
                   </Card>
 
                   {/* Translated Column */}
-                  <Card className="flex flex-col overflow-hidden">
-                    <CardHeader className="pb-2 flex-shrink-0">
+                  <Card className="flex flex-col overflow-hidden border-primary/30">
+                    <CardHeader className="pb-2 flex-shrink-0 bg-primary/5">
                       <CardTitle className="text-sm flex items-center gap-2">
-                        <Languages className="h-4 w-4" />
+                        <Languages className="h-4 w-4 text-primary" />
                         {SUPPORTED_LANGUAGES.find(l => l.code === selectedCarePlan.translatedLanguage)?.name || "Translated"}
                       </CardTitle>
-                      <CardDescription>Patient's language</CardDescription>
+                      <CardDescription>Patient's language (hover for back-translation)</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-hidden p-0">
                       <div 
@@ -493,48 +659,73 @@ export default function ClinicianDashboard() {
                       >
                         <div className="space-y-4">
                           {selectedCarePlan.translatedDiagnosis && (
-                            <div className="group relative">
-                              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Diagnosis</Label>
+                            <div className="group relative bg-primary/5 rounded-lg p-3 border border-primary/20">
+                              <Label className="text-xs text-primary uppercase tracking-wide flex items-center gap-1">
+                                <Stethoscope className="h-3 w-3" />
+                                Diagnosis
+                              </Label>
                               <Textarea 
-                                className="mt-1 min-h-[80px] resize-none"
+                                className="mt-2 min-h-[60px] resize-none bg-background"
                                 value={selectedCarePlan.translatedDiagnosis}
                                 readOnly
+                                data-testid="textarea-translated-diagnosis"
                               />
                               {selectedCarePlan.backTranslatedDiagnosis && (
-                                <div className="absolute left-0 right-0 -top-2 opacity-0 group-hover:opacity-100 transition-opacity bg-popover border rounded-lg p-2 text-xs shadow-lg z-10">
-                                  <span className="font-medium">Back-translation: </span>
-                                  {selectedCarePlan.backTranslatedDiagnosis}
+                                <div className="mt-2 p-2 bg-muted rounded text-xs border">
+                                  <span className="font-medium text-muted-foreground">Back-translation: </span>
+                                  <span className="text-foreground">{selectedCarePlan.backTranslatedDiagnosis}</span>
                                 </div>
                               )}
                             </div>
                           )}
+                          <MedicationsList 
+                            medications={selectedCarePlan.translatedMedications} 
+                            title="Medications" 
+                            columnId="translated"
+                          />
+                          <AppointmentsList 
+                            appointments={selectedCarePlan.translatedAppointments} 
+                            title="Appointments" 
+                            columnId="translated"
+                          />
                           {selectedCarePlan.translatedInstructions && (
-                            <div className="group relative">
-                              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Instructions</Label>
+                            <div className="bg-muted/50 rounded-lg p-3 border">
+                              <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                                <ClipboardList className="h-3 w-3" />
+                                Instructions
+                              </Label>
                               <Textarea 
-                                className="mt-1 min-h-[120px] resize-none"
+                                className="mt-2 min-h-[100px] resize-none bg-background"
                                 value={selectedCarePlan.translatedInstructions}
                                 readOnly
+                                data-testid="textarea-translated-instructions"
                               />
                               {selectedCarePlan.backTranslatedInstructions && (
-                                <div className="absolute left-0 right-0 -top-2 opacity-0 group-hover:opacity-100 transition-opacity bg-popover border rounded-lg p-2 text-xs shadow-lg z-10">
-                                  <span className="font-medium">Back-translation: </span>
-                                  {selectedCarePlan.backTranslatedInstructions}
+                                <div className="mt-2 p-2 bg-muted rounded text-xs border max-h-[100px] overflow-y-auto">
+                                  <span className="font-medium text-muted-foreground">Back-translation: </span>
+                                  <span className="text-foreground">{selectedCarePlan.backTranslatedInstructions}</span>
                                 </div>
                               )}
                             </div>
                           )}
                           {selectedCarePlan.translatedWarnings && (
-                            <div className="group relative">
-                              <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3 text-destructive" />
-                                Warnings
+                            <div className="bg-destructive/10 rounded-lg p-3 border border-destructive/30">
+                              <Label className="text-xs text-destructive uppercase tracking-wide flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Warning Signs
                               </Label>
                               <Textarea 
-                                className="mt-1 min-h-[80px] resize-none border-destructive/50"
+                                className="mt-2 min-h-[60px] resize-none bg-background border-destructive/50"
                                 value={selectedCarePlan.translatedWarnings}
                                 readOnly
+                                data-testid="textarea-translated-warnings"
                               />
+                              {selectedCarePlan.backTranslatedWarnings && (
+                                <div className="mt-2 p-2 bg-muted rounded text-xs border">
+                                  <span className="font-medium text-muted-foreground">Back-translation: </span>
+                                  <span className="text-foreground">{selectedCarePlan.backTranslatedWarnings}</span>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
