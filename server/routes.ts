@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { z } from "zod";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { storage, generateAccessToken } from "./storage";
 import { 
   extractDischargeContent, 
@@ -12,6 +13,31 @@ import {
 } from "./services/openai";
 import { sendCarePlanEmail, sendCheckInEmail } from "./services/resend";
 import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
+
+// Demo token store (in-memory, expires after 5 minutes)
+const demoTokens = new Map<string, { accessToken: string; expiresAt: Date }>();
+
+// Generate a secure demo token for clinician preview
+function generateDemoToken(accessToken: string): string {
+  const demoToken = crypto.randomBytes(32).toString("hex");
+  demoTokens.set(demoToken, {
+    accessToken,
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+  });
+  return demoToken;
+}
+
+// Validate demo token
+function validateDemoToken(demoToken: string, accessToken: string): boolean {
+  const entry = demoTokens.get(demoToken);
+  if (!entry) return false;
+  if (new Date() > entry.expiresAt) {
+    demoTokens.delete(demoToken);
+    return false;
+  }
+  if (entry.accessToken !== accessToken) return false;
+  return true;
+}
 // Import pdfjs-dist legacy build for Node.js compatibility (no DOM APIs needed)
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
@@ -550,7 +576,47 @@ export async function registerRoutes(
     }
   });
 
+  // Generate demo token for clinician preview (requires clinician auth)
+  app.post("/api/care-plans/:id/demo-token", requireClinicianAuth, async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const carePlan = await storage.getCarePlan(id);
+      
+      if (!carePlan) {
+        return res.status(404).json({ error: "Care plan not found" });
+      }
+      
+      if (!carePlan.accessToken) {
+        return res.status(400).json({ error: "Care plan has no access token" });
+      }
+      
+      const demoToken = generateDemoToken(carePlan.accessToken);
+      res.json({ demoToken });
+    } catch (error) {
+      console.error("Error generating demo token:", error);
+      res.status(500).json({ error: "Failed to generate demo token" });
+    }
+  });
+
   // ============= Patient Portal API =============
+
+  // Validate demo token (for clinician preview mode)
+  app.post("/api/patient/:token/validate-demo", async (req: Request, res: Response) => {
+    try {
+      const accessToken = req.params.token as string;
+      const { demoToken } = req.body;
+      
+      if (!demoToken) {
+        return res.status(400).json({ valid: false });
+      }
+      
+      const valid = validateDemoToken(demoToken, accessToken);
+      res.json({ valid });
+    } catch (error) {
+      console.error("Error validating demo token:", error);
+      res.status(500).json({ valid: false });
+    }
+  });
 
   // Verify patient access (with server-side rate limiting)
   app.post("/api/patient/:token/verify", validateBody(verifyPatientSchema), async (req: Request, res: Response) => {
