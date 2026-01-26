@@ -298,26 +298,9 @@ export default function ClinicianDashboard() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const handleViewAsPatient = async () => {
+  const handleViewAsPatient = () => {
     if (!selectedCarePlan?.accessToken) return;
-    
-    // Open window immediately to avoid popup blocker
-    const newWindow = window.open('about:blank', '_blank');
-    
-    try {
-      const response = await apiRequest("POST", `/api/care-plans/${selectedCarePlan.id}/demo-token`);
-      const data = await response.json() as { demoToken: string };
-      if (newWindow) {
-        newWindow.location.href = `/p/${selectedCarePlan.accessToken}?demo=${data.demoToken}`;
-      }
-    } catch (error) {
-      if (newWindow) newWindow.close();
-      toast({
-        title: "Error",
-        description: "Failed to generate preview link",
-        variant: "destructive",
-      });
-    }
+    window.open(`/p/${selectedCarePlan.accessToken}?demo=1`, '_blank');
   };
 
   const handleScroll = (columnIndex: number) => (e: React.UIEvent<HTMLDivElement>) => {

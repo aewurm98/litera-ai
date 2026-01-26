@@ -40,11 +40,11 @@ export default function PatientPortal() {
   const searchString = useSearch();
   const { toast } = useToast();
   
-  // Check for demo mode (clinician preview with signed token)
-  const demoToken = new URLSearchParams(searchString).get("demo");
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  // Check for demo mode (simple ?demo=1 parameter for clinician preview)
+  const demoParam = new URLSearchParams(searchString).get("demo");
+  const isDemoMode = demoParam === "1";
   
-  const [isVerified, setIsVerified] = useState(false);
+  const [isVerified, setIsVerified] = useState(isDemoMode);
   const [yearOfBirth, setYearOfBirth] = useState("");
   const [attemptsRemaining, setAttemptsRemaining] = useState(3);
   const [isLocked, setIsLocked] = useState(false);
@@ -54,26 +54,6 @@ export default function PatientPortal() {
   const [checkInResponse, setCheckInResponse] = useState<"green" | "yellow" | "red" | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   
-  // Validate demo token on mount
-  useEffect(() => {
-    if (demoToken && token) {
-      fetch(`/api/patient/${token}/validate-demo`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ demoToken }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.valid) {
-            setIsDemoMode(true);
-            setIsVerified(true);
-          }
-        })
-        .catch(() => {
-          // Demo token invalid, require normal verification
-        });
-    }
-  }, [demoToken, token]);
 
   // Fetch care plan by token
   const { data: carePlan, isLoading, error } = useQuery<CarePlanWithPatient>({
