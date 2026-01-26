@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { z } from "zod";
+import bcrypt from "bcrypt";
 import { storage, generateAccessToken } from "./storage";
 import { 
   extractDischargeContent, 
@@ -11,7 +12,8 @@ import {
 } from "./services/openai";
 import { sendCarePlanEmail, sendCheckInEmail } from "./services/resend";
 import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
-import * as pdfParse from "pdf-parse";
+import * as pdfParseModule from "pdf-parse";
+const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 
 // ============= Rate Limiting for Patient Verification =============
 const verificationAttempts = new Map<string, { count: number; lockedUntil?: Date }>();
@@ -71,28 +73,43 @@ const checkInResponseSchema = z.object({
   response: z.enum(["green", "yellow", "red"]),
 });
 
-// ============= Simple Auth Middleware =============
-// In a real app, this would use sessions/JWT tokens
-// For MVP, we'll use a simple API key or skip auth for demo
-function requireClinicianAuth(req: Request, res: Response, next: NextFunction) {
-  // For MVP demo, allow access without strict auth
-  // In production, implement proper session-based auth
-  // Store clinician ID in request for audit trail
-  (req as any).clinicianId = "clinician-1";
-  if (req.body) {
-    req.body.clinicianId = "clinician-1";
+// ============= Session-based Auth Middleware =============
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
   }
+  (req as any).userId = req.session.userId;
+  (req as any).userRole = req.session.userRole;
+  (req as any).userName = req.session.userName;
+  next();
+}
+
+function requireClinicianAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  if (req.session.userRole !== "clinician" && req.session.userRole !== "admin") {
+    return res.status(403).json({ error: "Access denied. Clinician or admin role required." });
+  }
+  (req as any).clinicianId = req.session.userId;
   next();
 }
 
 function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
-  // For MVP demo, allow access without strict auth
-  // In production, implement proper session-based auth
-  (req as any).adminId = "admin-1";
-  if (req.body) {
-    req.body.adminId = "admin-1";
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
   }
+  if (req.session.userRole !== "admin") {
+    return res.status(403).json({ error: "Access denied. Admin role required." });
+  }
+  (req as any).adminId = req.session.userId;
   next();
+}
+
+// Helper to safely get first value from query param
+function getQueryString(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
 }
 
 // Validation middleware helper
@@ -128,6 +145,66 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  
+  // ============= Authentication API =============
+  
+  // Login
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password required" });
+      }
+      
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      
+      const passwordMatch = await bcrypt.compare(password, user.password);
+      if (!passwordMatch) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      
+      req.session.userId = user.id;
+      req.session.userRole = user.role;
+      req.session.userName = user.name;
+      
+      res.json({ 
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role 
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+  
+  // Logout
+  app.post("/api/auth/logout", (req: Request, res: Response) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.json({ success: true });
+    });
+  });
+  
+  // Get current user
+  app.get("/api/auth/me", (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    res.json({
+      id: req.session.userId,
+      name: req.session.userName,
+      role: req.session.userRole,
+    });
+  });
   
   // ============= Care Plans API (Clinician) =============
   
@@ -192,8 +269,8 @@ export async function registerRoutes(
           userId: clinicianId,
           action: "uploaded",
           details: { fileName: file.originalname, fileType: file.mimetype },
-          ipAddress: req.ip,
-          userAgent: req.get("user-agent"),
+          ipAddress: req.ip || null,
+          userAgent: req.get("user-agent") || null,
         });
 
         return res.json(carePlan);
@@ -219,8 +296,8 @@ export async function registerRoutes(
         userId: clinicianId,
         action: "uploaded",
         details: { fileName: file.originalname, fileType: file.mimetype },
-        ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
       });
 
       res.json(carePlan);
@@ -279,8 +356,8 @@ export async function registerRoutes(
         userId: clinicianId,
         action: "processed",
         details: { language },
-        ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
       });
 
       res.json(updated);
@@ -311,8 +388,8 @@ export async function registerRoutes(
         carePlanId: id,
         userId: clinicianId,
         action: "approved",
-        ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
       });
 
       res.json(updated);
@@ -389,8 +466,8 @@ export async function registerRoutes(
         userId: clinicianId,
         action: "sent",
         details: { patientEmail: email },
-        ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
       });
 
       // Return enriched plan
@@ -438,8 +515,8 @@ export async function registerRoutes(
           carePlanId: carePlan.id,
           action: "verification_failed",
           details: { attemptsRemaining: result.attemptsRemaining },
-          ipAddress: req.ip,
-          userAgent: req.get("user-agent"),
+          ipAddress: req.ip || null,
+          userAgent: req.get("user-agent") || null,
         });
 
         if (result.locked) {
@@ -462,8 +539,8 @@ export async function registerRoutes(
       await storage.createAuditLog({
         carePlanId: carePlan.id,
         action: "verified",
-        ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
       });
 
       res.json({ verified: true });
@@ -487,8 +564,8 @@ export async function registerRoutes(
       await storage.createAuditLog({
         carePlanId: carePlan.id,
         action: "viewed",
-        ipAddress: req.ip,
-        userAgent: req.get("user-agent"),
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
       });
 
       const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
@@ -534,8 +611,8 @@ export async function registerRoutes(
           carePlanId: carePlan.id,
           action: "check_in_responded",
           details: { response },
-          ipAddress: req.ip,
-          userAgent: req.get("user-agent"),
+          ipAddress: req.ip || null,
+          userAgent: req.get("user-agent") || null,
         });
       }
 

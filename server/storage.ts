@@ -1,28 +1,26 @@
 import { 
+  users, patients, carePlans, checkIns, auditLogs,
   type User, type InsertUser,
   type Patient, type InsertPatient,
   type CarePlan, type InsertCarePlan,
   type CheckIn, type InsertCheckIn,
   type AuditLog, type InsertAuditLog,
-  type Medication, type Appointment, type SimplifiedMedication, type SimplifiedAppointment
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, desc, and, lte, isNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
-// Storage interface for all entities
 export interface IStorage {
-  // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
-  // Patients
   getPatient(id: string): Promise<Patient | undefined>;
   getPatientByEmail(email: string): Promise<Patient | undefined>;
+  getAllPatients(): Promise<Patient[]>;
   createPatient(patient: InsertPatient): Promise<Patient>;
   updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined>;
   
-  // Care Plans
   getCarePlan(id: string): Promise<CarePlan | undefined>;
   getCarePlanByToken(token: string): Promise<CarePlan | undefined>;
   getCarePlansByClinicianId(clinicianId: string): Promise<CarePlan[]>;
@@ -30,7 +28,6 @@ export interface IStorage {
   createCarePlan(carePlan: InsertCarePlan): Promise<CarePlan>;
   updateCarePlan(id: string, data: Partial<CarePlan>): Promise<CarePlan | undefined>;
   
-  // Check-ins
   getCheckIn(id: string): Promise<CheckIn | undefined>;
   getCheckInsByCarePlanId(carePlanId: string): Promise<CheckIn[]>;
   getCheckInsByPatientId(patientId: string): Promise<CheckIn[]>;
@@ -38,11 +35,9 @@ export interface IStorage {
   createCheckIn(checkIn: InsertCheckIn): Promise<CheckIn>;
   updateCheckIn(id: string, data: Partial<CheckIn>): Promise<CheckIn | undefined>;
   
-  // Audit Logs
   getAuditLogsByCarePlanId(carePlanId: string): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   
-  // Alerts (derived from check-ins)
   getAlerts(): Promise<Array<{
     id: string;
     carePlanId: string;
@@ -54,198 +49,117 @@ export interface IStorage {
   resolveAlert(checkInId: string, resolvedBy: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private patients: Map<string, Patient>;
-  private carePlans: Map<string, CarePlan>;
-  private checkIns: Map<string, CheckIn>;
-  private auditLogs: Map<string, AuditLog>;
-
-  constructor() {
-    this.users = new Map();
-    this.patients = new Map();
-    this.carePlans = new Map();
-    this.checkIns = new Map();
-    this.auditLogs = new Map();
-    
-    // Create default clinician user
-    const defaultUser: User = {
-      id: "clinician-1",
-      username: "nurse",
-      password: "password",
-      role: "clinician",
-      name: "Maria Chen, RN",
-    };
-    this.users.set(defaultUser.id, defaultUser);
-    
-    // Create default admin user
-    const adminUser: User = {
-      id: "admin-1",
-      username: "admin",
-      password: "password",
-      role: "admin",
-      name: "Angela Torres",
-    };
-    this.users.set(adminUser.id, adminUser);
-  }
-
-  // Users
+export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
-  // Patients
   async getPatient(id: string): Promise<Patient | undefined> {
-    return this.patients.get(id);
+    const [patient] = await db.select().from(patients).where(eq(patients.id, id));
+    return patient || undefined;
   }
 
   async getPatientByEmail(email: string): Promise<Patient | undefined> {
-    return Array.from(this.patients.values()).find(
-      (patient) => patient.email === email,
-    );
+    const [patient] = await db.select().from(patients).where(eq(patients.email, email));
+    return patient || undefined;
+  }
+
+  async getAllPatients(): Promise<Patient[]> {
+    return await db.select().from(patients).orderBy(desc(patients.createdAt));
   }
 
   async createPatient(insertPatient: InsertPatient): Promise<Patient> {
-    const id = randomUUID();
-    const patient: Patient = { 
-      ...insertPatient, 
-      id,
-      createdAt: new Date(),
-    };
-    this.patients.set(id, patient);
+    const [patient] = await db.insert(patients).values(insertPatient).returning();
     return patient;
   }
 
   async updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined> {
-    const patient = this.patients.get(id);
-    if (!patient) return undefined;
-    const updated = { ...patient, ...data };
-    this.patients.set(id, updated);
-    return updated;
+    const [patient] = await db.update(patients).set(data).where(eq(patients.id, id)).returning();
+    return patient || undefined;
   }
 
-  // Care Plans
   async getCarePlan(id: string): Promise<CarePlan | undefined> {
-    return this.carePlans.get(id);
+    const [carePlan] = await db.select().from(carePlans).where(eq(carePlans.id, id));
+    return carePlan || undefined;
   }
 
   async getCarePlanByToken(token: string): Promise<CarePlan | undefined> {
-    return Array.from(this.carePlans.values()).find(
-      (plan) => plan.accessToken === token,
-    );
+    const [carePlan] = await db.select().from(carePlans).where(eq(carePlans.accessToken, token));
+    return carePlan || undefined;
   }
 
   async getCarePlansByClinicianId(clinicianId: string): Promise<CarePlan[]> {
-    return Array.from(this.carePlans.values()).filter(
-      (plan) => plan.clinicianId === clinicianId,
-    );
+    return await db.select().from(carePlans).where(eq(carePlans.clinicianId, clinicianId)).orderBy(desc(carePlans.createdAt));
   }
 
   async getAllCarePlans(): Promise<CarePlan[]> {
-    return Array.from(this.carePlans.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    return await db.select().from(carePlans).orderBy(desc(carePlans.createdAt));
   }
 
   async createCarePlan(insertCarePlan: InsertCarePlan): Promise<CarePlan> {
-    const id = randomUUID();
-    const carePlan: CarePlan = { 
-      ...insertCarePlan, 
-      id,
-      status: insertCarePlan.status || "draft",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.carePlans.set(id, carePlan);
+    const [carePlan] = await db.insert(carePlans).values(insertCarePlan).returning();
     return carePlan;
   }
 
   async updateCarePlan(id: string, data: Partial<CarePlan>): Promise<CarePlan | undefined> {
-    const carePlan = this.carePlans.get(id);
-    if (!carePlan) return undefined;
-    const updated = { ...carePlan, ...data, updatedAt: new Date() };
-    this.carePlans.set(id, updated);
-    return updated;
+    const [carePlan] = await db.update(carePlans).set({ ...data, updatedAt: new Date() }).where(eq(carePlans.id, id)).returning();
+    return carePlan || undefined;
   }
 
-  // Check-ins
   async getCheckIn(id: string): Promise<CheckIn | undefined> {
-    return this.checkIns.get(id);
+    const [checkIn] = await db.select().from(checkIns).where(eq(checkIns.id, id));
+    return checkIn || undefined;
   }
 
   async getCheckInsByCarePlanId(carePlanId: string): Promise<CheckIn[]> {
-    return Array.from(this.checkIns.values()).filter(
-      (checkIn) => checkIn.carePlanId === carePlanId,
-    );
+    return await db.select().from(checkIns).where(eq(checkIns.carePlanId, carePlanId));
   }
 
   async getCheckInsByPatientId(patientId: string): Promise<CheckIn[]> {
-    return Array.from(this.checkIns.values()).filter(
-      (checkIn) => checkIn.patientId === patientId,
-    );
+    return await db.select().from(checkIns).where(eq(checkIns.patientId, patientId));
   }
 
   async getPendingCheckIns(): Promise<CheckIn[]> {
     const now = new Date();
-    return Array.from(this.checkIns.values()).filter(
-      (checkIn) => 
-        !checkIn.respondedAt && 
-        new Date(checkIn.scheduledFor) <= now &&
-        !checkIn.sentAt
+    return await db.select().from(checkIns).where(
+      and(
+        isNull(checkIns.respondedAt),
+        lte(checkIns.scheduledFor, now),
+        isNull(checkIns.sentAt)
+      )
     );
   }
 
   async createCheckIn(insertCheckIn: InsertCheckIn): Promise<CheckIn> {
-    const id = randomUUID();
-    const checkIn: CheckIn = { 
-      ...insertCheckIn, 
-      id,
-      createdAt: new Date(),
-    };
-    this.checkIns.set(id, checkIn);
+    const [checkIn] = await db.insert(checkIns).values(insertCheckIn).returning();
     return checkIn;
   }
 
   async updateCheckIn(id: string, data: Partial<CheckIn>): Promise<CheckIn | undefined> {
-    const checkIn = this.checkIns.get(id);
-    if (!checkIn) return undefined;
-    const updated = { ...checkIn, ...data };
-    this.checkIns.set(id, updated);
-    return updated;
+    const [checkIn] = await db.update(checkIns).set(data).where(eq(checkIns.id, id)).returning();
+    return checkIn || undefined;
   }
 
-  // Audit Logs
   async getAuditLogsByCarePlanId(carePlanId: string): Promise<AuditLog[]> {
-    return Array.from(this.auditLogs.values())
-      .filter((log) => log.carePlanId === carePlanId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return await db.select().from(auditLogs).where(eq(auditLogs.carePlanId, carePlanId)).orderBy(auditLogs.createdAt);
   }
 
   async createAuditLog(insertLog: InsertAuditLog): Promise<AuditLog> {
-    const id = randomUUID();
-    const log: AuditLog = { 
-      ...insertLog, 
-      id,
-      createdAt: new Date(),
-    };
-    this.auditLogs.set(id, log);
+    const [log] = await db.insert(auditLogs).values(insertLog).returning();
     return log;
   }
 
-  // Alerts
   async getAlerts(): Promise<Array<{
     id: string;
     carePlanId: string;
@@ -254,29 +168,35 @@ export class MemStorage implements IStorage {
     respondedAt: Date;
     resolved: boolean;
   }>> {
-    const alerts: Array<{
-      id: string;
-      carePlanId: string;
-      patientName: string;
-      response: "yellow" | "red";
-      respondedAt: Date;
-      resolved: boolean;
-    }> = [];
+    const alertCheckIns = await db.select().from(checkIns).where(
+      and(
+        eq(checkIns.response, "yellow"),
+      )
+    );
+    
+    const redCheckIns = await db.select().from(checkIns).where(
+      eq(checkIns.response, "red")
+    );
 
-    for (const checkIn of this.checkIns.values()) {
-      if (checkIn.response === "yellow" || checkIn.response === "red") {
-        const carePlan = await this.getCarePlan(checkIn.carePlanId);
-        const patient = carePlan?.patientId ? await this.getPatient(carePlan.patientId) : undefined;
-        
-        alerts.push({
-          id: checkIn.id,
-          carePlanId: checkIn.carePlanId,
-          patientName: patient?.name || "Unknown",
-          response: checkIn.response as "yellow" | "red",
-          respondedAt: checkIn.respondedAt || new Date(),
-          resolved: !!checkIn.alertResolvedAt,
-        });
+    const allAlertCheckIns = [...alertCheckIns, ...redCheckIns];
+    
+    const alerts = [];
+    for (const checkIn of allAlertCheckIns) {
+      const [carePlan] = await db.select().from(carePlans).where(eq(carePlans.id, checkIn.carePlanId));
+      let patientName = "Unknown";
+      if (carePlan?.patientId) {
+        const [patient] = await db.select().from(patients).where(eq(patients.id, carePlan.patientId));
+        if (patient) patientName = patient.name;
       }
+      
+      alerts.push({
+        id: checkIn.id,
+        carePlanId: checkIn.carePlanId,
+        patientName,
+        response: checkIn.response as "yellow" | "red",
+        respondedAt: checkIn.respondedAt || new Date(),
+        resolved: !!checkIn.alertResolvedAt,
+      });
     }
 
     return alerts.sort((a, b) => 
@@ -285,20 +205,15 @@ export class MemStorage implements IStorage {
   }
 
   async resolveAlert(checkInId: string, resolvedBy: string): Promise<void> {
-    const checkIn = this.checkIns.get(checkInId);
-    if (checkIn) {
-      this.checkIns.set(checkInId, {
-        ...checkIn,
-        alertResolvedAt: new Date(),
-        alertResolvedBy: resolvedBy,
-      });
-    }
+    await db.update(checkIns).set({
+      alertResolvedAt: new Date(),
+      alertResolvedBy: resolvedBy,
+    }).where(eq(checkIns.id, checkInId));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
 
-// Helper function to generate access tokens
 export function generateAccessToken(): string {
   return randomBytes(32).toString("hex");
 }
