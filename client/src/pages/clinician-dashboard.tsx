@@ -525,7 +525,7 @@ export default function ClinicianDashboard() {
                   size="sm"
                   className="w-full text-xs"
                   onClick={() =>
-                    window.open(`/p/${plan.accessToken}`, "_blank")
+                    window.open(`/p/${plan.accessToken}?demo=1`, "_blank")
                   }
                   data-testid="button-demo-patient-portal"
                 >
