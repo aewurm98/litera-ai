@@ -322,49 +322,206 @@ async function seed() {
     alertCreated: true,
   });
 
-  // Create audit logs
+  // Create audit logs for ALL care plans
+  // CarePlan 1 (Rosa - SENT with green check-in) - full trail
   await db.insert(auditLogs).values([
     {
       carePlanId: carePlan1.id,
       userId: clinician1.id,
       action: "created",
       details: { fileName: "rosa_discharge.pdf" },
+      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan1.id,
+      userId: clinician1.id,
+      action: "processed",
+      details: { extractedSections: ["diagnosis", "medications", "appointments", "instructions", "warnings"] },
+      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000 + 60000),
     },
     {
       carePlanId: carePlan1.id,
       userId: clinician1.id,
       action: "simplified",
-      details: { language: "en" },
+      details: { language: "en", readingLevel: "5th grade" },
+      createdAt: new Date(Date.now() - 3.5 * 24 * 60 * 60 * 1000),
     },
     {
       carePlanId: carePlan1.id,
       userId: clinician1.id,
       action: "translated",
-      details: { targetLanguage: "es" },
+      details: { targetLanguage: "es", languageName: "Spanish" },
+      createdAt: new Date(Date.now() - 3.5 * 24 * 60 * 60 * 1000 + 60000),
     },
     {
       carePlanId: carePlan1.id,
       userId: clinician1.id,
       action: "approved",
-      details: {},
+      details: { approverName: clinician1.name },
+      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
     },
     {
       carePlanId: carePlan1.id,
       userId: clinician1.id,
       action: "sent",
-      details: { email: patient1.email },
+      details: { email: patient1.email, patientName: patient1.name },
+      createdAt: new Date(Date.now() - 2.5 * 24 * 60 * 60 * 1000),
     },
     {
       carePlanId: carePlan1.id,
       userId: null,
       action: "viewed",
-      details: { patientAccess: true },
+      details: { patientAccess: true, patientName: patient1.name },
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
     },
     {
       carePlanId: carePlan1.id,
       userId: null,
       action: "check_in_responded",
-      details: { response: "green" },
+      details: { response: "green", responseText: "Feeling good" },
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    },
+  ]);
+
+  // CarePlan 2 (Nguyen - APPROVED, ready to send) - trail up to approval
+  await db.insert(auditLogs).values([
+    {
+      carePlanId: carePlan2.id,
+      userId: clinician1.id,
+      action: "created",
+      details: { fileName: "nguyen_discharge.pdf" },
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan2.id,
+      userId: clinician1.id,
+      action: "processed",
+      details: { extractedSections: ["diagnosis", "medications", "appointments", "instructions", "warnings"] },
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 60000),
+    },
+    {
+      carePlanId: carePlan2.id,
+      userId: clinician1.id,
+      action: "simplified",
+      details: { language: "en", readingLevel: "5th grade" },
+      createdAt: new Date(Date.now() - 1.5 * 24 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan2.id,
+      userId: clinician1.id,
+      action: "translated",
+      details: { targetLanguage: "vi", languageName: "Vietnamese" },
+      createdAt: new Date(Date.now() - 1.5 * 24 * 60 * 60 * 1000 + 60000),
+    },
+    {
+      carePlanId: carePlan2.id,
+      userId: clinician1.id,
+      action: "approved",
+      details: { approverName: clinician1.name },
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    },
+  ]);
+
+  // CarePlan 3 (Wei - PENDING_REVIEW) - trail up to processing
+  await db.insert(auditLogs).values([
+    {
+      carePlanId: carePlan3.id,
+      userId: clinician2.id,
+      action: "created",
+      details: { fileName: "wei_discharge.pdf" },
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan3.id,
+      userId: clinician2.id,
+      action: "processed",
+      details: { extractedSections: ["diagnosis", "medications", "appointments", "instructions", "warnings"] },
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 60000),
+    },
+    {
+      carePlanId: carePlan3.id,
+      userId: clinician2.id,
+      action: "simplified",
+      details: { language: "en", readingLevel: "5th grade" },
+      createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan3.id,
+      userId: clinician2.id,
+      action: "translated",
+      details: { targetLanguage: "zh", languageName: "Chinese (Simplified)" },
+      createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000 + 60000),
+    },
+  ]);
+
+  // CarePlan 4 (Maria - DRAFT) - only created
+  await db.insert(auditLogs).values([
+    {
+      carePlanId: carePlan4.id,
+      userId: clinician2.id,
+      action: "created",
+      details: { fileName: "maria_discharge.pdf" },
+      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
+    },
+  ]);
+
+  // CarePlan 5 (Fatima - SENT with yellow alert) - full trail
+  await db.insert(auditLogs).values([
+    {
+      carePlanId: carePlan5.id,
+      userId: clinician1.id,
+      action: "created",
+      details: { fileName: "fatima_discharge.pdf" },
+      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan5.id,
+      userId: clinician1.id,
+      action: "processed",
+      details: { extractedSections: ["diagnosis", "medications", "appointments", "instructions", "warnings"] },
+      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000 + 60000),
+    },
+    {
+      carePlanId: carePlan5.id,
+      userId: clinician1.id,
+      action: "simplified",
+      details: { language: "en", readingLevel: "5th grade" },
+      createdAt: new Date(Date.now() - 6.5 * 24 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan5.id,
+      userId: clinician1.id,
+      action: "translated",
+      details: { targetLanguage: "ar", languageName: "Arabic" },
+      createdAt: new Date(Date.now() - 6.5 * 24 * 60 * 60 * 1000 + 60000),
+    },
+    {
+      carePlanId: carePlan5.id,
+      userId: clinician1.id,
+      action: "approved",
+      details: { approverName: clinician1.name },
+      createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan5.id,
+      userId: clinician1.id,
+      action: "sent",
+      details: { email: patient5.email, patientName: patient5.name },
+      createdAt: new Date(Date.now() - 5.5 * 24 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan5.id,
+      userId: null,
+      action: "viewed",
+      details: { patientAccess: true, patientName: patient5.name },
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    },
+    {
+      carePlanId: carePlan5.id,
+      userId: null,
+      action: "check_in_responded",
+      details: { response: "yellow", responseText: "Has a question about medication timing", alertCreated: true },
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
     },
   ]);
 
