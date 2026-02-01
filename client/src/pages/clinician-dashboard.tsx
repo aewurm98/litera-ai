@@ -61,6 +61,7 @@ import {
   ExternalLink,
   Trash2,
   ChevronsUpDown,
+  RotateCcw,
 } from "lucide-react";
 import type {
   CarePlan,
@@ -377,6 +378,28 @@ export default function ClinicianDashboard() {
     },
   });
 
+  const resetDemoMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/reset-demo");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
+      setSelectedCarePlan(null);
+      toast({
+        title: "Demo data reset",
+        description: "All demo patients and care plans have been restored",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Reset failed",
+        description: error?.message || "Failed to reset demo data",
+        variant: "destructive",
+      });
+    },
+  });
+
   const resetPatientForm = () => {
     setPatientName("");
     setPatientEmail("");
@@ -583,32 +606,52 @@ export default function ClinicianDashboard() {
           </div>
         </div>
 
-        {/* Demo Patient Portal Link */}
-        {carePlans.some((p) => p.status === "sent" && p.accessToken) && (
+        {/* Test Patient View Dropdown */}
+        {carePlans.some((p) => (p.status === "sent" || p.status === "completed") && p.accessToken) && (
           <div className="p-3 border-t bg-muted/30">
             <p className="text-xs text-muted-foreground mb-2">
               Test Patient View
             </p>
-            {carePlans
-              .filter((p) => p.status === "sent" && p.accessToken)
-              .slice(0, 1)
-              .map((plan) => (
-                <Button
-                  key={plan.id}
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs"
-                  onClick={() =>
-                    window.open(`/p/${plan.accessToken}`, "_blank")
-                  }
-                  data-testid="button-demo-patient-portal"
-                >
-                  <Eye className="h-3 w-3 mr-1" />
-                  View as {plan.patient?.name?.split(" ")[0] || "Patient"}
-                </Button>
-              ))}
+            <Select
+              onValueChange={(token) => window.open(`/p/${token}?demo=1`, "_blank")}
+            >
+              <SelectTrigger className="w-full text-xs" data-testid="select-test-patient">
+                <SelectValue placeholder="Select a patient..." />
+              </SelectTrigger>
+              <SelectContent>
+                {carePlans
+                  .filter((p) => (p.status === "sent" || p.status === "completed") && p.accessToken)
+                  .map((plan) => (
+                    <SelectItem key={plan.id} value={plan.accessToken!}>
+                      <div className="flex items-center gap-2">
+                        <Eye className="h-3 w-3" />
+                        {plan.patient?.name || "Patient"} ({plan.translatedLanguage?.toUpperCase() || "EN"})
+                      </div>
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
+
+        {/* Demo Reset Button */}
+        <div className="p-3 border-t bg-muted/30">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs text-muted-foreground"
+            onClick={() => resetDemoMutation.mutate()}
+            disabled={resetDemoMutation.isPending}
+            data-testid="button-reset-demo"
+          >
+            {resetDemoMutation.isPending ? (
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3 w-3 mr-1" />
+            )}
+            Reset Demo Data
+          </Button>
+        </div>
       </div>
 
       {/* Main Content Area */}
@@ -1169,6 +1212,76 @@ export default function ClinicianDashboard() {
               Upload a PDF or image of the patient's discharge instructions.
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Sample Documents Dropdown */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Sample Documents (Demo)</Label>
+            <Select
+              onValueChange={async (filename) => {
+                try {
+                  const response = await fetch(`/sample-docs/${filename}`);
+                  const blob = await response.blob();
+                  const file = new File([blob], filename, { type: 'application/pdf' });
+                  setUploadFile(file);
+                } catch (error) {
+                  toast({
+                    title: "Failed to load sample",
+                    description: "Could not load the sample document",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              <SelectTrigger className="w-full" data-testid="select-sample-document">
+                <SelectValue placeholder="Select a sample discharge document..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="discharge_rosa_martinez_chf.pdf">
+                  Rosa Martinez - CHF (Spanish)
+                </SelectItem>
+                <SelectItem value="discharge_nguyen_thi_lan_appendectomy.pdf">
+                  Nguyen Thi Lan - Appendectomy (Vietnamese)
+                </SelectItem>
+                <SelectItem value="discharge_wei_zhang_pneumonia.pdf">
+                  Wei Zhang - Pneumonia (Chinese)
+                </SelectItem>
+                <SelectItem value="discharge_fatima_al_hassan_gestational_diabetes.pdf">
+                  Fatima Al-Hassan - Gestational Diabetes (Arabic)
+                </SelectItem>
+                <SelectItem value="discharge_aisha_rahman_chf.pdf">
+                  Aisha Rahman - CHF (Bengali)
+                </SelectItem>
+                <SelectItem value="discharge_amadou_diallo_sickle_cell.pdf">
+                  Amadou Diallo - Sickle Cell (French)
+                </SelectItem>
+                <SelectItem value="discharge_arjun_sharma_asthma.pdf">
+                  Arjun Sharma - Asthma (Hindi)
+                </SelectItem>
+                <SelectItem value="discharge_keiko_tanaka_pancreatitis.pdf">
+                  Keiko Tanaka - Pancreatitis (Japanese)
+                </SelectItem>
+                <SelectItem value="discharge_mei_ling_chen_postpartum.pdf">
+                  Mei Ling Chen - Postpartum (Chinese)
+                </SelectItem>
+                <SelectItem value="discharge_olga_petrov_copd.pdf">
+                  Olga Petrov - COPD (Russian)
+                </SelectItem>
+                <SelectItem value="discharge_pedro_gutierrez_knee.pdf">
+                  Pedro Gutierrez - Knee Surgery (Spanish)
+                </SelectItem>
+                <SelectItem value="discharge_tran_van_duc_stroke.pdf">
+                  Tran Van Duc - Stroke (Vietnamese)
+                </SelectItem>
+                <SelectItem value="discharge_james_oconnell_hip_replacement.pdf">
+                  James O'Connell - Hip Replacement (English)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Or upload your own file below
+            </p>
+          </div>
+
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
               isDragging

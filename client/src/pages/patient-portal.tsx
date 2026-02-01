@@ -77,6 +77,16 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     print: "Print",
     viewOriginal: "View Original",
     originalDocument: "Original Document",
+    readAloud: "Read Aloud",
+    readAloudNotAvailable: "Read Aloud (Not Available)",
+    stopReading: "Stop Reading",
+    saveAsPdf: "Save as PDF",
+    needOriginalDocument: "Need the original hospital document?",
+    viewOriginalDocument: "View Original Document",
+    originalDischargeDocument: "Original Discharge Document",
+    originalBeforeSimplification: "This is the original hospital document before simplification",
+    callClinic: "Call Clinic",
+    emergency911: "Emergency 911",
     verifyIdentity: "Verify Your Identity",
     enterYearOfBirth: "Enter your year of birth to access your care plan",
     yearOfBirthPlaceholder: "Year of Birth (e.g., 1980)",
@@ -119,6 +129,16 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     print: "Imprimir",
     viewOriginal: "Ver Original",
     originalDocument: "Documento Original",
+    readAloud: "Leer en Voz Alta",
+    readAloudNotAvailable: "Leer en Voz Alta (No Disponible)",
+    stopReading: "Dejar de Leer",
+    saveAsPdf: "Guardar como PDF",
+    needOriginalDocument: "¿Necesita el documento original del hospital?",
+    viewOriginalDocument: "Ver Documento Original",
+    originalDischargeDocument: "Documento de Alta Original",
+    originalBeforeSimplification: "Este es el documento original del hospital antes de la simplificación",
+    callClinic: "Llamar a la Clínica",
+    emergency911: "Emergencia 911",
     verifyIdentity: "Verifique Su Identidad",
     enterYearOfBirth: "Ingrese su año de nacimiento para acceder a su plan de cuidado",
     yearOfBirthPlaceholder: "Año de Nacimiento (ej., 1980)",
@@ -161,6 +181,16 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     print: "打印",
     viewOriginal: "查看原文",
     originalDocument: "原始文档",
+    readAloud: "朗读",
+    readAloudNotAvailable: "朗读（不可用）",
+    stopReading: "停止朗读",
+    saveAsPdf: "保存为PDF",
+    needOriginalDocument: "需要原始医院文件吗？",
+    viewOriginalDocument: "查看原始文件",
+    originalDischargeDocument: "原始出院文件",
+    originalBeforeSimplification: "这是简化前的原始医院文件",
+    callClinic: "致电诊所",
+    emergency911: "紧急呼叫911",
     verifyIdentity: "验证您的身份",
     enterYearOfBirth: "输入您的出生年份以访问您的护理计划",
     yearOfBirthPlaceholder: "出生年份（例如，1980）",
@@ -203,6 +233,16 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     print: "In",
     viewOriginal: "Xem Bản Gốc",
     originalDocument: "Tài Liệu Gốc",
+    readAloud: "Đọc To",
+    readAloudNotAvailable: "Đọc To (Không Khả Dụng)",
+    stopReading: "Dừng Đọc",
+    saveAsPdf: "Lưu dưới dạng PDF",
+    needOriginalDocument: "Cần tài liệu gốc từ bệnh viện?",
+    viewOriginalDocument: "Xem Tài Liệu Gốc",
+    originalDischargeDocument: "Tài Liệu Xuất Viện Gốc",
+    originalBeforeSimplification: "Đây là tài liệu gốc của bệnh viện trước khi đơn giản hóa",
+    callClinic: "Gọi Phòng Khám",
+    emergency911: "Cấp Cứu 911",
     verifyIdentity: "Xác Minh Danh Tính",
     enterYearOfBirth: "Nhập năm sinh của bạn để truy cập kế hoạch chăm sóc",
     yearOfBirthPlaceholder: "Năm sinh (ví dụ: 1980)",
@@ -245,6 +285,16 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     print: "طباعة",
     viewOriginal: "عرض الأصل",
     originalDocument: "المستند الأصلي",
+    readAloud: "اقرأ بصوت عالٍ",
+    readAloudNotAvailable: "اقرأ بصوت عالٍ (غير متاح)",
+    stopReading: "توقف عن القراءة",
+    saveAsPdf: "حفظ كـ PDF",
+    needOriginalDocument: "هل تحتاج إلى مستند المستشفى الأصلي؟",
+    viewOriginalDocument: "عرض المستند الأصلي",
+    originalDischargeDocument: "مستند الخروج الأصلي",
+    originalBeforeSimplification: "هذا هو مستند المستشفى الأصلي قبل التبسيط",
+    callClinic: "اتصل بالعيادة",
+    emergency911: "طوارئ 911",
     verifyIdentity: "تحقق من هويتك",
     enterYearOfBirth: "أدخل سنة ميلادك للوصول إلى خطة الرعاية",
     yearOfBirthPlaceholder: "سنة الميلاد (مثال: 1980)",
@@ -287,6 +337,16 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     print: "인쇄",
     viewOriginal: "원본 보기",
     originalDocument: "원본 문서",
+    readAloud: "소리내어 읽기",
+    readAloudNotAvailable: "소리내어 읽기 (사용 불가)",
+    stopReading: "읽기 중지",
+    saveAsPdf: "PDF로 저장",
+    needOriginalDocument: "원본 병원 문서가 필요하신가요?",
+    viewOriginalDocument: "원본 문서 보기",
+    originalDischargeDocument: "원본 퇴원 문서",
+    originalBeforeSimplification: "이것은 간소화 전 원본 병원 문서입니다",
+    callClinic: "병원에 전화",
+    emergency911: "응급 911",
     verifyIdentity: "신원 확인",
     enterYearOfBirth: "케어 플랜에 접근하려면 출생 연도를 입력하세요",
     yearOfBirthPlaceholder: "출생 연도 (예: 1980)",
@@ -329,6 +389,16 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     print: "I-print",
     viewOriginal: "Tingnan ang Orihinal",
     originalDocument: "Orihinal na Dokumento",
+    readAloud: "Basahin ng Malakas",
+    readAloudNotAvailable: "Basahin ng Malakas (Hindi Magagamit)",
+    stopReading: "Itigil ang Pagbasa",
+    saveAsPdf: "I-save bilang PDF",
+    needOriginalDocument: "Kailangan mo ba ang orihinal na dokumento mula sa ospital?",
+    viewOriginalDocument: "Tingnan ang Orihinal na Dokumento",
+    originalDischargeDocument: "Orihinal na Dokumento ng Paglabas",
+    originalBeforeSimplification: "Ito ang orihinal na dokumento ng ospital bago ang pagpapasimple",
+    callClinic: "Tumawag sa Klinika",
+    emergency911: "Emerhensya 911",
     verifyIdentity: "I-verify ang Iyong Pagkakakilanlan",
     enterYearOfBirth: "Ilagay ang iyong taon ng kapanganakan para ma-access ang iyong plano ng pangangalaga",
     yearOfBirthPlaceholder: "Taon ng Kapanganakan (hal., 1980)",
@@ -1109,12 +1179,14 @@ export default function PatientPortal() {
             {isSpeaking ? (
               <>
                 <VolumeX className="h-5 w-5" />
-                Stop Reading
+                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "stopReading")}
               </>
             ) : (
               <>
                 <Volume2 className="h-5 w-5" />
-                {isTTSSupported ? "Read Aloud" : "Read Aloud (Not Available)"}
+                {isTTSSupported 
+                  ? getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "readAloud") 
+                  : getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "readAloudNotAvailable")}
               </>
             )}
           </Button>
@@ -1126,7 +1198,7 @@ export default function PatientPortal() {
               data-testid="button-download-pdf"
             >
               <Download className="h-5 w-5" />
-              Save as PDF
+              {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "saveAsPdf")}
             </Button>
             <Button 
               variant="outline" 
@@ -1135,7 +1207,7 @@ export default function PatientPortal() {
               data-testid="button-print"
             >
               <Printer className="h-5 w-5" />
-              Print
+              {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "print")}
             </Button>
           </div>
         </div>
@@ -1144,7 +1216,7 @@ export default function PatientPortal() {
         {carePlan.originalFileName && carePlan.originalContent && (
           <div className="pt-4 border-t">
             <p className="text-sm text-muted-foreground mb-2">
-              Need the original hospital document?
+              {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "needOriginalDocument")}
             </p>
             <Button
               variant="ghost"
@@ -1154,7 +1226,7 @@ export default function PatientPortal() {
               data-testid="button-view-original"
             >
               <FileText className="h-4 w-4 mr-2" />
-              View Original Document
+              {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "viewOriginalDocument")}
             </Button>
           </div>
         )}
@@ -1165,10 +1237,10 @@ export default function PatientPortal() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Original Discharge Document
+                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "originalDischargeDocument")}
               </DialogTitle>
               <DialogDescription>
-                This is the original hospital document before simplification
+                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "originalBeforeSimplification")}
               </DialogDescription>
             </DialogHeader>
             <ScrollArea className="max-h-[50vh] mt-4">
@@ -1190,7 +1262,7 @@ export default function PatientPortal() {
           >
             <a href="tel:+15551234567">
               <Phone className="h-5 w-5" />
-              Call Clinic
+              {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "callClinic")}
             </a>
           </Button>
           <Button 
@@ -1200,7 +1272,7 @@ export default function PatientPortal() {
           >
             <a href="tel:911">
               <AlertTriangle className="h-5 w-5" />
-              Emergency 911
+              {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "emergency911")}
             </a>
           </Button>
         </div>
