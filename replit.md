@@ -6,6 +6,12 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 
 ## Recent Changes
 
+- **February 2026**: Internationalization and UX improvements
+  - **Patient Portal Translations**: Full UI translation for 7 languages (English, Spanish, Chinese, Vietnamese, Arabic, Korean, Tagalog) - headers, CTAs, and check-in dialog all translate based on care plan language
+  - **Collapsible Back-translations**: Back-translation displays are now collapsible to reduce visual clutter in the review interface
+  - **Demo Reset Endpoint**: Admin API `/api/admin/reset-demo` clears and re-seeds demo data
+  - **Maria Santos Fix**: Corrected preferred language from 'tl' to 'es' to match Spanish care plan translations
+
 - **January 2026**: MVP improvements and refinements
   - **View as Patient**: Clinicians can preview patient portal with secure demo tokens (5-minute expiry, requires clinician auth)
   - **PDF Upload Fix**: Using pdfjs-dist legacy build for Node.js compatibility with AI fallback for scanned/invalid PDFs
@@ -13,7 +19,7 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
     - Collapsible Accordion sections in Original column
     - Structured MedicationsList and AppointmentsList components with unique test IDs
     - Color-coded sections (primary for diagnosis, destructive for warnings)
-    - Inline back-translation display (not hover tooltips)
+    - Collapsible back-translation display with toggle triggers
     - Editable Textareas in Simplified/Translated columns (PRD FR-3.1 compliance)
   - **Admin Dashboard**: Added Clinician column showing patient ownership across all care plans
   - Clinician Dashboard with 3-column review interface and per-column scroll tracking
