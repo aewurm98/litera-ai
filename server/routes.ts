@@ -598,6 +598,33 @@ export async function registerRoutes(
     }
   });
 
+  // Delete care plan
+  app.delete("/api/care-plans/:id", requireClinicianAuth, async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const carePlan = await storage.getCarePlan(id);
+      
+      if (!carePlan) {
+        return res.status(404).json({ error: "Care plan not found" });
+      }
+      
+      // Only allow deletion if not yet sent
+      if (carePlan.status === "sent" || carePlan.status === "completed") {
+        return res.status(400).json({ error: "Cannot delete a care plan that has been sent to the patient" });
+      }
+      
+      const deleted = await storage.deleteCarePlan(id);
+      if (deleted) {
+        res.json({ success: true });
+      } else {
+        res.status(500).json({ error: "Failed to delete care plan" });
+      }
+    } catch (error) {
+      console.error("Error deleting care plan:", error);
+      res.status(500).json({ error: "Failed to delete care plan" });
+    }
+  });
+
   // ============= Patient Portal API =============
 
   // Validate demo token (for clinician preview mode)
