@@ -48,6 +48,7 @@ export interface IStorage {
     resolved: boolean;
   }>>;
   resolveAlert(checkInId: string, resolvedBy: string): Promise<void>;
+  clearAllData(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -219,6 +220,14 @@ export class DatabaseStorage implements IStorage {
       alertResolvedAt: new Date(),
       alertResolvedBy: resolvedBy,
     }).where(eq(checkIns.id, checkInId));
+  }
+
+  async clearAllData(): Promise<void> {
+    await db.delete(auditLogs);
+    await db.delete(checkIns);
+    await db.delete(carePlans);
+    await db.delete(patients);
+    await db.delete(users);
   }
 }
 

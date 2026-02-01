@@ -42,6 +42,311 @@ import { SUPPORTED_LANGUAGES } from "@shared/schema";
 
 type CarePlanWithPatient = CarePlan & { patient: Patient; checkIns?: CheckIn[] };
 
+// UI translations for patient portal
+const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
+  en: {
+    yourCarePlan: "Your Care Plan",
+    whatsWrong: "What's Wrong",
+    whatToDo: "What to Do",
+    warningSigns: "Warning Signs",
+    warningSubtitle: "Go to the emergency room or call 911 if you have any of these:",
+    medications: "Your Medications",
+    appointments: "Your Appointments",
+    howAreYouFeeling: "How are you feeling?",
+    howAreYouFeelingToday: "How are you feeling today?",
+    letYourCareTeamKnow: "Let your care team know",
+    tapTheOption: "Tap the option that best describes how you're doing",
+    checkIn: "Check In",
+    imFeelingGood: "I'm feeling good",
+    everythingOk: "Everything is going well",
+    iHaveAConcern: "I have a concern",
+    somethingNotRight: "Something doesn't feel right",
+    iNeedHelp: "I need help",
+    urgentAssistance: "I need urgent assistance",
+    thankYou: "Thank you for checking in!",
+    wereGlad: "We're glad you're feeling well. Keep taking your medications as prescribed.",
+    careTeamNotified: "Your care team has been notified and will reach out soon.",
+    callNow: "Please call 911 or go to the emergency room immediately.",
+    call911: "Call 911",
+    close: "Close",
+    viewInEnglish: "View in English",
+    viewInLanguage: "View in",
+    listenToCarePlan: "Listen to Care Plan",
+    stopListening: "Stop",
+    downloadPdf: "Download PDF",
+    print: "Print",
+    viewOriginal: "View Original",
+    originalDocument: "Original Document",
+    verifyIdentity: "Verify Your Identity",
+    enterYearOfBirth: "Enter your year of birth to access your care plan",
+    yearOfBirthPlaceholder: "Year of Birth (e.g., 1980)",
+    verifyButton: "Verify",
+    verifying: "Verifying...",
+    attemptsRemaining: "attempts remaining",
+    tooManyAttempts: "Too Many Attempts",
+    tryAgainLater: "Please try again in 15 minutes or contact your care team."
+  },
+  es: {
+    yourCarePlan: "Su Plan de Cuidado",
+    whatsWrong: "¿Qué Está Mal?",
+    whatToDo: "Qué Hacer",
+    warningSigns: "Señales de Advertencia",
+    warningSubtitle: "Vaya a la sala de emergencias o llame al 911 si tiene alguno de estos:",
+    medications: "Sus Medicamentos",
+    appointments: "Sus Citas",
+    howAreYouFeeling: "¿Cómo se siente?",
+    howAreYouFeelingToday: "¿Cómo se siente hoy?",
+    letYourCareTeamKnow: "Avise a su equipo de atención",
+    tapTheOption: "Toque la opción que mejor describa cómo se siente",
+    checkIn: "Registrarse",
+    imFeelingGood: "Me siento bien",
+    everythingOk: "Todo va bien",
+    iHaveAConcern: "Tengo una preocupación",
+    somethingNotRight: "Algo no se siente bien",
+    iNeedHelp: "Necesito ayuda",
+    urgentAssistance: "Necesito asistencia urgente",
+    thankYou: "¡Gracias por registrarse!",
+    wereGlad: "Nos alegra que se sienta bien. Siga tomando sus medicamentos como se le indicó.",
+    careTeamNotified: "Su equipo de atención ha sido notificado y se comunicará pronto.",
+    callNow: "Por favor llame al 911 o vaya a la sala de emergencias inmediatamente.",
+    call911: "Llamar al 911",
+    close: "Cerrar",
+    viewInEnglish: "Ver en Inglés",
+    viewInLanguage: "Ver en",
+    listenToCarePlan: "Escuchar Plan de Cuidado",
+    stopListening: "Parar",
+    downloadPdf: "Descargar PDF",
+    print: "Imprimir",
+    viewOriginal: "Ver Original",
+    originalDocument: "Documento Original",
+    verifyIdentity: "Verifique Su Identidad",
+    enterYearOfBirth: "Ingrese su año de nacimiento para acceder a su plan de cuidado",
+    yearOfBirthPlaceholder: "Año de Nacimiento (ej., 1980)",
+    verifyButton: "Verificar",
+    verifying: "Verificando...",
+    attemptsRemaining: "intentos restantes",
+    tooManyAttempts: "Demasiados Intentos",
+    tryAgainLater: "Por favor intente de nuevo en 15 minutos o contacte a su equipo de atención."
+  },
+  zh: {
+    yourCarePlan: "您的护理计划",
+    whatsWrong: "问题是什么",
+    whatToDo: "该怎么做",
+    warningSigns: "警告信号",
+    warningSubtitle: "如果您有以下任何情况，请去急诊室或拨打911：",
+    medications: "您的药物",
+    appointments: "您的预约",
+    howAreYouFeeling: "您感觉如何？",
+    howAreYouFeelingToday: "您今天感觉如何？",
+    letYourCareTeamKnow: "让您的护理团队知道",
+    tapTheOption: "点击最能描述您状况的选项",
+    checkIn: "签到",
+    imFeelingGood: "我感觉很好",
+    everythingOk: "一切都很顺利",
+    iHaveAConcern: "我有一些担忧",
+    somethingNotRight: "有些事情感觉不对",
+    iNeedHelp: "我需要帮助",
+    urgentAssistance: "我需要紧急帮助",
+    thankYou: "感谢您的签到！",
+    wereGlad: "很高兴您感觉良好。请继续按处方服药。",
+    careTeamNotified: "您的护理团队已收到通知，将很快与您联系。",
+    callNow: "请立即拨打911或前往急诊室。",
+    call911: "拨打911",
+    close: "关闭",
+    viewInEnglish: "用英语查看",
+    viewInLanguage: "用以下语言查看",
+    listenToCarePlan: "收听护理计划",
+    stopListening: "停止",
+    downloadPdf: "下载PDF",
+    print: "打印",
+    viewOriginal: "查看原文",
+    originalDocument: "原始文档",
+    verifyIdentity: "验证您的身份",
+    enterYearOfBirth: "输入您的出生年份以访问您的护理计划",
+    yearOfBirthPlaceholder: "出生年份（例如，1980）",
+    verifyButton: "验证",
+    verifying: "验证中...",
+    attemptsRemaining: "剩余尝试次数",
+    tooManyAttempts: "尝试次数过多",
+    tryAgainLater: "请在15分钟后重试或联系您的护理团队。"
+  },
+  vi: {
+    yourCarePlan: "Kế Hoạch Chăm Sóc Của Bạn",
+    whatsWrong: "Vấn Đề Là Gì",
+    whatToDo: "Cần Làm Gì",
+    warningSigns: "Dấu Hiệu Cảnh Báo",
+    warningSubtitle: "Đến phòng cấp cứu hoặc gọi 911 nếu bạn có bất kỳ dấu hiệu nào sau đây:",
+    medications: "Thuốc Của Bạn",
+    appointments: "Lịch Hẹn Của Bạn",
+    howAreYouFeeling: "Bạn cảm thấy thế nào?",
+    howAreYouFeelingToday: "Hôm nay bạn cảm thấy thế nào?",
+    letYourCareTeamKnow: "Cho đội ngũ chăm sóc của bạn biết",
+    tapTheOption: "Chạm vào lựa chọn mô tả tốt nhất tình trạng của bạn",
+    checkIn: "Đăng Ký",
+    imFeelingGood: "Tôi cảm thấy tốt",
+    everythingOk: "Mọi thứ đều ổn",
+    iHaveAConcern: "Tôi có một lo ngại",
+    somethingNotRight: "Có điều gì đó không đúng",
+    iNeedHelp: "Tôi cần giúp đỡ",
+    urgentAssistance: "Tôi cần hỗ trợ khẩn cấp",
+    thankYou: "Cảm ơn bạn đã đăng ký!",
+    wereGlad: "Chúng tôi vui vì bạn cảm thấy khỏe. Hãy tiếp tục uống thuốc theo chỉ định.",
+    careTeamNotified: "Đội ngũ chăm sóc của bạn đã được thông báo và sẽ liên hệ sớm.",
+    callNow: "Vui lòng gọi 911 hoặc đến phòng cấp cứu ngay lập tức.",
+    call911: "Gọi 911",
+    close: "Đóng",
+    viewInEnglish: "Xem bằng tiếng Anh",
+    viewInLanguage: "Xem bằng",
+    listenToCarePlan: "Nghe Kế Hoạch Chăm Sóc",
+    stopListening: "Dừng",
+    downloadPdf: "Tải PDF",
+    print: "In",
+    viewOriginal: "Xem Bản Gốc",
+    originalDocument: "Tài Liệu Gốc",
+    verifyIdentity: "Xác Minh Danh Tính",
+    enterYearOfBirth: "Nhập năm sinh của bạn để truy cập kế hoạch chăm sóc",
+    yearOfBirthPlaceholder: "Năm sinh (ví dụ: 1980)",
+    verifyButton: "Xác Minh",
+    verifying: "Đang xác minh...",
+    attemptsRemaining: "lần thử còn lại",
+    tooManyAttempts: "Quá Nhiều Lần Thử",
+    tryAgainLater: "Vui lòng thử lại sau 15 phút hoặc liên hệ đội ngũ chăm sóc."
+  },
+  ar: {
+    yourCarePlan: "خطة الرعاية الخاصة بك",
+    whatsWrong: "ما المشكلة",
+    whatToDo: "ماذا تفعل",
+    warningSigns: "علامات التحذير",
+    warningSubtitle: "اذهب إلى غرفة الطوارئ أو اتصل بـ 911 إذا كان لديك أي من هذه:",
+    medications: "أدويتك",
+    appointments: "مواعيدك",
+    howAreYouFeeling: "كيف تشعر؟",
+    howAreYouFeelingToday: "كيف تشعر اليوم؟",
+    letYourCareTeamKnow: "أخبر فريق الرعاية الخاص بك",
+    tapTheOption: "اضغط على الخيار الذي يصف حالتك",
+    checkIn: "تسجيل الدخول",
+    imFeelingGood: "أشعر بخير",
+    everythingOk: "كل شيء على ما يرام",
+    iHaveAConcern: "لدي قلق",
+    somethingNotRight: "شيء ما ليس صحيحاً",
+    iNeedHelp: "أحتاج مساعدة",
+    urgentAssistance: "أحتاج مساعدة عاجلة",
+    thankYou: "شكراً لتسجيل دخولك!",
+    wereGlad: "نحن سعداء أنك تشعر بخير. استمر في تناول أدويتك كما هو موصوف.",
+    careTeamNotified: "تم إخطار فريق الرعاية الخاص بك وسيتواصلون معك قريباً.",
+    callNow: "يرجى الاتصال بـ 911 أو الذهاب إلى غرفة الطوارئ فوراً.",
+    call911: "اتصل بـ 911",
+    close: "إغلاق",
+    viewInEnglish: "عرض بالإنجليزية",
+    viewInLanguage: "عرض بـ",
+    listenToCarePlan: "استمع لخطة الرعاية",
+    stopListening: "توقف",
+    downloadPdf: "تحميل PDF",
+    print: "طباعة",
+    viewOriginal: "عرض الأصل",
+    originalDocument: "المستند الأصلي",
+    verifyIdentity: "تحقق من هويتك",
+    enterYearOfBirth: "أدخل سنة ميلادك للوصول إلى خطة الرعاية",
+    yearOfBirthPlaceholder: "سنة الميلاد (مثال: 1980)",
+    verifyButton: "تحقق",
+    verifying: "جاري التحقق...",
+    attemptsRemaining: "محاولات متبقية",
+    tooManyAttempts: "محاولات كثيرة جداً",
+    tryAgainLater: "يرجى المحاولة مرة أخرى بعد 15 دقيقة أو اتصل بفريق الرعاية."
+  },
+  ko: {
+    yourCarePlan: "귀하의 케어 플랜",
+    whatsWrong: "문제점",
+    whatToDo: "해야 할 일",
+    warningSigns: "경고 신호",
+    warningSubtitle: "다음 증상이 있으면 응급실로 가거나 911에 전화하세요:",
+    medications: "귀하의 약물",
+    appointments: "귀하의 예약",
+    howAreYouFeeling: "기분이 어떠세요?",
+    howAreYouFeelingToday: "오늘 기분이 어떠세요?",
+    letYourCareTeamKnow: "케어 팀에게 알려주세요",
+    tapTheOption: "귀하의 상태를 가장 잘 설명하는 옵션을 탭하세요",
+    checkIn: "체크인",
+    imFeelingGood: "기분이 좋아요",
+    everythingOk: "모든 것이 잘 되고 있어요",
+    iHaveAConcern: "걱정이 있어요",
+    somethingNotRight: "뭔가 이상해요",
+    iNeedHelp: "도움이 필요해요",
+    urgentAssistance: "긴급 도움이 필요해요",
+    thankYou: "체크인해 주셔서 감사합니다!",
+    wereGlad: "기분이 좋으시다니 다행입니다. 처방대로 약을 계속 복용하세요.",
+    careTeamNotified: "케어 팀에게 알렸으며 곧 연락드릴 것입니다.",
+    callNow: "지금 바로 911에 전화하거나 응급실로 가세요.",
+    call911: "911 전화",
+    close: "닫기",
+    viewInEnglish: "영어로 보기",
+    viewInLanguage: "다음 언어로 보기",
+    listenToCarePlan: "케어 플랜 듣기",
+    stopListening: "중지",
+    downloadPdf: "PDF 다운로드",
+    print: "인쇄",
+    viewOriginal: "원본 보기",
+    originalDocument: "원본 문서",
+    verifyIdentity: "신원 확인",
+    enterYearOfBirth: "케어 플랜에 접근하려면 출생 연도를 입력하세요",
+    yearOfBirthPlaceholder: "출생 연도 (예: 1980)",
+    verifyButton: "확인",
+    verifying: "확인 중...",
+    attemptsRemaining: "남은 시도 횟수",
+    tooManyAttempts: "시도 횟수 초과",
+    tryAgainLater: "15분 후에 다시 시도하거나 케어 팀에 연락하세요."
+  },
+  tl: {
+    yourCarePlan: "Iyong Plano ng Pangangalaga",
+    whatsWrong: "Ano ang Mali",
+    whatToDo: "Ano ang Dapat Gawin",
+    warningSigns: "Mga Senyales ng Babala",
+    warningSubtitle: "Pumunta sa emergency room o tumawag sa 911 kung mayroon ka ng alinman sa mga ito:",
+    medications: "Iyong mga Gamot",
+    appointments: "Iyong mga Appointment",
+    howAreYouFeeling: "Kumusta ang pakiramdam mo?",
+    howAreYouFeelingToday: "Kumusta ang pakiramdam mo ngayon?",
+    letYourCareTeamKnow: "Ipaalam sa iyong care team",
+    tapTheOption: "I-tap ang opsyon na pinakamahusay na naglalarawan kung paano ka",
+    checkIn: "Mag-check In",
+    imFeelingGood: "Mabuti ang pakiramdam ko",
+    everythingOk: "Maayos ang lahat",
+    iHaveAConcern: "May alalahanin ako",
+    somethingNotRight: "May hindi tama",
+    iNeedHelp: "Kailangan ko ng tulong",
+    urgentAssistance: "Kailangan ko ng agarang tulong",
+    thankYou: "Salamat sa pag-check in!",
+    wereGlad: "Masaya kami na mabuti ang pakiramdam mo. Patuloy na uminom ng gamot ayon sa reseta.",
+    careTeamNotified: "Na-notify na ang iyong care team at makikipag-ugnayan sa lalong madaling panahon.",
+    callNow: "Mangyaring tumawag sa 911 o pumunta sa emergency room kaagad.",
+    call911: "Tumawag sa 911",
+    close: "Isara",
+    viewInEnglish: "Tingnan sa Ingles",
+    viewInLanguage: "Tingnan sa",
+    listenToCarePlan: "Pakinggan ang Plano ng Pangangalaga",
+    stopListening: "Itigil",
+    downloadPdf: "I-download ang PDF",
+    print: "I-print",
+    viewOriginal: "Tingnan ang Orihinal",
+    originalDocument: "Orihinal na Dokumento",
+    verifyIdentity: "I-verify ang Iyong Pagkakakilanlan",
+    enterYearOfBirth: "Ilagay ang iyong taon ng kapanganakan para ma-access ang iyong plano ng pangangalaga",
+    yearOfBirthPlaceholder: "Taon ng Kapanganakan (hal., 1980)",
+    verifyButton: "I-verify",
+    verifying: "Nag-ve-verify...",
+    attemptsRemaining: "mga natitirang pagsubok",
+    tooManyAttempts: "Sobrang Daming Pagsubok",
+    tryAgainLater: "Mangyaring subukan ulit sa 15 minuto o makipag-ugnayan sa iyong care team."
+  }
+};
+
+// Helper to get translation with fallback to English
+function getTranslation(lang: string | null | undefined, key: string): string {
+  const language = lang || "en";
+  const translations = UI_TRANSLATIONS[language] || UI_TRANSLATIONS["en"];
+  return translations[key] || UI_TRANSLATIONS["en"][key] || key;
+}
+
 export default function PatientPortal() {
   const { token } = useParams<{ token: string }>();
   const [, navigate] = useLocation();
@@ -540,14 +845,15 @@ export default function PatientPortal() {
 
   // Check-in screen
   if (showCheckIn) {
+    const checkInLang = carePlan?.translatedLanguage || "en";
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background p-4">
         <div className="max-w-lg mx-auto pt-8">
           <Card>
             <CardHeader className="text-center">
-              <CardTitle className="text-2xl">How are you feeling today?</CardTitle>
+              <CardTitle className="text-2xl">{getTranslation(checkInLang, "howAreYouFeelingToday")}</CardTitle>
               <CardDescription className="text-base">
-                Tap the option that best describes how you're doing
+                {getTranslation(checkInLang, "tapTheOption")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -562,8 +868,8 @@ export default function PatientPortal() {
                   <Check className="h-7 w-7 text-white" />
                 </div>
                 <div>
-                  <div className="font-semibold text-lg text-green-800 dark:text-green-300">I feel good</div>
-                  <div className="text-green-600 dark:text-green-400">Things are going okay</div>
+                  <div className="font-semibold text-lg text-green-800 dark:text-green-300">{getTranslation(checkInLang, "imFeelingGood")}</div>
+                  <div className="text-green-600 dark:text-green-400">{getTranslation(checkInLang, "everythingOk")}</div>
                 </div>
               </button>
 
@@ -578,8 +884,8 @@ export default function PatientPortal() {
                   <AlertTriangle className="h-7 w-7 text-white" />
                 </div>
                 <div>
-                  <div className="font-semibold text-lg text-yellow-800 dark:text-yellow-300">I have a concern</div>
-                  <div className="text-yellow-600 dark:text-yellow-400">Something doesn't feel right</div>
+                  <div className="font-semibold text-lg text-yellow-800 dark:text-yellow-300">{getTranslation(checkInLang, "iHaveAConcern")}</div>
+                  <div className="text-yellow-600 dark:text-yellow-400">{getTranslation(checkInLang, "somethingNotRight")}</div>
                 </div>
               </button>
 
@@ -594,8 +900,8 @@ export default function PatientPortal() {
                   <Phone className="h-7 w-7 text-white" />
                 </div>
                 <div>
-                  <div className="font-semibold text-lg text-red-800 dark:text-red-300">I need help now</div>
-                  <div className="text-red-600 dark:text-red-400">This is urgent</div>
+                  <div className="font-semibold text-lg text-red-800 dark:text-red-300">{getTranslation(checkInLang, "iNeedHelp")}</div>
+                  <div className="text-red-600 dark:text-red-400">{getTranslation(checkInLang, "urgentAssistance")}</div>
                 </div>
               </button>
 
@@ -612,7 +918,7 @@ export default function PatientPortal() {
             className="w-full mt-4"
             onClick={() => setShowCheckIn(false)}
           >
-            Back to Care Plan
+            {getTranslation(checkInLang, "close")}
           </Button>
         </div>
       </div>
@@ -640,7 +946,7 @@ export default function PatientPortal() {
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-semibold">Your Care Plan</h1>
+              <h1 className="text-xl font-semibold">{getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "yourCarePlan")}</h1>
               <p className="text-primary-foreground/80 text-sm">
                 {carePlan.patient.name}
               </p>
@@ -668,12 +974,12 @@ export default function PatientPortal() {
                 <div className="flex items-center gap-3">
                   <Heart className="h-6 w-6 text-primary" />
                   <div>
-                    <p className="font-medium">How are you feeling?</p>
-                    <p className="text-sm text-muted-foreground">Let your care team know</p>
+                    <p className="font-medium">{getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "howAreYouFeeling")}</p>
+                    <p className="text-sm text-muted-foreground">{getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "letYourCareTeamKnow")}</p>
                   </div>
                 </div>
                 <Button onClick={() => setShowCheckIn(true)} data-testid="button-start-checkin">
-                  Check In
+                  {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "checkIn")}
                   <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
@@ -687,7 +993,7 @@ export default function PatientPortal() {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Heart className="h-5 w-5 text-primary" />
-                What's Wrong
+                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "whatsWrong")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -702,7 +1008,7 @@ export default function PatientPortal() {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Pill className="h-5 w-5 text-primary" />
-                Your Medications
+                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "medications")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -731,7 +1037,7 @@ export default function PatientPortal() {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-primary" />
-                Your Appointments
+                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "appointments")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -760,7 +1066,7 @@ export default function PatientPortal() {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Check className="h-5 w-5 text-primary" />
-                What to Do
+                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "whatToDo")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -777,10 +1083,10 @@ export default function PatientPortal() {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
-                Warning Signs
+                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "warningSigns")}
               </CardTitle>
               <CardDescription>
-                Go to the emergency room or call 911 if you have any of these:
+                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "warningSubtitle")}
               </CardDescription>
             </CardHeader>
             <CardContent>

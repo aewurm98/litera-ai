@@ -884,6 +884,19 @@ export async function registerRoutes(
     }
   });
 
+  // ============= Demo Reset Endpoint =============
+  // Reset the database to demo state (only available in development)
+  app.post("/api/admin/reset-demo", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { seedDatabase } = await import("./seed");
+      await seedDatabase();
+      res.json({ success: true, message: "Demo data reset successfully" });
+    } catch (error) {
+      console.error("Error resetting demo data:", error);
+      res.status(500).json({ error: "Failed to reset demo data" });
+    }
+  });
+
   // ============= Check-in Email Scheduler Endpoint =============
   // This endpoint can be called by a cron job or external scheduler
   app.post("/api/internal/send-pending-check-ins", async (req: Request, res: Response) => {

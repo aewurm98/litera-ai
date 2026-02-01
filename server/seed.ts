@@ -11,7 +11,7 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
 
-async function seed() {
+export async function seedDatabase() {
   console.log("Seeding database...");
 
   // Clear existing data (in reverse order of dependencies)
@@ -71,7 +71,7 @@ async function seed() {
     email: "maria.santos@example.com",
     phone: "+1-555-0104",
     yearOfBirth: 1982,
-    preferredLanguage: "tl",
+    preferredLanguage: "es",
   }).returning();
 
   const [patient5] = await db.insert(patients).values({
@@ -552,10 +552,14 @@ async function seed() {
   console.log("\n=========================\n");
 
   console.log("Seeding complete!");
-  process.exit(0);
 }
 
-seed().catch((err) => {
-  console.error("Seeding failed:", err);
-  process.exit(1);
-});
+// Only run if executed directly (not imported)
+if (require.main === module) {
+  seedDatabase()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error("Seeding failed:", err);
+      process.exit(1);
+    });
+}
