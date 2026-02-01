@@ -436,14 +436,10 @@ export default function ClinicianDashboard() {
   }, [isSendDialogOpen, selectedCarePlan]);
 
   return (
-    // FIX APPLIED: Using Flexbox correctly.
-    // h-full w-full ensures it takes the parent's space.
-    <div className="flex h-full w-full overflow-hidden">
-      {/* Sidebar - Care Plans List 
-          FIX: Fixed width (w-80), no shrink (flex-shrink-0).
-          This ensures the list never collapses or gets squished.
-      */}
-      <div className="w-80 flex-shrink-0 border-r bg-card flex flex-col z-10">
+    // Grid Layout forcing 320px Sidebar + 1fr Content
+    <div className="grid h-full w-full grid-cols-[320px_1fr] overflow-hidden">
+      {/* Sidebar - Care Plans List */}
+      <div className="flex flex-col border-r bg-card z-10 overflow-hidden h-full">
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Care Plans</h2>
@@ -458,7 +454,7 @@ export default function ClinicianDashboard() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="p-2 space-y-2">
             {isLoadingCarePlans ? (
               <div className="flex items-center justify-center py-8">
@@ -478,7 +474,7 @@ export default function ClinicianDashboard() {
               carePlans.map((plan) => (
                 <Card
                   key={plan.id}
-                  className={`cursor-pointer transition-colors hover-elevate ${
+                  className={`cursor-pointer transition-colors hover-elevate overflow-hidden ${
                     selectedCarePlan?.id === plan.id
                       ? "border-primary bg-primary/5"
                       : ""
@@ -498,7 +494,7 @@ export default function ClinicianDashboard() {
                             : "Processing..."}
                         </p>
                       </div>
-                      <div className="flex-shrink-0">
+                      <div className="flex-shrink-0 max-w-[130px] overflow-hidden">
                         {getStatusBadge(plan.status)}
                       </div>
                     </div>
@@ -507,7 +503,7 @@ export default function ClinicianDashboard() {
               ))
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Demo Patient Portal Link */}
         {carePlans.some((p) => p.status === "sent" && p.accessToken) && (
@@ -525,7 +521,7 @@ export default function ClinicianDashboard() {
                   size="sm"
                   className="w-full text-xs"
                   onClick={() =>
-                    window.open(`/p/${plan.accessToken}?demo=1`, "_blank")
+                    window.open(`/p/${plan.accessToken}`, "_blank")
                   }
                   data-testid="button-demo-patient-portal"
                 >
@@ -537,12 +533,8 @@ export default function ClinicianDashboard() {
         )}
       </div>
 
-      {/* Main Content - Care Plan Editor 
-          FIX: flex-1 takes remaining space. 
-          min-w-0 forces it to respect boundaries (prevents overlap).
-          overflow-hidden handles inner scrolling.
-      */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-background">
+      {/* Main Content Area */}
+      <div className="flex flex-col min-w-0 overflow-hidden relative bg-background h-full">
         {selectedCarePlan ? (
           <>
             {/* Header */}
@@ -615,15 +607,19 @@ export default function ClinicianDashboard() {
               </div>
             </div>
 
-            {/* Content Tabs */}
+            {/* Content Tabs - Horizontally Scrollable Container */}
             {selectedCarePlan.status === "pending_review" ||
             selectedCarePlan.status === "approved" ||
             selectedCarePlan.status === "sent" ||
             selectedCarePlan.status === "completed" ? (
-              <div className="flex-1 overflow-hidden p-4">
-                <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-auto">
+              <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 relative">
+                {/* FIX APPLIED: 
+                    1. overflow-x-auto on parent 
+                    2. flex row for children with min-w-[350px]
+                */}
+                <div className="flex h-full gap-4">
                   {/* Original Column */}
-                  <Card className="flex flex-col overflow-hidden">
+                  <Card className="flex-1 min-w-[350px] flex flex-col overflow-hidden">
                     <CardHeader className="pb-2 flex-shrink-0">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <FileText className="h-4 w-4" />
@@ -789,7 +785,7 @@ export default function ClinicianDashboard() {
                   </Card>
 
                   {/* Simplified Column */}
-                  <Card className="flex flex-col overflow-hidden">
+                  <Card className="flex-1 min-w-[350px] flex flex-col overflow-hidden">
                     <CardHeader className="pb-2 flex-shrink-0">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <ClipboardList className="h-4 w-4" />
@@ -866,7 +862,7 @@ export default function ClinicianDashboard() {
                   </Card>
 
                   {/* Translated Column */}
-                  <Card className="flex flex-col overflow-hidden border-primary/30">
+                  <Card className="flex-1 min-w-[350px] flex flex-col overflow-hidden border-primary/30">
                     <CardHeader className="pb-2 flex-shrink-0 bg-primary/5">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <Languages className="h-4 w-4 text-primary" />
@@ -981,7 +977,7 @@ export default function ClinicianDashboard() {
 
                 {selectedCarePlan.status === "pending_review" &&
                   !hasScrolledAll && (
-                    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm shadow-lg flex items-center gap-2">
+                    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm shadow-lg flex items-center gap-2 z-50">
                       <Eye className="h-4 w-4" />
                       Scroll through all content to enable approval
                     </div>
