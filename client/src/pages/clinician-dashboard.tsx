@@ -54,6 +54,7 @@ import {
   MapPin,
   User,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import type {
   CarePlan,
@@ -183,6 +184,7 @@ export default function ClinicianDashboard() {
     useState<CarePlanWithPatient | null>(null);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [columnsScrolled, setColumnsScrolled] = useState<boolean[]>([
@@ -342,6 +344,30 @@ export default function ClinicianDashboard() {
     },
     onError: () => {
       toast({ title: "Failed to send", variant: "destructive" });
+    },
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (carePlanId: string) => {
+      const res = await apiRequest("DELETE", `/api/care-plans/${carePlanId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
+      setSelectedCarePlan(null);
+      setIsDeleteDialogOpen(false);
+      toast({
+        title: "Care plan deleted",
+        description: "The care plan has been removed",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Cannot delete",
+        description: error?.message || "This care plan cannot be deleted",
+        variant: "destructive",
+      });
     },
   });
 
@@ -649,6 +675,18 @@ export default function ClinicianDashboard() {
                       View as Patient
                     </Button>
                   )}
+                {(selectedCarePlan.status === "draft" ||
+                  selectedCarePlan.status === "pending_review" ||
+                  selectedCarePlan.status === "approved") && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    data-testid="button-delete"
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                )}
                 {getStatusBadge(selectedCarePlan.status)}
               </div>
             </div>
@@ -1275,6 +1313,42 @@ export default function ClinicianDashboard() {
                 <Send className="h-4 w-4 mr-2" />
               )}
               Send Care Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Care Plan</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this care plan for{" "}
+              <strong>{selectedCarePlan?.patient?.name || "this patient"}</strong>?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              data-testid="button-delete-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => selectedCarePlan && deleteMutation.mutate(selectedCarePlan.id)}
+              disabled={deleteMutation.isPending}
+              data-testid="button-delete-confirm"
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

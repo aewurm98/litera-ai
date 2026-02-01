@@ -27,6 +27,7 @@ export interface IStorage {
   getAllCarePlans(): Promise<CarePlan[]>;
   createCarePlan(carePlan: InsertCarePlan): Promise<CarePlan>;
   updateCarePlan(id: string, data: Partial<CarePlan>): Promise<CarePlan | undefined>;
+  deleteCarePlan(id: string): Promise<boolean>;
   
   getCheckIn(id: string): Promise<CheckIn | undefined>;
   getCheckInsByCarePlanId(carePlanId: string): Promise<CheckIn[]>;
@@ -115,6 +116,15 @@ export class DatabaseStorage implements IStorage {
   async updateCarePlan(id: string, data: Partial<CarePlan>): Promise<CarePlan | undefined> {
     const [carePlan] = await db.update(carePlans).set({ ...data, updatedAt: new Date() }).where(eq(carePlans.id, id)).returning();
     return carePlan || undefined;
+  }
+
+  async deleteCarePlan(id: string): Promise<boolean> {
+    // First delete related check-ins and audit logs
+    await db.delete(checkIns).where(eq(checkIns.carePlanId, id));
+    await db.delete(auditLogs).where(eq(auditLogs.carePlanId, id));
+    // Then delete the care plan
+    const result = await db.delete(carePlans).where(eq(carePlans.id, id)).returning();
+    return result.length > 0;
   }
 
   async getCheckIn(id: string): Promise<CheckIn | undefined> {
