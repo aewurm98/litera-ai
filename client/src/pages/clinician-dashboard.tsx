@@ -489,9 +489,7 @@ export default function ClinicianDashboard() {
                           {plan.patient?.name || "New Patient"}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {plan.diagnosis
-                            ? plan.diagnosis.slice(0, 40) + "..."
-                            : "Processing..."}
+                          {plan.diagnosis || "Processing..."}
                         </p>
                       </div>
                       <div className="flex-shrink-0 max-w-[130px] overflow-hidden">
@@ -871,7 +869,7 @@ export default function ClinicianDashboard() {
                         )?.name || "Translated"}
                       </CardTitle>
                       <CardDescription>
-                        Patient's language (hover for back-translation)
+                        Patient's language
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-hidden p-0">
