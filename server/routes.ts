@@ -885,8 +885,8 @@ export async function registerRoutes(
   });
 
   // ============= Demo Reset Endpoint =============
-  // Reset the database to demo state (only available in development)
-  app.post("/api/admin/reset-demo", requireAdminAuth, async (req: Request, res: Response) => {
+  // Reset the database to demo state (available to clinicians and admins)
+  app.post("/api/admin/reset-demo", requireAuth, async (req: Request, res: Response) => {
     try {
       const { seedDatabase } = await import("./seed");
       await seedDatabase();
