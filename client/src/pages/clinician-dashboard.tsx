@@ -198,6 +198,10 @@ export default function ClinicianDashboard() {
   const [patientYearOfBirth, setPatientYearOfBirth] = useState("");
   const [patientLanguage, setPatientLanguage] = useState("es");
 
+  // Sort and filter state
+  const [sortBy, setSortBy] = useState<"name" | "status" | "date">("date");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+
   const scrollAreaRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Check if all content is visible without scrolling
@@ -219,11 +223,26 @@ export default function ClinicianDashboard() {
   const hasScrolledAll = columnsScrolled.every(Boolean);
 
   // Fetch care plans
-  const { data: carePlans = [], isLoading: isLoadingCarePlans } = useQuery<
+  const { data: carePlansRaw = [], isLoading: isLoadingCarePlans } = useQuery<
     CarePlanWithPatient[]
   >({
     queryKey: ["/api/care-plans"],
   });
+
+  // Sort and filter care plans
+  const carePlans = carePlansRaw
+    .filter((plan) => filterStatus === "all" || plan.status === filterStatus)
+    .sort((a, b) => {
+      if (sortBy === "name") {
+        return (a.patient?.name || "").localeCompare(b.patient?.name || "");
+      } else if (sortBy === "status") {
+        const statusOrder = ["draft", "pending_review", "approved", "sent", "completed"];
+        return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+      } else {
+        // Default: sort by date (newest first)
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      }
+    });
 
   // Upload mutation
   const uploadMutation = useMutation({
@@ -451,6 +470,35 @@ export default function ClinicianDashboard() {
               <Upload className="h-4 w-4 mr-2" />
               New
             </Button>
+          </div>
+        </div>
+
+        {/* Sort and Filter Controls */}
+        <div className="px-3 py-2 border-b">
+          <div className="flex gap-2">
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as "name" | "status" | "date")}>
+              <SelectTrigger className="h-8 text-xs flex-1" data-testid="select-sort">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date">Newest</SelectItem>
+                <SelectItem value="name">Name A-Z</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="h-8 text-xs flex-1" data-testid="select-filter">
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="pending_review">Pending Review</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="sent">Sent</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
