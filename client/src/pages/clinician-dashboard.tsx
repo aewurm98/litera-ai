@@ -987,7 +987,10 @@ export default function ClinicianDashboard() {
                               />
                               {selectedCarePlan.backTranslatedDiagnosis && (
                                 <Collapsible className="mt-2">
-                                  <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                                  <CollapsibleTrigger 
+                                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                    data-testid="collapsible-backtranslation-diagnosis"
+                                  >
                                     <ChevronsUpDown className="h-3 w-3" />
                                     <span className="font-medium">View back-translation</span>
                                   </CollapsibleTrigger>
@@ -1026,7 +1029,10 @@ export default function ClinicianDashboard() {
                               />
                               {selectedCarePlan.backTranslatedInstructions && (
                                 <Collapsible className="mt-2">
-                                  <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                                  <CollapsibleTrigger 
+                                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                    data-testid="collapsible-backtranslation-instructions"
+                                  >
                                     <ChevronsUpDown className="h-3 w-3" />
                                     <span className="font-medium">View back-translation</span>
                                   </CollapsibleTrigger>
@@ -1053,7 +1059,10 @@ export default function ClinicianDashboard() {
                               />
                               {selectedCarePlan.backTranslatedWarnings && (
                                 <Collapsible className="mt-2">
-                                  <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                                  <CollapsibleTrigger 
+                                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                    data-testid="collapsible-backtranslation-warnings"
+                                  >
                                     <ChevronsUpDown className="h-3 w-3" />
                                     <span className="font-medium">View back-translation</span>
                                   </CollapsibleTrigger>
