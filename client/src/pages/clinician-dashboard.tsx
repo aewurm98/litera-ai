@@ -35,6 +35,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import {
   Upload,
@@ -55,6 +60,7 @@ import {
   User,
   ExternalLink,
   Trash2,
+  ChevronsUpDown,
 } from "lucide-react";
 import type {
   CarePlan,
@@ -980,14 +986,17 @@ export default function ClinicianDashboard() {
                                 data-testid="textarea-translated-diagnosis"
                               />
                               {selectedCarePlan.backTranslatedDiagnosis && (
-                                <div className="mt-2 p-2 bg-muted rounded text-xs border">
-                                  <span className="font-medium text-muted-foreground">
-                                    Back-translation:{" "}
-                                  </span>
-                                  <span className="text-foreground">
-                                    {selectedCarePlan.backTranslatedDiagnosis}
-                                  </span>
-                                </div>
+                                <Collapsible className="mt-2">
+                                  <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                                    <ChevronsUpDown className="h-3 w-3" />
+                                    <span className="font-medium">View back-translation</span>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="mt-1 p-2 bg-muted rounded text-xs border">
+                                    <span className="text-foreground">
+                                      {selectedCarePlan.backTranslatedDiagnosis}
+                                    </span>
+                                  </CollapsibleContent>
+                                </Collapsible>
                               )}
                             </div>
                           )}
@@ -1016,16 +1025,17 @@ export default function ClinicianDashboard() {
                                 data-testid="textarea-translated-instructions"
                               />
                               {selectedCarePlan.backTranslatedInstructions && (
-                                <div className="mt-2 p-2 bg-muted rounded text-xs border max-h-[100px] overflow-y-auto">
-                                  <span className="font-medium text-muted-foreground">
-                                    Back-translation:{" "}
-                                  </span>
-                                  <span className="text-foreground">
-                                    {
-                                      selectedCarePlan.backTranslatedInstructions
-                                    }
-                                  </span>
-                                </div>
+                                <Collapsible className="mt-2">
+                                  <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                                    <ChevronsUpDown className="h-3 w-3" />
+                                    <span className="font-medium">View back-translation</span>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="mt-1 p-2 bg-muted rounded text-xs border max-h-[100px] overflow-y-auto">
+                                    <span className="text-foreground">
+                                      {selectedCarePlan.backTranslatedInstructions}
+                                    </span>
+                                  </CollapsibleContent>
+                                </Collapsible>
                               )}
                             </div>
                           )}
@@ -1042,14 +1052,17 @@ export default function ClinicianDashboard() {
                                 data-testid="textarea-translated-warnings"
                               />
                               {selectedCarePlan.backTranslatedWarnings && (
-                                <div className="mt-2 p-2 bg-muted rounded text-xs border">
-                                  <span className="font-medium text-muted-foreground">
-                                    Back-translation:{" "}
-                                  </span>
-                                  <span className="text-foreground">
-                                    {selectedCarePlan.backTranslatedWarnings}
-                                  </span>
-                                </div>
+                                <Collapsible className="mt-2">
+                                  <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                                    <ChevronsUpDown className="h-3 w-3" />
+                                    <span className="font-medium">View back-translation</span>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="mt-1 p-2 bg-muted rounded text-xs border">
+                                    <span className="text-foreground">
+                                      {selectedCarePlan.backTranslatedWarnings}
+                                    </span>
+                                  </CollapsibleContent>
+                                </Collapsible>
                               )}
                             </div>
                           )}
