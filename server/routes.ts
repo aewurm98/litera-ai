@@ -135,6 +135,11 @@ const verifyPatientSchema = z.object({
   pin: z.string().length(4).optional(), // 4-digit PIN, required in production mode
 });
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(8, "New password must be at least 8 characters"),
+});
+
 const checkInResponseSchema = z.object({
   response: z.enum(["green", "yellow", "red"]),
 });
@@ -376,6 +381,38 @@ export async function registerRoutes(
       }
       res.json({ success: true });
     });
+  });
+  
+  // Change password (requires authentication)
+  app.post("/api/auth/change-password", validateBody(changePasswordSchema), async (req: Request, res: Response) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const { currentPassword, newPassword } = req.body;
+      
+      // Get user and verify current password
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const passwordMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!passwordMatch) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+      
+      // Hash new password and update
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUserPassword(userId, hashedNewPassword);
+      
+      res.json({ success: true, message: "Password changed successfully" });
+    } catch (error) {
+      console.error("Password change error:", error);
+      res.status(500).json({ error: "Failed to change password" });
+    }
   });
   
   // Get current user
