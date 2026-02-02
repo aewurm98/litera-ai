@@ -1110,16 +1110,19 @@ export default function PatientPortal() {
                 {carePlan.patient.name}
               </p>
             </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowEnglish(!showEnglish)}
-              className="gap-2"
-              data-testid="button-toggle-language"
-            >
-              <Languages className="h-4 w-4" />
-              {showEnglish ? "English" : getLanguageName(carePlan.translatedLanguage || "en")}
-            </Button>
+            {/* Only show language toggle if care plan is translated (not English) */}
+            {carePlan.translatedLanguage !== "en" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowEnglish(!showEnglish)}
+                className="gap-2"
+                data-testid="button-toggle-language"
+              >
+                <Languages className="h-4 w-4" />
+                {showEnglish ? "English" : getLanguageName(carePlan.translatedLanguage || "en")}
+              </Button>
+            )}
           </div>
         </div>
       </header>

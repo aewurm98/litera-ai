@@ -539,9 +539,25 @@ export async function registerRoutes(
         warnings: carePlan.warnings || "",
       });
 
-      // Translate content
-      const languageName = SUPPORTED_LANGUAGES.find(l => l.code === language)?.name || language;
-      const translated = await translateContent(simplified, languageName);
+      // For English, skip translation - just use simplified content
+      // For other languages, translate the simplified content
+      let translated;
+      if (language === "en") {
+        // English patients only need simplification, no translation
+        translated = {
+          diagnosis: simplified.diagnosis,
+          medications: simplified.medications,
+          appointments: simplified.appointments,
+          instructions: simplified.instructions,
+          warnings: simplified.warnings,
+          backTranslatedDiagnosis: null,
+          backTranslatedInstructions: null,
+          backTranslatedWarnings: null,
+        };
+      } else {
+        const languageName = SUPPORTED_LANGUAGES.find(l => l.code === language)?.name || language;
+        translated = await translateContent(simplified, languageName);
+      }
 
       // Update care plan
       const updated = await storage.updateCarePlan(id, {
