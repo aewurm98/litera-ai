@@ -177,7 +177,7 @@ function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  if (req.session.userRole !== "admin") {
+  if (req.session.userRole !== "admin" && req.session.userRole !== "super_admin") {
     return res.status(403).json({ error: "Access denied. Admin role required." });
   }
   (req as any).adminId = req.session.userId;
@@ -1354,10 +1354,13 @@ export async function registerRoutes(
 
   // ============= Admin User & Tenant Management =============
   
-  // Get all users (admin only)
+  // Get all users (admin only) - scoped by tenant for non-super-admins
   app.get("/api/admin/users", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const allUsers = await storage.getAllUsers();
+      const isSuperAdmin = req.session.userRole === "super_admin";
+      const tenantId = isSuperAdmin ? undefined : req.session.tenantId;
+      
+      const allUsers = await storage.getAllUsers(tenantId || undefined);
       const allTenants = await storage.getAllTenants();
       const tenantMap = new Map(allTenants.map(t => [t.id, t]));
       
@@ -1374,13 +1377,19 @@ export async function registerRoutes(
     }
   });
   
-  // Create user (admin only)
+  // Create user (admin only) - non-super-admins can only create users in their own tenant
   app.post("/api/admin/users", requireAdminAuth, async (req: Request, res: Response) => {
     try {
       const { username, password, name, role, tenantId } = req.body;
+      const isSuperAdmin = req.session.userRole === "super_admin";
       
       if (!username || !password || !name) {
         return res.status(400).json({ error: "Username, password, and name are required" });
+      }
+      
+      // Non-super-admins cannot create super_admin users
+      if (role === "super_admin" && !isSuperAdmin) {
+        return res.status(403).json({ error: "Only super admins can create super admin accounts" });
       }
       
       const existingUser = await storage.getUserByUsername(username);
@@ -1391,12 +1400,15 @@ export async function registerRoutes(
       const { hashPassword } = await import("./auth");
       const hashedPassword = await hashPassword(password);
       
+      // For non-super-admins, auto-assign to their tenant
+      const assignedTenantId = isSuperAdmin ? (tenantId || null) : req.session.tenantId;
+      
       const user = await storage.createUser({
         username,
         password: hashedPassword,
         name,
         role: role || "clinician",
-        tenantId: tenantId || null,
+        tenantId: assignedTenantId,
       });
       
       res.json({ ...user, password: undefined });
@@ -1406,14 +1418,64 @@ export async function registerRoutes(
     }
   });
   
+  // Update user (admin only) - super_admin can change tenantId, regular admins cannot
+  app.patch("/api/admin/users/:id", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { name, role, tenantId } = req.body;
+      const isSuperAdmin = req.session.userRole === "super_admin";
+      
+      // Check if user exists
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      // Non-super-admins can only edit users in their own tenant
+      if (!isSuperAdmin && existingUser.tenantId !== req.session.tenantId) {
+        return res.status(403).json({ error: "Cannot edit users outside your tenant" });
+      }
+      
+      // Prevent non-super-admins from creating super_admins or changing tenant
+      const updateData: { name?: string; role?: string; tenantId?: string | null } = {};
+      if (name) updateData.name = name;
+      if (role) {
+        if (role === "super_admin" && !isSuperAdmin) {
+          return res.status(403).json({ error: "Only super admins can create super admin accounts" });
+        }
+        updateData.role = role;
+      }
+      if (tenantId !== undefined && isSuperAdmin) {
+        updateData.tenantId = tenantId || null;
+      }
+      
+      const user = await storage.updateUser(id, updateData);
+      res.json({ ...user, password: undefined });
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+  
   // Delete user (admin only)
   app.delete("/api/admin/users/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const isSuperAdmin = req.session.userRole === "super_admin";
       
       // Prevent deleting yourself
       if (id === req.session.userId) {
         return res.status(400).json({ error: "Cannot delete your own account" });
+      }
+      
+      // Check if user exists and belongs to same tenant (for non-super-admins)
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      if (!isSuperAdmin && existingUser.tenantId !== req.session.tenantId) {
+        return res.status(403).json({ error: "Cannot delete users outside your tenant" });
       }
       
       const success = await storage.deleteUser(id);

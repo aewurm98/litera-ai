@@ -67,9 +67,9 @@ export async function seedDatabase(force: boolean = false) {
   const [admin1] = await db.insert(users).values({
     username: "admin",
     password: hashedPassword,
-    role: "admin",
+    role: "super_admin",
     name: "Angela Torres",
-    tenantId: demoTenant.id,
+    tenantId: null, // Super admin is platform-level, not tied to a tenant
   }).returning();
 
   console.log("Created users:", clinician1.name, admin1.name);
