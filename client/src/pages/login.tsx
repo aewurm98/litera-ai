@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,12 @@ export default function Login() {
   const queryClient = useQueryClient();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+
+  // Fetch environment info to determine if we're in demo mode
+  const { data: envInfo } = useQuery<{ isDemoMode: boolean; isProduction: boolean }>({
+    queryKey: ["/api/env-info"],
+  });
+  const isDemoMode = envInfo?.isDemoMode ?? false;
 
   const resetDemoMutation = useMutation({
     mutationFn: async () => {
@@ -113,34 +119,36 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 p-4 bg-muted rounded-lg">
-            <p className="text-sm font-medium mb-2">Demo Credentials:</p>
-            <div className="text-sm text-muted-foreground space-y-2">
-              <div className="p-2 bg-background rounded border">
-                <p className="font-medium text-foreground">Clinician (Maria Chen, RN):</p>
-                <p className="font-mono text-xs">nurse / password123</p>
+          {isDemoMode && (
+            <div className="mt-6 p-4 bg-muted rounded-lg">
+              <p className="text-sm font-medium mb-2">Demo Credentials:</p>
+              <div className="text-sm text-muted-foreground space-y-2">
+                <div className="p-2 bg-background rounded border">
+                  <p className="font-medium text-foreground">Clinician (Maria Chen, RN):</p>
+                  <p className="font-mono text-xs">nurse / password123</p>
+                </div>
+                <div className="p-2 bg-background rounded border">
+                  <p className="font-medium text-foreground">Admin (Angela Torres):</p>
+                  <p className="font-mono text-xs">admin / password123</p>
+                </div>
               </div>
-              <div className="p-2 bg-background rounded border">
-                <p className="font-medium text-foreground">Admin (Angela Torres):</p>
-                <p className="font-mono text-xs">admin / password123</p>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-3"
+                onClick={() => resetDemoMutation.mutate()}
+                disabled={resetDemoMutation.isPending}
+                data-testid="button-reset-demo-login"
+              >
+                {resetDemoMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                ) : (
+                  <RotateCcw className="h-3 w-3 mr-2" />
+                )}
+                Reset Demo Data
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-3"
-              onClick={() => resetDemoMutation.mutate()}
-              disabled={resetDemoMutation.isPending}
-              data-testid="button-reset-demo-login"
-            >
-              {resetDemoMutation.isPending ? (
-                <Loader2 className="h-3 w-3 animate-spin mr-2" />
-              ) : (
-                <RotateCcw className="h-3 w-3 mr-2" />
-              )}
-              Reset Demo Data
-            </Button>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>
