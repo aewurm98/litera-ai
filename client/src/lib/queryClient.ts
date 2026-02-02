@@ -1,7 +1,28 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// Check if we're on the patient portal (don't redirect for patient routes)
+function isPatientPortalRoute(): boolean {
+  return window.location.pathname.startsWith("/p/");
+}
+
+// Handle session expiration by redirecting to login
+function handleSessionExpired() {
+  // Don't redirect if on patient portal
+  if (isPatientPortalRoute()) return;
+  
+  // Don't redirect if already on login page
+  if (window.location.pathname === "/login") return;
+  
+  // Redirect to login
+  window.location.href = "/login";
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    // Handle session expiration (401) globally
+    if (res.status === 401) {
+      handleSessionExpired();
+    }
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }

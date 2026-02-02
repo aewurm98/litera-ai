@@ -14,6 +14,16 @@ async function hashPassword(password: string): Promise<string> {
 export async function seedDatabase(force: boolean = false) {
   console.log("Checking if database needs seeding...");
   
+  // Production safety guard: Only allow seeding when ALLOW_SEED=true
+  // This prevents accidental data destruction in production
+  if (process.env.ALLOW_SEED !== "true" && force) {
+    console.error("==========================================================");
+    console.error("SEED BLOCKED: Set ALLOW_SEED=true to run with force=true.");
+    console.error("WARNING: This will DESTROY all existing data!");
+    console.error("==========================================================");
+    throw new Error("Seed blocked for safety. Set ALLOW_SEED=true to proceed.");
+  }
+  
   // Check if we already have data (unless force reseed)
   if (!force) {
     const existingUsers = await db.select().from(users).limit(1);

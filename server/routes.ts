@@ -13,6 +13,18 @@ import {
 } from "./services/openai";
 import { sendCarePlanEmail, sendCheckInEmail } from "./services/resend";
 import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
+import { isDemoMode } from "./index";
+
+// Helper to generate a 4-digit PIN for patient verification
+function generatePin(): string {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+// Helper to extract last name from full name
+function extractLastName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+}
 
 // Demo token store (in-memory, expires after 5 minutes)
 const demoTokens = new Map<string, { accessToken: string; expiresAt: Date }>();
@@ -115,8 +127,12 @@ const sendCarePlanSchema = z.object({
   preferredLanguage: z.string().min(2).max(5),
 });
 
+// Production patient verification requires lastName + yearOfBirth + PIN
+// Demo mode only requires yearOfBirth for backward compatibility
 const verifyPatientSchema = z.object({
   yearOfBirth: z.number().int().min(1900).max(2100),
+  lastName: z.string().optional(), // Required in production mode
+  pin: z.string().length(4).optional(), // 4-digit PIN, required in production mode
 });
 
 const checkInResponseSchema = z.object({
@@ -638,15 +654,27 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Care plan not found" });
       }
 
+      // Generate PIN for patient verification (production security)
+      const patientPin = generatePin();
+      const lastName = extractLastName(name);
+      
       // Create or update patient
       let patient = await storage.getPatientByEmail(email);
       if (!patient) {
         patient = await storage.createPatient({
           name,
+          lastName,
           email,
           phone,
           yearOfBirth,
+          pin: patientPin,
           preferredLanguage,
+        });
+      } else {
+        // Update patient with new PIN and lastName for this care plan
+        patient = await storage.updatePatient(patient.id, {
+          lastName,
+          pin: patientPin,
         });
       }
 
@@ -675,14 +703,15 @@ export async function registerRoutes(
         attemptNumber: 1,
       });
 
-      // Send email with magic link
+      // Send email with magic link and PIN (for production mode verification)
       const baseUrl = process.env.REPLIT_DEV_DOMAIN 
         ? `https://${process.env.REPLIT_DEV_DOMAIN}`
         : "http://localhost:5000";
       const accessLink = `${baseUrl}/p/${accessToken}`;
 
       try {
-        await sendCarePlanEmail(email, name, accessLink);
+        // Include PIN in email for production auth (patient will need lastName + yearOfBirth + PIN)
+        await sendCarePlanEmail(email, name, accessLink, patientPin);
       } catch (emailError) {
         console.error("Email sending failed:", emailError);
         // Continue even if email fails - care plan is still sent
@@ -776,10 +805,12 @@ export async function registerRoutes(
   });
 
   // Verify patient access (with server-side rate limiting)
+  // In demo mode: only yearOfBirth required
+  // In production mode: lastName + yearOfBirth + PIN required
   app.post("/api/patient/:token/verify", validateBody(verifyPatientSchema), async (req: Request, res: Response) => {
     try {
       const token = req.params.token as string;
-      const { yearOfBirth } = req.body;
+      const { yearOfBirth, lastName, pin } = req.body;
 
       // Check if locked out
       if (checkVerificationLock(token)) {
@@ -800,15 +831,43 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access link has expired" });
       }
 
-      // Verify year of birth
       const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
-      if (!patient || patient.yearOfBirth !== yearOfBirth) {
+      if (!patient) {
+        return res.status(404).json({ error: "Patient not found" });
+      }
+      
+      // In production mode, verify lastName + yearOfBirth + PIN
+      // In demo mode, only verify yearOfBirth for backward compatibility
+      let isValid = false;
+      
+      if (isDemoMode) {
+        // Demo mode: only year of birth required
+        isValid = patient.yearOfBirth === yearOfBirth;
+      } else {
+        // Production mode: require all three fields
+        if (!lastName || !pin) {
+          return res.status(400).json({ 
+            error: "Last name, year of birth, and PIN are required",
+            requiresFullAuth: true
+          });
+        }
+        
+        // Case-insensitive last name comparison
+        const patientLastName = (patient.lastName || extractLastName(patient.name)).toLowerCase();
+        const providedLastName = lastName.toLowerCase().trim();
+        
+        isValid = patientLastName === providedLastName && 
+                  patient.yearOfBirth === yearOfBirth && 
+                  patient.pin === pin;
+      }
+      
+      if (!isValid) {
         const result = recordVerificationAttempt(token, false);
         
         await storage.createAuditLog({
           carePlanId: carePlan.id,
           action: "verification_failed",
-          details: { attemptsRemaining: result.attemptsRemaining },
+          details: { attemptsRemaining: result.attemptsRemaining, mode: isDemoMode ? "demo" : "production" },
           ipAddress: req.ip || null,
           userAgent: req.get("user-agent") || null,
         });
@@ -822,7 +881,7 @@ export async function registerRoutes(
         }
 
         return res.status(401).json({ 
-          error: "Incorrect year of birth",
+          error: isDemoMode ? "Incorrect year of birth" : "Incorrect verification details",
           attemptsRemaining: result.attemptsRemaining
         });
       }
@@ -833,11 +892,12 @@ export async function registerRoutes(
       await storage.createAuditLog({
         carePlanId: carePlan.id,
         action: "verified",
+        details: { mode: isDemoMode ? "demo" : "production" },
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });
 
-      res.json({ verified: true });
+      res.json({ verified: true, isDemoMode });
     } catch (error) {
       console.error("Error verifying patient:", error);
       res.status(500).json({ error: "Verification failed" });
@@ -1014,12 +1074,35 @@ export async function registerRoutes(
     }
   });
 
+  // ============= Environment Info Endpoint =============
+  // Returns environment info for frontend feature flags
+  app.get("/api/env-info", (req: Request, res: Response) => {
+    res.json({ 
+      isDemoMode,
+      isProduction: process.env.NODE_ENV === "production"
+    });
+  });
+
   // ============= Demo Reset Endpoint =============
-  // Reset the database to demo state (available to clinicians and admins when logged in)
+  // Reset the database to demo state (only available in demo mode)
   app.post("/api/admin/reset-demo", requireAuth, async (req: Request, res: Response) => {
     try {
+      // Block demo reset in production mode
+      if (!isDemoMode) {
+        return res.status(403).json({ 
+          error: "Demo reset is disabled in production mode",
+          isDemoMode: false
+        });
+      }
+      
+      // Set ALLOW_SEED temporarily for demo reset
+      process.env.ALLOW_SEED = "true";
+      
       const { seedDatabase } = await import("./seed");
       await seedDatabase(true); // force=true to reseed even if data exists
+      
+      // Clear the flag after seeding
+      delete process.env.ALLOW_SEED;
       
       // Clear session data first to ensure no stale userId even if destroy fails
       delete req.session.userId;
@@ -1034,18 +1117,37 @@ export async function registerRoutes(
         res.json({ success: true, message: "Demo data reset successfully", requiresRelogin: true });
       });
     } catch (error) {
+      // Clear the flag on error too
+      delete process.env.ALLOW_SEED;
       console.error("Error resetting demo data:", error);
       res.status(500).json({ error: "Failed to reset demo data" });
     }
   });
 
-  // Public reset endpoint for login page (no auth required)
+  // Public reset endpoint for login page (no auth required, only in demo mode)
   app.post("/api/public/reset-demo", async (req: Request, res: Response) => {
     try {
+      // Block demo reset in production mode
+      if (!isDemoMode) {
+        return res.status(403).json({ 
+          error: "Demo reset is disabled in production mode",
+          isDemoMode: false
+        });
+      }
+      
+      // Set ALLOW_SEED temporarily for demo reset
+      process.env.ALLOW_SEED = "true";
+      
       const { seedDatabase } = await import("./seed");
       await seedDatabase(true);
+      
+      // Clear the flag after seeding
+      delete process.env.ALLOW_SEED;
+      
       res.json({ success: true, message: "Demo data reset successfully" });
     } catch (error) {
+      // Clear the flag on error too
+      delete process.env.ALLOW_SEED;
       console.error("Error resetting demo data:", error);
       res.status(500).json({ error: "Failed to reset demo data" });
     }

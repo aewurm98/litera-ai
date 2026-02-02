@@ -6,6 +6,18 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 
 ## Recent Changes
 
+- **February 2026**: Production Security Hardening (Phase 1)
+  - **Enhanced Patient Authentication**: Production mode now requires 3-factor verification (lastName + yearOfBirth + 4-digit PIN). Demo mode uses yearOfBirth only for backward compatibility.
+  - **PIN Generation**: When sending care plans, a secure 4-digit PIN is auto-generated and included in the patient email. PIN is extracted from patient's name and stored for verification.
+  - **Environment-based Feature Flags**: Added `isDemoMode` flag throughout the application (NODE_ENV !== "production" || DEMO_MODE !== "false") to control demo vs production behavior.
+  - **ALLOW_SEED Database Protection**: Production databases require explicit `ALLOW_SEED=true` to reset/seed data, preventing accidental data deletion.
+  - **Demo Reset Protection**: Demo reset endpoints now blocked in production mode (returns 403 error). Only available when `isDemoMode=true`.
+  - **Session Security**: Hardened session cookies with sameSite attribute and dynamic secure flag based on environment.
+  - **401 Redirect Handling**: QueryClient now automatically redirects to login on session expiration (except for patient portal routes).
+  - **Security Fix**: ?demo=1 clinician preview bypass now only works in demo mode. Production mode ignores this parameter completely.
+  - **Email Templates Updated**: Care plan emails now include PIN section with secure access instructions for production mode.
+  - **Database Schema**: Added `lastName` and `pin` fields to patients table for enhanced authentication.
+
 - **February 2026**: UI/UX refinements and patient name extraction
   - **Quick Search**: Replaced Test Patient View with Quick Search - searches ALL care plans by patient name/diagnosis and selects in main list (no patient portal navigation)
   - **PDF Storage**: Added originalFileData column to store uploaded PDFs as base64 - clinicians can click PDF filename to view original document
