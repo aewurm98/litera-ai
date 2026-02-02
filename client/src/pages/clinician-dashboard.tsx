@@ -72,6 +72,34 @@ import type {
 } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
 
+// Helper function to format content that may be array or string (for display in textareas)
+function formatContent(content: string | string[] | null | undefined): string {
+  if (!content) return "";
+  if (Array.isArray(content)) {
+    return content.map((item, i) => `${i + 1}. ${item}`).join("\n");
+  }
+  // Handle JSON string that looks like an array
+  if (typeof content === "string" && content.startsWith("{") && content.includes('","')) {
+    try {
+      const cleaned = content.replace(/^\{"|"\}$/g, '').split('","');
+      return cleaned.map((item, i) => `${i + 1}. ${item}`).join("\n");
+    } catch {
+      return content;
+    }
+  }
+  return content;
+}
+
+// Form field validation helpers
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidYearOfBirth(year: string): boolean {
+  const yearNum = parseInt(year);
+  return !isNaN(yearNum) && yearNum >= 1900 && yearNum <= new Date().getFullYear();
+}
+
 // Helper component to render medications in a structured format
 function MedicationsList({
   medications,
@@ -209,6 +237,30 @@ export default function ClinicianDashboard() {
   const [patientPhone, setPatientPhone] = useState("");
   const [patientYearOfBirth, setPatientYearOfBirth] = useState("");
   const [patientLanguage, setPatientLanguage] = useState("es");
+  
+  // Form validation state (touched fields)
+  const [formTouched, setFormTouched] = useState({
+    name: false,
+    email: false,
+    yearOfBirth: false,
+  });
+  
+  // Validation errors
+  const formErrors = {
+    name: formTouched.name && !patientName.trim() ? "Patient name is required" : "",
+    email: formTouched.email && !patientEmail.trim() 
+      ? "Email is required" 
+      : formTouched.email && !isValidEmail(patientEmail) 
+        ? "Please enter a valid email address" 
+        : "",
+    yearOfBirth: formTouched.yearOfBirth && !patientYearOfBirth.trim()
+      ? "Year of birth is required"
+      : formTouched.yearOfBirth && !isValidYearOfBirth(patientYearOfBirth)
+        ? "Please enter a valid year (1900-present)"
+        : "",
+  };
+  
+  const hasFormErrors = formErrors.name || formErrors.email || formErrors.yearOfBirth;
 
   // Sort and filter state
   const [sortBy, setSortBy] = useState<"name" | "status" | "date">("date");
@@ -440,6 +492,7 @@ export default function ClinicianDashboard() {
     setPatientPhone("");
     setPatientYearOfBirth("");
     setPatientLanguage("es");
+    setFormTouched({ name: false, email: false, yearOfBirth: false });
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -479,6 +532,15 @@ export default function ClinicianDashboard() {
 
   const handleSendToPatient = () => {
     if (!selectedCarePlan) return;
+    
+    // Mark all fields as touched to show any validation errors
+    setFormTouched({ name: true, email: true, yearOfBirth: true });
+    
+    // Validate before submitting
+    if (!patientName.trim() || !isValidEmail(patientEmail) || !isValidYearOfBirth(patientYearOfBirth)) {
+      return; // Don't submit if validation fails
+    }
+    
     sendMutation.mutate({
       carePlanId: selectedCarePlan.id,
       patient: {
@@ -1085,7 +1147,7 @@ export default function ClinicianDashboard() {
                               </Label>
                               <Textarea
                                 className="mt-2 min-h-[100px] resize-none bg-background"
-                                value={selectedCarePlan.simplifiedInstructions}
+                                value={formatContent(selectedCarePlan.simplifiedInstructions)}
                                 readOnly
                                 data-testid="textarea-simplified-instructions"
                               />
@@ -1099,7 +1161,7 @@ export default function ClinicianDashboard() {
                               </Label>
                               <Textarea
                                 className="mt-2 min-h-[60px] resize-none bg-background border-destructive/50"
-                                value={selectedCarePlan.simplifiedWarnings}
+                                value={formatContent(selectedCarePlan.simplifiedWarnings)}
                                 readOnly
                                 data-testid="textarea-simplified-warnings"
                               />
@@ -1183,7 +1245,7 @@ export default function ClinicianDashboard() {
                               </Label>
                               <Textarea
                                 className="mt-2 min-h-[100px] resize-none bg-background"
-                                value={selectedCarePlan.translatedInstructions}
+                                value={formatContent(selectedCarePlan.translatedInstructions)}
                                 readOnly
                                 data-testid="textarea-translated-instructions"
                               />
@@ -1213,7 +1275,7 @@ export default function ClinicianDashboard() {
                               </Label>
                               <Textarea
                                 className="mt-2 min-h-[60px] resize-none bg-background border-destructive/50"
-                                value={selectedCarePlan.translatedWarnings}
+                                value={formatContent(selectedCarePlan.translatedWarnings)}
                                 readOnly
                                 data-testid="textarea-translated-warnings"
                               />
@@ -1516,25 +1578,39 @@ export default function ClinicianDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="patient-name">Patient Name</Label>
+              <Label htmlFor="patient-name" className={formErrors.name ? "text-destructive" : ""}>
+                Patient Name {formErrors.name && <span className="text-xs font-normal">*</span>}
+              </Label>
               <Input
                 id="patient-name"
                 placeholder="e.g., Rosa Hernandez"
                 value={patientName}
                 onChange={(e) => setPatientName(e.target.value)}
+                onBlur={() => setFormTouched(prev => ({ ...prev, name: true }))}
+                className={formErrors.name ? "border-destructive focus-visible:ring-destructive" : ""}
                 data-testid="input-patient-name"
               />
+              {formErrors.name && (
+                <p className="text-xs text-destructive">{formErrors.name}</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="patient-email">Email Address</Label>
+              <Label htmlFor="patient-email" className={formErrors.email ? "text-destructive" : ""}>
+                Email Address {formErrors.email && <span className="text-xs font-normal">*</span>}
+              </Label>
               <Input
                 id="patient-email"
                 type="email"
                 placeholder="e.g., rosa@example.com"
                 value={patientEmail}
                 onChange={(e) => setPatientEmail(e.target.value)}
+                onBlur={() => setFormTouched(prev => ({ ...prev, email: true }))}
+                className={formErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}
                 data-testid="input-patient-email"
               />
+              {formErrors.email && (
+                <p className="text-xs text-destructive">{formErrors.email}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="patient-phone">Phone Number (Optional)</Label>
@@ -1548,15 +1624,22 @@ export default function ClinicianDashboard() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="patient-yob">Year of Birth</Label>
+              <Label htmlFor="patient-yob" className={formErrors.yearOfBirth ? "text-destructive" : ""}>
+                Year of Birth {formErrors.yearOfBirth && <span className="text-xs font-normal">*</span>}
+              </Label>
               <Input
                 id="patient-yob"
                 type="number"
                 placeholder="e.g., 1956"
                 value={patientYearOfBirth}
                 onChange={(e) => setPatientYearOfBirth(e.target.value)}
+                onBlur={() => setFormTouched(prev => ({ ...prev, yearOfBirth: true }))}
+                className={formErrors.yearOfBirth ? "border-destructive focus-visible:ring-destructive" : ""}
                 data-testid="input-patient-yob"
               />
+              {formErrors.yearOfBirth && (
+                <p className="text-xs text-destructive">{formErrors.yearOfBirth}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="patient-language">Preferred Language</Label>

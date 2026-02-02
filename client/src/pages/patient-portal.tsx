@@ -42,6 +42,25 @@ import { SUPPORTED_LANGUAGES } from "@shared/schema";
 
 type CarePlanWithPatient = CarePlan & { patient: Patient; checkIns?: CheckIn[] };
 
+// Helper function to format content that may be array or string
+function formatContent(content: string | string[] | null | undefined): string {
+  if (!content) return "";
+  if (Array.isArray(content)) {
+    return content.map((item, i) => `${i + 1}. ${item}`).join("\n");
+  }
+  // Handle JSON string that looks like an array
+  if (typeof content === "string" && content.startsWith("{") && content.includes('","')) {
+    try {
+      // Try to parse as JSON array-like object
+      const cleaned = content.replace(/^\{"|"\}$/g, '').split('","');
+      return cleaned.map((item, i) => `${i + 1}. ${item}`).join("\n");
+    } catch {
+      return content;
+    }
+  }
+  return content;
+}
+
 // UI translations for patient portal
 const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
   en: {
@@ -1299,7 +1318,7 @@ export default function PatientPortal() {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg dark:prose-invert max-w-none">
-                <p className="whitespace-pre-wrap leading-relaxed">{instructions}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{formatContent(instructions)}</p>
               </div>
             </CardContent>
           </Card>
@@ -1333,7 +1352,7 @@ export default function PatientPortal() {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg dark:prose-invert max-w-none">
-                <p className="whitespace-pre-wrap leading-relaxed text-destructive/90">{warnings}</p>
+                <p className="whitespace-pre-wrap leading-relaxed text-destructive/90">{formatContent(warnings)}</p>
               </div>
             </CardContent>
           </Card>
