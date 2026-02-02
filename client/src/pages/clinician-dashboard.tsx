@@ -233,7 +233,10 @@ export default function ClinicianDashboard() {
     }
   }, [selectedCarePlan?.id, selectedCarePlan?.status]);
 
-  const hasScrolledAll = columnsScrolled.every(Boolean);
+  // For English, only 2 columns need to be scrolled (no translation column)
+  const hasScrolledAll = selectedCarePlan?.translatedLanguage === "en" 
+    ? columnsScrolled[0] && columnsScrolled[1]
+    : columnsScrolled.every(Boolean);
 
   // Fetch care plans
   const { data: carePlansRaw = [], isLoading: isLoadingCarePlans } = useQuery<
@@ -777,7 +780,7 @@ export default function ClinicianDashboard() {
                     ) : (
                       <RefreshCw className="h-4 w-4 mr-2" />
                     )}
-                    Process & Translate
+                    {patientLanguage === "en" ? "Simplify" : "Process & Translate"}
                   </Button>
                 )}
                 {selectedCarePlan.status === "pending_review" && (
@@ -1107,7 +1110,8 @@ export default function ClinicianDashboard() {
                     </CardContent>
                   </Card>
 
-                  {/* Translated Column */}
+                  {/* Translated Column - hidden for English (simplification only) */}
+                  {selectedCarePlan.translatedLanguage !== "en" && (
                   <Card className="flex-1 min-w-[350px] flex flex-col overflow-hidden border-primary/30">
                     <CardHeader className="pb-2 flex-shrink-0 bg-primary/5">
                       <CardTitle className="text-sm flex items-center gap-2">
@@ -1235,6 +1239,7 @@ export default function ClinicianDashboard() {
                       </div>
                     </CardContent>
                   </Card>
+                  )}
                 </div>
 
                 {selectedCarePlan.status === "pending_review" &&
@@ -1270,9 +1275,7 @@ export default function ClinicianDashboard() {
                             <SelectValue placeholder="Select language" />
                           </SelectTrigger>
                           <SelectContent>
-                            {SUPPORTED_LANGUAGES.filter(
-                              (l) => l.code !== "en",
-                            ).map((lang) => (
+                            {SUPPORTED_LANGUAGES.map((lang) => (
                               <SelectItem key={lang.code} value={lang.code}>
                                 {lang.name}
                               </SelectItem>
