@@ -665,26 +665,28 @@ export default function ClinicianDashboard() {
               </div>
             )}
           </div>
-          {!testPatientToken.trim() && carePlans.length > 0 && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              <p className="mb-1">Recent patients:</p>
-              <div className="space-y-1">
-                {[...carePlans]
-                  .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-                  .slice(0, 3)
-                  .map((plan) => (
-                    <button
-                      key={plan.id}
-                      className="block w-full text-left text-primary truncate text-xs hover:underline"
-                      onClick={() => setSelectedCarePlan(plan)}
-                      data-testid={`recent-patient-${plan.id}`}
-                    >
-                      {plan.patient?.name || plan.extractedPatientName || "New Patient"} - {plan.diagnosis?.slice(0, 30) || "Processing..."}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
+          <div className={`mt-2 text-xs text-muted-foreground ${testPatientToken.trim() ? 'invisible' : 'visible'}`}>
+            {carePlans.length > 0 && (
+              <>
+                <p className="mb-1">Recent patients:</p>
+                <div className="space-y-1">
+                  {[...carePlans]
+                    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                    .slice(0, 3)
+                    .map((plan) => (
+                      <button
+                        key={plan.id}
+                        className="block w-full text-left text-primary truncate text-xs hover:underline"
+                        onClick={() => setSelectedCarePlan(plan)}
+                        data-testid={`recent-patient-${plan.id}`}
+                      >
+                        {plan.patient?.name || plan.extractedPatientName || "New Patient"} - {plan.diagnosis?.slice(0, 30) || "Processing..."}
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Demo Reset Button */}

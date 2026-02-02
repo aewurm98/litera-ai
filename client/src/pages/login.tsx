@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Heart, Loader2 } from "lucide-react";
+import { Heart, Loader2, RotateCcw } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Login() {
   const [, navigate] = useLocation();
@@ -14,6 +15,19 @@ export default function Login() {
   const queryClient = useQueryClient();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+
+  const resetDemoMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/public/reset-demo");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Demo data reset", description: "You can now log in with fresh demo data" });
+    },
+    onError: () => {
+      toast({ title: "Reset failed", variant: "destructive" });
+    },
+  });
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
@@ -111,6 +125,21 @@ export default function Login() {
                 <p className="font-mono text-xs">admin / password123</p>
               </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-3"
+              onClick={() => resetDemoMutation.mutate()}
+              disabled={resetDemoMutation.isPending}
+              data-testid="button-reset-demo-login"
+            >
+              {resetDemoMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-2" />
+              ) : (
+                <RotateCcw className="h-3 w-3 mr-2" />
+              )}
+              Reset Demo Data
+            </Button>
           </div>
         </CardContent>
       </Card>
