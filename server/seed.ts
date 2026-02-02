@@ -114,7 +114,58 @@ export async function seedDatabase(force: boolean = false) {
     pin: "1234",
   }).returning();
 
-  console.log("Created patients:", patient1.name, patient2.name, patient3.name, patient4.name, patient5.name);
+  // Additional patients for multi-visit testing
+  const [patient6] = await db.insert(patients).values({
+    name: "Amadou Diallo",
+    email: "amadou.diallo@example.com",
+    phone: "+1-555-0106",
+    yearOfBirth: 1985,
+    preferredLanguage: "fr",
+    lastName: "Diallo",
+    pin: "1234",
+  }).returning();
+
+  const [patient7] = await db.insert(patients).values({
+    name: "Arjun Sharma",
+    email: "arjun.sharma@example.com",
+    phone: "+1-555-0107",
+    yearOfBirth: 2020,
+    preferredLanguage: "hi",
+    lastName: "Sharma",
+    pin: "1234",
+  }).returning();
+
+  const [patient8] = await db.insert(patients).values({
+    name: "Olga Petrov",
+    email: "olga.petrov@example.com",
+    phone: "+1-555-0108",
+    yearOfBirth: 1948,
+    preferredLanguage: "ru",
+    lastName: "Petrov",
+    pin: "1234",
+  }).returning();
+
+  const [patient9] = await db.insert(patients).values({
+    name: "Pedro Gutierrez",
+    email: "pedro.gutierrez@example.com",
+    phone: "+1-555-0109",
+    yearOfBirth: 1975,
+    preferredLanguage: "es",
+    lastName: "Gutierrez",
+    pin: "1234",
+  }).returning();
+
+  const [patient10] = await db.insert(patients).values({
+    name: "Tran Van Duc",
+    email: "tran.duc@example.com",
+    phone: "+1-555-0110",
+    yearOfBirth: 1960,
+    preferredLanguage: "vi",
+    lastName: "Duc",
+    pin: "1234",
+  }).returning();
+
+  console.log("Created patients:", patient1.name, patient2.name, patient3.name, patient4.name, patient5.name, patient6.name, patient7.name, patient8.name, patient9.name, patient10.name);
 
   // Create care plans at various stages
   // 1. Sent care plan with check-in (Rosa - Spanish)
@@ -576,6 +627,83 @@ export async function seedDatabase(force: boolean = false) {
 
   console.log("Created check-ins and audit logs");
 
+  // Create simple care plans for multi-visit testing patients
+  // 6. Amadou Diallo - DRAFT (sickle cell)
+  const [carePlan6] = await db.insert(carePlans).values({
+    patientId: patient6.id,
+    clinicianId: clinician1.id,
+    status: "draft",
+    originalContent: "DISCHARGE SUMMARY\n\nPatient: Amadou Diallo\nDiagnosis: Sickle Cell Crisis\n\nMEDICATIONS:\n1. Hydroxyurea 500mg - Once daily\n2. Folic acid 1mg - Once daily\n\nWARNINGS:\n- Seek immediate care for severe pain, fever, or difficulty breathing",
+    originalFileName: "discharge_amadou_diallo_sickle_cell.pdf",
+    extractedPatientName: "Amadou Diallo",
+    diagnosis: "Sickle Cell Crisis",
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+  }).returning();
+
+  // 7. Arjun Sharma - DRAFT (asthma)
+  const [carePlan7] = await db.insert(carePlans).values({
+    patientId: patient7.id,
+    clinicianId: clinician1.id,
+    status: "draft",
+    originalContent: "DISCHARGE SUMMARY\n\nPatient: Arjun Sharma (Pediatric)\nDiagnosis: Acute Asthma Exacerbation\n\nMEDICATIONS:\n1. Albuterol inhaler - Every 4-6 hours as needed\n2. Prednisolone 15mg - Once daily for 5 days\n\nWARNINGS:\n- Return if breathing worsens or lips turn blue",
+    originalFileName: "discharge_arjun_sharma_asthma.pdf",
+    extractedPatientName: "Arjun Sharma",
+    diagnosis: "Acute Asthma Exacerbation",
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+  }).returning();
+
+  // 8. Olga Petrov - DRAFT (COPD)
+  const [carePlan8] = await db.insert(carePlans).values({
+    patientId: patient8.id,
+    clinicianId: clinician1.id,
+    status: "draft",
+    originalContent: "DISCHARGE SUMMARY\n\nPatient: Olga Petrov\nDiagnosis: COPD Exacerbation\n\nMEDICATIONS:\n1. Tiotropium 18mcg - Once daily\n2. Prednisone 40mg - Taper over 5 days\n3. Azithromycin 250mg - Once daily for 5 days\n\nWARNINGS:\n- Call if shortness of breath worsens or oxygen levels drop below 90%",
+    originalFileName: "discharge_olga_petrov_copd.pdf",
+    extractedPatientName: "Olga Petrov",
+    diagnosis: "COPD Exacerbation",
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+  }).returning();
+
+  // 9. Pedro Gutierrez - DRAFT (knee surgery)
+  const [carePlan9] = await db.insert(carePlans).values({
+    patientId: patient9.id,
+    clinicianId: clinician1.id,
+    status: "draft",
+    originalContent: "DISCHARGE SUMMARY\n\nPatient: Pedro Gutierrez\nDiagnosis: Post-Operative Knee Arthroscopy\n\nMEDICATIONS:\n1. Oxycodone 5mg - Every 4-6 hours as needed for pain\n2. Ibuprofen 600mg - Every 8 hours with food\n\nWARNINGS:\n- Keep leg elevated, watch for increased swelling, redness, or fever",
+    originalFileName: "discharge_pedro_gutierrez_knee.pdf",
+    extractedPatientName: "Pedro Gutierrez",
+    diagnosis: "Post-Operative Knee Arthroscopy",
+    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+  }).returning();
+
+  // 10. Tran Van Duc - DRAFT (stroke)
+  const [carePlan10] = await db.insert(carePlans).values({
+    patientId: patient10.id,
+    clinicianId: clinician1.id,
+    status: "draft",
+    originalContent: "DISCHARGE SUMMARY\n\nPatient: Tran Van Duc\nDiagnosis: Ischemic Stroke - Left MCA Territory\n\nMEDICATIONS:\n1. Aspirin 325mg - Once daily\n2. Atorvastatin 80mg - Once daily at bedtime\n3. Lisinopril 10mg - Once daily\n\nWARNINGS:\n- Call 911 immediately for sudden weakness, vision changes, or difficulty speaking",
+    originalFileName: "discharge_tran_van_duc_stroke.pdf",
+    extractedPatientName: "Tran Van Duc",
+    diagnosis: "Ischemic Stroke - Left MCA Territory",
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+  }).returning();
+
+  // Add audit logs for multi-visit patients
+  await db.insert(auditLogs).values([
+    { carePlanId: carePlan6.id, userId: clinician1.id, action: "created", details: { fileName: "discharge_amadou_diallo_sickle_cell.pdf" }, createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan7.id, userId: clinician1.id, action: "created", details: { fileName: "discharge_arjun_sharma_asthma.pdf" }, createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan8.id, userId: clinician1.id, action: "created", details: { fileName: "discharge_olga_petrov_copd.pdf" }, createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan9.id, userId: clinician1.id, action: "created", details: { fileName: "discharge_pedro_gutierrez_knee.pdf" }, createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan10.id, userId: clinician1.id, action: "created", details: { fileName: "discharge_tran_van_duc_stroke.pdf" }, createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+  ]);
+
+  console.log("Created multi-visit test patients and care plans:", patient6.name, patient7.name, patient8.name, patient9.name, patient10.name);
+
   console.log("\n=== SEED DATA SUMMARY ===");
   console.log("\nUSERS:");
   console.log(`  Clinician: nurse / password123 (${clinician1.name})`);
@@ -593,6 +721,12 @@ export async function seedDatabase(force: boolean = false) {
   console.log("  3. Wei Zhang - PENDING_REVIEW (needs approval)");
   console.log("  4. Maria Santos - DRAFT (just uploaded)");
   console.log("  5. Fatima Al-Hassan - SENT (with yellow alert)");
+  console.log("\nMULTI-VISIT TEST PATIENTS (upload new PDFs to test matching):");
+  console.log("  6. Amadou Diallo - DRAFT (French) - upload discharge_amadou_diallo_acute_chest.pdf");
+  console.log("  7. Arjun Sharma - DRAFT (Hindi) - upload discharge_arjun_sharma_croup.pdf");
+  console.log("  8. Olga Petrov - DRAFT (Russian) - upload discharge_olga_petrov_hip_fracture.pdf");
+  console.log("  9. Pedro Gutierrez - DRAFT (Spanish) - upload discharge_pedro_gutierrez_back_fracture.pdf");
+  console.log("  10. Tran Van Duc - DRAFT (Vietnamese) - upload discharge_tran_van_duc_uti_sepsis.pdf");
   console.log("\n=========================\n");
 
   console.log("Seeding complete!");
