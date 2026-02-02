@@ -210,6 +210,7 @@ export default function ClinicianDashboard() {
   // Sort and filter state
   const [sortBy, setSortBy] = useState<"name" | "status" | "date">("date");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [testPatientToken, setTestPatientToken] = useState("");
 
   const scrollAreaRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -606,33 +607,55 @@ export default function ClinicianDashboard() {
           </div>
         </div>
 
-        {/* Test Patient View Dropdown */}
-        {carePlans.some((p) => (p.status === "sent" || p.status === "completed") && p.accessToken) && (
-          <div className="p-3 border-t bg-muted/30">
-            <p className="text-xs text-muted-foreground mb-2">
-              Test Patient View
-            </p>
-            <Select
-              onValueChange={(token) => window.open(`/p/${token}?demo=1`, "_blank")}
+        {/* Test Patient View - Token Entry */}
+        <div className="p-3 border-t bg-muted/30">
+          <p className="text-xs text-muted-foreground mb-2">
+            Test Patient View
+          </p>
+          <div className="flex gap-1">
+            <Input
+              placeholder="Enter access token..."
+              value={testPatientToken}
+              onChange={(e) => setTestPatientToken(e.target.value)}
+              className="flex-1 text-xs h-8"
+              data-testid="input-test-patient-token"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-2"
+              onClick={() => {
+                if (testPatientToken.trim()) {
+                  window.open(`/p/${testPatientToken.trim()}?demo=1`, "_blank");
+                }
+              }}
+              disabled={!testPatientToken.trim()}
+              data-testid="button-view-patient"
             >
-              <SelectTrigger className="w-full text-xs" data-testid="select-test-patient">
-                <SelectValue placeholder="Select a patient..." />
-              </SelectTrigger>
-              <SelectContent>
+              <Eye className="h-3 w-3" />
+            </Button>
+          </div>
+          {carePlans.some((p) => (p.status === "sent" || p.status === "completed") && p.accessToken) && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              <p className="mb-1">Quick access:</p>
+              <div className="space-y-1">
                 {carePlans
                   .filter((p) => (p.status === "sent" || p.status === "completed") && p.accessToken)
+                  .slice(0, 3)
                   .map((plan) => (
-                    <SelectItem key={plan.id} value={plan.accessToken!}>
-                      <div className="flex items-center gap-2">
-                        <Eye className="h-3 w-3" />
-                        {plan.patient?.name || "Patient"} ({plan.translatedLanguage?.toUpperCase() || "EN"})
-                      </div>
-                    </SelectItem>
+                    <button
+                      key={plan.id}
+                      className="block w-full text-left text-primary truncate text-xs"
+                      onClick={() => setTestPatientToken(plan.accessToken!)}
+                      data-testid={`quick-token-${plan.id}`}
+                    >
+                      {plan.patient?.name || "Patient"} ({plan.translatedLanguage?.toUpperCase() || "EN"})
+                    </button>
                   ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Demo Reset Button */}
         <div className="p-3 border-t bg-muted/30">
