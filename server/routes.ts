@@ -999,7 +999,7 @@ export async function registerRoutes(
   });
 
   // ============= Demo Reset Endpoint =============
-  // Reset the database to demo state (available to clinicians and admins)
+  // Reset the database to demo state (available to clinicians and admins when logged in)
   app.post("/api/admin/reset-demo", requireAuth, async (req: Request, res: Response) => {
     try {
       const { seedDatabase } = await import("./seed");
@@ -1017,6 +1017,18 @@ export async function registerRoutes(
         }
         res.json({ success: true, message: "Demo data reset successfully", requiresRelogin: true });
       });
+    } catch (error) {
+      console.error("Error resetting demo data:", error);
+      res.status(500).json({ error: "Failed to reset demo data" });
+    }
+  });
+
+  // Public reset endpoint for login page (no auth required)
+  app.post("/api/public/reset-demo", async (req: Request, res: Response) => {
+    try {
+      const { seedDatabase } = await import("./seed");
+      await seedDatabase(true);
+      res.json({ success: true, message: "Demo data reset successfully" });
     } catch (error) {
       console.error("Error resetting demo data:", error);
       res.status(500).json({ error: "Failed to reset demo data" });
