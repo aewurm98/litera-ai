@@ -60,6 +60,7 @@ export const carePlans = pgTable("care_plans", {
   // Original content (from PDF/image upload)
   originalContent: text("original_content"),
   originalFileName: text("original_file_name"),
+  originalFileData: text("original_file_data"), // Base64-encoded PDF binary data
   
   // Structured extracted content
   extractedPatientName: text("extracted_patient_name"),

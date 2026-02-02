@@ -11,7 +11,18 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
 }
 
-export async function seedDatabase() {
+export async function seedDatabase(force: boolean = false) {
+  console.log("Checking if database needs seeding...");
+  
+  // Check if we already have data (unless force reseed)
+  if (!force) {
+    const existingUsers = await db.select().from(users).limit(1);
+    if (existingUsers.length > 0) {
+      console.log("Database already has data, skipping seed. Use force=true to reseed.");
+      return;
+    }
+  }
+
   console.log("Seeding database...");
 
   // Clear existing data (in reverse order of dependencies)
@@ -571,7 +582,8 @@ const isMainModule = import.meta.url.endsWith(process.argv[1]?.replace(/^file:\/
                      process.argv[1]?.endsWith('seed.ts');
 
 if (isMainModule) {
-  seedDatabase()
+  // When run directly, force reseed
+  seedDatabase(true)
     .then(() => process.exit(0))
     .catch((err) => {
       console.error("Seeding failed:", err);

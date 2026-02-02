@@ -607,92 +607,75 @@ export default function ClinicianDashboard() {
           </div>
         </div>
 
-        {/* Test Patient View - Patient Search */}
+        {/* Quick Patient Search */}
         <div className="p-3 border-t bg-muted/30">
           <p className="text-xs text-muted-foreground mb-2">
-            Test Patient View
+            Quick Search
           </p>
           <div className="relative">
-            <div className="flex gap-1">
-              <Input
-                placeholder="Search patient or enter token..."
-                value={testPatientToken}
-                onChange={(e) => setTestPatientToken(e.target.value)}
-                className="flex-1 text-xs h-8"
-                data-testid="input-test-patient-search"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 px-2"
-                onClick={() => {
-                  if (testPatientToken.trim()) {
-                    window.open(`/p/${testPatientToken.trim()}?demo=1`, "_blank");
-                  }
-                }}
-                disabled={!testPatientToken.trim()}
-                data-testid="button-open-token"
-              >
-                <Eye className="h-3 w-3" />
-              </Button>
-            </div>
-            {testPatientToken.trim() && testPatientToken.length < 20 && (
+            <Input
+              placeholder="Search by patient name..."
+              value={testPatientToken}
+              onChange={(e) => setTestPatientToken(e.target.value)}
+              className="flex-1 text-xs h-8"
+              data-testid="input-patient-search"
+            />
+            {testPatientToken.trim() && (
               <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto">
                 {carePlans
                   .filter((p) => 
-                    (p.status === "sent" || p.status === "completed") && 
-                    p.accessToken &&
-                    (p.patient?.name?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
-                     p.extractedPatientName?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
-                     p.diagnosis?.toLowerCase().includes(testPatientToken.toLowerCase()))
+                    p.patient?.name?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
+                    p.extractedPatientName?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
+                    p.diagnosis?.toLowerCase().includes(testPatientToken.toLowerCase())
                   )
                   .map((plan) => (
                     <button
                       key={plan.id}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors border-b last:border-b-0"
                       onClick={() => {
-                        window.open(`/p/${plan.accessToken}?demo=1`, "_blank");
+                        setSelectedCarePlan(plan);
                         setTestPatientToken("");
                       }}
                       data-testid={`search-result-${plan.id}`}
                     >
-                      <div className="font-medium truncate">
-                        {plan.patient?.name || plan.extractedPatientName || "Patient"}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium truncate">
+                          {plan.patient?.name || plan.extractedPatientName || "New Patient"}
+                        </span>
+                        {getStatusBadge(plan.status)}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {plan.diagnosis} ({plan.translatedLanguage?.toUpperCase() || "EN"})
+                        {plan.diagnosis || "Processing..."}
                       </div>
                     </button>
                   ))}
                 {carePlans.filter((p) => 
-                  (p.status === "sent" || p.status === "completed") && 
-                  p.accessToken &&
-                  (p.patient?.name?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
-                   p.extractedPatientName?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
-                   p.diagnosis?.toLowerCase().includes(testPatientToken.toLowerCase()))
+                  p.patient?.name?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
+                  p.extractedPatientName?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
+                  p.diagnosis?.toLowerCase().includes(testPatientToken.toLowerCase())
                 ).length === 0 && (
                   <div className="px-3 py-2 text-xs text-muted-foreground">
-                    No matching patients - click eye to open by token
+                    No matching patients found
                   </div>
                 )}
               </div>
             )}
           </div>
-          {!testPatientToken.trim() && carePlans.some((p) => (p.status === "sent" || p.status === "completed") && p.accessToken) && (
+          {!testPatientToken.trim() && carePlans.length > 0 && (
             <div className="mt-2 text-xs text-muted-foreground">
               <p className="mb-1">Recent patients:</p>
               <div className="space-y-1">
-                {carePlans
-                  .filter((p) => (p.status === "sent" || p.status === "completed") && p.accessToken)
+                {[...carePlans]
+                  .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
                   .slice(0, 3)
                   .map((plan) => (
                     <button
                       key={plan.id}
                       className="block w-full text-left text-primary truncate text-xs hover:underline"
-                      onClick={() => window.open(`/p/${plan.accessToken}?demo=1`, "_blank")}
+                      onClick={() => setSelectedCarePlan(plan)}
                       data-testid={`recent-patient-${plan.id}`}
                     >
-                      {plan.patient?.name || plan.extractedPatientName || "Patient"} ({plan.translatedLanguage?.toUpperCase() || "EN"})
+                      {plan.patient?.name || plan.extractedPatientName || "New Patient"} - {plan.diagnosis?.slice(0, 30) || "Processing..."}
                     </button>
                   ))}
               </div>
@@ -731,9 +714,18 @@ export default function ClinicianDashboard() {
                   <Stethoscope className="h-5 w-5 text-primary" />
                   {selectedCarePlan.patient?.name || "New Care Plan"}
                 </h1>
-                <p className="text-sm text-muted-foreground">
-                  {selectedCarePlan.originalFileName || "Discharge Summary"}
-                </p>
+                {selectedCarePlan.originalFileName ? (
+                  <button
+                    className="text-sm text-primary hover:underline flex items-center gap-1"
+                    onClick={() => window.open(`/api/care-plans/${selectedCarePlan.id}/document`, "_blank")}
+                    data-testid="link-view-document"
+                  >
+                    <FileText className="h-3 w-3" />
+                    {selectedCarePlan.originalFileName}
+                  </button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Discharge Summary</p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {selectedCarePlan.status === "draft" && (
