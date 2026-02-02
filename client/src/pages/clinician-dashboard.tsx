@@ -241,8 +241,10 @@ export default function ClinicianDashboard() {
   const isDemoMode = envInfo?.isDemoMode ?? false;
   
   // Fetch current user info to get tenant's isDemo flag
+  // Use staleTime: 0 to ensure fresh tenant data is always fetched
   const { data: currentUser } = useQuery<UserWithTenant>({
     queryKey: ["/api/auth/me"],
+    staleTime: 0,
   });
   const isTenantDemo = currentUser?.tenant?.isDemo ?? false;
   
