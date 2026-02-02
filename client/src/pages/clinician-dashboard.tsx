@@ -201,6 +201,7 @@ export default function ClinicianDashboard() {
     false,
     false,
   ]);
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   // Patient form state
   const [patientName, setPatientName] = useState("");
@@ -302,12 +303,18 @@ export default function ClinicianDashboard() {
   // Process mutation (simplify + translate)
   const processMutation = useMutation({
     mutationFn: async ({ id, language }: { id: string; language: string }) => {
+      setProcessingIds(prev => new Set(prev).add(id));
       const res = await apiRequest("POST", `/api/care-plans/${id}/process`, {
         language,
       });
       return res.json() as Promise<CarePlanWithPatient>;
     },
     onSuccess: (data) => {
+      setProcessingIds(prev => {
+        const next = new Set(prev);
+        next.delete(data.id);
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
       setSelectedCarePlan(data);
       toast({
@@ -315,7 +322,12 @@ export default function ClinicianDashboard() {
         description: "Content has been simplified and translated",
       });
     },
-    onError: () => {
+    onError: (_error, variables) => {
+      setProcessingIds(prev => {
+        const next = new Set(prev);
+        next.delete(variables.id);
+        return next;
+      });
       toast({
         title: "Processing failed",
         description: "Please try again",
@@ -757,10 +769,10 @@ export default function ClinicianDashboard() {
                         language: patientLanguage,
                       })
                     }
-                    disabled={processMutation.isPending}
+                    disabled={processingIds.has(selectedCarePlan.id)}
                     data-testid="button-process"
                   >
-                    {processMutation.isPending ? (
+                    {processingIds.has(selectedCarePlan.id) ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
                       <RefreshCw className="h-4 w-4 mr-2" />
@@ -1248,12 +1260,12 @@ export default function ClinicianDashboard() {
                         <Select
                           value={patientLanguage}
                           onValueChange={setPatientLanguage}
-                          disabled={processMutation.isPending}
+                          disabled={selectedCarePlan ? processingIds.has(selectedCarePlan.id) : false}
                         >
                           <SelectTrigger
                             className="w-[180px]"
                             data-testid="select-language"
-                            disabled={processMutation.isPending}
+                            disabled={selectedCarePlan ? processingIds.has(selectedCarePlan.id) : false}
                           >
                             <SelectValue placeholder="Select language" />
                           </SelectTrigger>
