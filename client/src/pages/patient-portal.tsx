@@ -509,12 +509,34 @@ export default function PatientPortal() {
   
   // Check for demo mode (simple ?demo=1 parameter for clinician preview)
   const demoParam = new URLSearchParams(searchString).get("demo");
-  const isDemoMode = demoParam === "1";
   
-  const [isVerified, setIsVerified] = useState(isDemoMode);
+  // Fetch environment info to determine if we're in demo mode
+  const { data: envInfo, isLoading: isEnvLoading } = useQuery<{ isDemoMode: boolean; isProduction: boolean }>({
+    queryKey: ["/api/env-info"],
+  });
+  
+  // SECURITY: Only allow clinician preview bypass in demo mode
+  // In production mode, demoParam is ignored
+  const isAppDemoMode = envInfo?.isDemoMode ?? false; // Default to production (secure) until loaded
+  const isClinicianPreview = demoParam === "1" && isAppDemoMode;
+  
+  const [isVerified, setIsVerified] = useState(false); // Always start unverified until env is loaded
   const [yearOfBirth, setYearOfBirth] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [pin, setPin] = useState("");
   const [attemptsRemaining, setAttemptsRemaining] = useState(3);
   const [isLocked, setIsLocked] = useState(false);
+  const [requiresFullAuth, setRequiresFullAuth] = useState(false); // Production mode needs full auth
+  
+  // Once env info loads, allow clinician preview bypass in demo mode only
+  useEffect(() => {
+    if (!isEnvLoading && envInfo) {
+      // Only auto-verify for clinician preview if in demo mode
+      if (demoParam === "1" && envInfo.isDemoMode) {
+        setIsVerified(true);
+      }
+    }
+  }, [isEnvLoading, envInfo, demoParam]);
   const [showEnglish, setShowEnglish] = useState(false);
   const [showOriginalDocument, setShowOriginalDocument] = useState(false);
   const [showCheckIn, setShowCheckIn] = useState(false);
@@ -529,13 +551,13 @@ export default function PatientPortal() {
     enabled: isVerified && !!token,
   });
 
-  // Verify DOB mutation
+  // Verify patient identity mutation
   const verifyMutation = useMutation({
-    mutationFn: async (yob: string) => {
+    mutationFn: async (verificationData: { yearOfBirth: number; lastName?: string; pin?: string }) => {
       const response = await fetch(`/api/patient/${token}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ yearOfBirth: parseInt(yob) }),
+        body: JSON.stringify(verificationData),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -543,7 +565,7 @@ export default function PatientPortal() {
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setIsVerified(true);
       toast({ title: "Verified!", description: "You can now view your care plan" });
     },
@@ -556,10 +578,18 @@ export default function PatientPortal() {
           description: "Please try again in 15 minutes", 
           variant: "destructive" 
         });
+      } else if (error.requiresFullAuth) {
+        // Server requires full authentication (production mode)
+        setRequiresFullAuth(true);
+        toast({ 
+          title: "Additional verification required", 
+          description: "Please enter your last name and PIN",
+          variant: "default" 
+        });
       } else if (error.attemptsRemaining !== undefined) {
         setAttemptsRemaining(error.attemptsRemaining);
         toast({ 
-          title: "Incorrect year of birth", 
+          title: requiresFullAuth ? "Verification failed" : "Incorrect year of birth", 
           description: `${error.attemptsRemaining} attempt${error.attemptsRemaining !== 1 ? 's' : ''} remaining`,
           variant: "destructive" 
         });
@@ -585,7 +615,18 @@ export default function PatientPortal() {
 
   const handleVerify = () => {
     if (isLocked || attemptsRemaining <= 0) return;
-    verifyMutation.mutate(yearOfBirth);
+    
+    // In production mode (requiresFullAuth), send all three fields
+    // In demo mode, only send yearOfBirth
+    if (requiresFullAuth || !isAppDemoMode) {
+      verifyMutation.mutate({
+        yearOfBirth: parseInt(yearOfBirth),
+        lastName: lastName.trim(),
+        pin: pin.trim(),
+      });
+    } else {
+      verifyMutation.mutate({ yearOfBirth: parseInt(yearOfBirth) });
+    }
   };
 
   const getLanguageName = (code: string) => {
@@ -878,7 +919,24 @@ export default function PatientPortal() {
     });
   }, [carePlan, showEnglish, toast]);
 
+  // Loading state while environment info is loading
+  if (isEnvLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   // Verification Screen
+  // Determine if full auth is needed (production mode)
+  const showFullAuthFields = !isAppDemoMode || requiresFullAuth;
+  
+  // Validation for form submit
+  const isFormValid = showFullAuthFields 
+    ? yearOfBirth.length === 4 && lastName.trim().length > 0 && pin.length === 4
+    : yearOfBirth.length === 4;
+  
   if (!isVerified) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background flex items-center justify-center p-4">
@@ -889,10 +947,28 @@ export default function PatientPortal() {
             </div>
             <CardTitle className="text-2xl">Verify Your Identity</CardTitle>
             <CardDescription className="text-base">
-              Please enter your year of birth to access your care instructions
+              {showFullAuthFields 
+                ? "Please verify your identity to access your care instructions"
+                : "Please enter your year of birth to access your care instructions"
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {showFullAuthFields && (
+              <div className="space-y-2">
+                <Label htmlFor="lastName" className="text-base">Last Name</Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  placeholder="e.g., Smith"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="h-12 text-lg"
+                  disabled={isLocked}
+                  data-testid="input-verify-lastname"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="yob" className="text-base">Year of Birth</Label>
               <Input
@@ -907,10 +983,33 @@ export default function PatientPortal() {
                 data-testid="input-verify-yob"
               />
             </div>
+            {showFullAuthFields && (
+              <div className="space-y-2">
+                <Label htmlFor="pin" className="text-base">4-Digit PIN</Label>
+                <p className="text-sm text-muted-foreground">
+                  This was sent to you in your email
+                </p>
+                <Input
+                  id="pin"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Enter 4-digit PIN"
+                  value={pin}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setPin(value);
+                  }}
+                  className="text-center text-2xl h-14 tracking-widest"
+                  maxLength={4}
+                  disabled={isLocked}
+                  data-testid="input-verify-pin"
+                />
+              </div>
+            )}
             <Button 
               className="w-full h-12 text-lg"
               onClick={handleVerify}
-              disabled={yearOfBirth.length !== 4 || verifyMutation.isPending || isLocked}
+              disabled={!isFormValid || verifyMutation.isPending || isLocked}
               data-testid="button-verify"
             >
               {verifyMutation.isPending ? (
@@ -927,6 +1026,11 @@ export default function PatientPortal() {
             {isLocked && (
               <p className="text-sm text-destructive text-center">
                 Too many attempts. Please try again in 15 minutes.
+              </p>
+            )}
+            {isAppDemoMode && !requiresFullAuth && (
+              <p className="text-xs text-muted-foreground text-center mt-4">
+                Demo mode: Only year of birth is required for verification
               </p>
             )}
           </CardContent>

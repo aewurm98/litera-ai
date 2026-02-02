@@ -33,9 +33,11 @@ export type User = typeof users.$inferSelect;
 export const patients = pgTable("patients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  lastName: text("last_name"), // Extracted last name for verification (production auth)
   email: text("email").notNull(),
   phone: text("phone"),
   yearOfBirth: integer("year_of_birth").notNull(),
+  pin: varchar("pin", { length: 4 }), // 4-digit PIN for patient portal access (production auth)
   preferredLanguage: text("preferred_language").notNull().default("en"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

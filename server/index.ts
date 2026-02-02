@@ -6,6 +6,19 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { pool } from "./db";
 
+// Validate required environment variables at startup
+if (!process.env.SESSION_SECRET) {
+  console.error("FATAL: SESSION_SECRET environment variable is required but not set.");
+  console.error("Generate one with: node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\"");
+  process.exit(1);
+}
+
+// Check if we're in production mode
+const isProduction = process.env.NODE_ENV === "production";
+
+// Demo mode is enabled unless explicitly in production with DEMO_MODE=false
+export const isDemoMode = process.env.DEMO_MODE !== "false" && !isProduction;
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -41,12 +54,13 @@ app.use(
       tableName: "session",
       createTableIfMissing: true,
     }),
-    secret: process.env.SESSION_SECRET || "litera-ai-secret-key-change-in-production",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: isProduction,
       httpOnly: true,
+      sameSite: "lax",
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
   })

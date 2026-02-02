@@ -49,10 +49,30 @@ export async function getUncachableResendClient() {
 export async function sendCarePlanEmail(
   toEmail: string,
   patientName: string,
-  accessLink: string
+  accessLink: string,
+  pin?: string
 ) {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
+    
+    // Build PIN section for production mode (when PIN is provided)
+    const pinSection = pin ? `
+  <div style="background: #dbeafe; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+    <p style="margin: 0 0 8px; color: #1e40af; font-size: 14px; font-weight: 600;">
+      Your Secure Access PIN
+    </p>
+    <p style="margin: 0; color: #1e40af; font-size: 32px; font-weight: 700; letter-spacing: 4px; text-align: center;">
+      ${pin}
+    </p>
+    <p style="margin: 8px 0 0; color: #1e40af; font-size: 12px; text-align: center;">
+      Keep this PIN private. You'll need it along with your last name and year of birth.
+    </p>
+  </div>
+` : '';
+
+    const verificationInstructions = pin 
+      ? `<strong>Important:</strong> You will need to verify your identity by entering your last name, year of birth, and the PIN shown above.`
+      : `<strong>Important:</strong> You will need to verify your identity by entering your year of birth.`;
     
     const result = await client.emails.send({
       from: fromEmail,
@@ -80,6 +100,8 @@ export async function sendCarePlanEmail(
     <p style="margin: 0;">Click the button below to view your personalized care plan:</p>
   </div>
   
+  ${pinSection}
+  
   <div style="text-align: center; margin: 32px 0;">
     <a href="${accessLink}" style="display: inline-block; background: #2563eb; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 18px;">
       View My Care Plan
@@ -88,7 +110,7 @@ export async function sendCarePlanEmail(
   
   <div style="background: #fef3c7; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
     <p style="margin: 0; color: #92400e; font-size: 14px;">
-      <strong>Important:</strong> You will need to verify your identity by entering your year of birth.
+      ${verificationInstructions}
     </p>
   </div>
   
