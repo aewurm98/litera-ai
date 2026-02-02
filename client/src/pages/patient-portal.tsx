@@ -1226,7 +1226,7 @@ export default function PatientPortal() {
   return (
     <div className="min-h-screen bg-background">
       {/* Demo Mode Banner */}
-      {isDemoMode && (
+      {isAppDemoMode && (
         <div className="bg-yellow-500 text-yellow-950 text-center py-2 px-4 text-sm font-medium">
           Clinician Preview Mode - This is how patients see their care plan
         </div>
