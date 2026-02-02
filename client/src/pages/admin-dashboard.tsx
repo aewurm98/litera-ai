@@ -32,7 +32,8 @@ import {
   Building2,
   UserPlus,
   Plus,
-  Trash2
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
@@ -85,14 +86,24 @@ export default function AdminDashboard() {
   // User/Tenant management state
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
   const [isCreateTenantDialogOpen, setIsCreateTenantDialogOpen] = useState(false);
+  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
+  const [isEditTenantDialogOpen, setIsEditTenantDialogOpen] = useState(false);
   const [newUserForm, setNewUserForm] = useState({ username: "", password: "", name: "", role: "clinician", tenantId: "" });
   const [newTenantForm, setNewTenantForm] = useState({ name: "", slug: "", isDemo: false });
+  const [editUserForm, setEditUserForm] = useState<{ id: string; name: string; role: string; tenantId: string }>({ id: "", name: "", role: "", tenantId: "" });
+  const [editTenantForm, setEditTenantForm] = useState<{ id: string; name: string; isDemo: boolean }>({ id: "", name: "", isDemo: false });
 
   // Fetch environment info to determine if we're in demo mode
   const { data: envInfo } = useQuery<{ isDemoMode: boolean; isProduction: boolean }>({
     queryKey: ["/api/env-info"],
   });
   const isDemoMode = envInfo?.isDemoMode ?? false;
+
+  // Fetch current user to check role
+  const { data: currentUser } = useQuery<{ id: string; name: string; role: string; tenantId: string | null }>({
+    queryKey: ["/api/auth/me"],
+  });
+  const isSuperAdmin = currentUser?.role === "super_admin";
 
   // Fetch all care plans
   const { data: carePlans = [], isLoading } = useQuery<CarePlanWithDetails[]>({
@@ -157,6 +168,43 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/tenants"] });
       setIsCreateTenantDialogOpen(false);
       setNewTenantForm({ name: "", slug: "", isDemo: false });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Update user mutation
+  const updateUserMutation = useMutation({
+    mutationFn: async (data: typeof editUserForm) => {
+      return apiRequest("PATCH", `/api/admin/users/${data.id}`, {
+        name: data.name,
+        role: data.role,
+        tenantId: data.tenantId || null,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Team member updated successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setIsEditUserDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Update tenant mutation
+  const updateTenantMutation = useMutation({
+    mutationFn: async (data: typeof editTenantForm) => {
+      return apiRequest("PATCH", `/api/admin/tenants/${data.id}`, {
+        name: data.name,
+        isDemo: data.isDemo,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Tenant updated successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tenants"] });
+      setIsEditTenantDialogOpen(false);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -417,14 +465,16 @@ export default function AdminDashboard() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="users" className="gap-2" data-testid="tab-users">
+          <TabsTrigger value="team" className="gap-2" data-testid="tab-team">
             <UserPlus className="h-4 w-4" />
-            Users
+            Team
           </TabsTrigger>
-          <TabsTrigger value="tenants" className="gap-2" data-testid="tab-tenants">
-            <Building2 className="h-4 w-4" />
-            Tenants
-          </TabsTrigger>
+          {isSuperAdmin && (
+            <TabsTrigger value="tenants" className="gap-2" data-testid="tab-tenants">
+              <Building2 className="h-4 w-4" />
+              Tenants
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Patients Tab */}
@@ -623,17 +673,17 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Users Tab */}
-        <TabsContent value="users" className="space-y-4">
+        {/* Team Tab */}
+        <TabsContent value="team" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage clinicians and administrators</CardDescription>
+                <CardTitle>Team Management</CardTitle>
+                <CardDescription>Manage clinicians and administrators{!isSuperAdmin && " in your clinic"}</CardDescription>
               </div>
-              <Button onClick={() => setIsCreateUserDialogOpen(true)} data-testid="button-create-user">
+              <Button onClick={() => setIsCreateUserDialogOpen(true)} data-testid="button-create-team-member">
                 <Plus className="h-4 w-4 mr-2" />
-                Add User
+                Add Team Member
               </Button>
             </CardHeader>
             <CardContent>
@@ -643,8 +693,8 @@ export default function AdminDashboard() {
                     <TableHead>Name</TableHead>
                     <TableHead>Username</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Tenant</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
+                    {isSuperAdmin && <TableHead>Tenant</TableHead>}
+                    <TableHead className="w-[120px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -653,28 +703,46 @@ export default function AdminDashboard() {
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.username}</TableCell>
                       <TableCell>
-                        <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                          {user.role}
+                        <Badge variant={user.role === "admin" || user.role === "super_admin" ? "default" : "secondary"}>
+                          {user.role === "super_admin" ? "Super Admin" : user.role}
                         </Badge>
                       </TableCell>
-                      <TableCell>{user.tenant?.name || "-"}</TableCell>
+                      {isSuperAdmin && <TableCell>{user.tenant?.name || "-"}</TableCell>}
                       <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => deleteUserMutation.mutate(user.id)}
-                          disabled={deleteUserMutation.isPending}
-                          data-testid={`button-delete-user-${user.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => {
+                              setEditUserForm({
+                                id: user.id,
+                                name: user.name,
+                                role: user.role,
+                                tenantId: user.tenantId || "",
+                              });
+                              setIsEditUserDialogOpen(true);
+                            }}
+                            data-testid={`button-edit-user-${user.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => deleteUserMutation.mutate(user.id)}
+                            disabled={deleteUserMutation.isPending || user.id === currentUser?.id}
+                            data-testid={`button-delete-user-${user.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
                   {allUsers.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        No users found
+                      <TableCell colSpan={isSuperAdmin ? 5 : 4} className="text-center text-muted-foreground">
+                        No team members found
                       </TableCell>
                     </TableRow>
                   )}
@@ -705,6 +773,7 @@ export default function AdminDashboard() {
                     <TableHead>Slug</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead className="w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -720,11 +789,28 @@ export default function AdminDashboard() {
                       <TableCell>
                         {format(new Date(tenant.createdAt), "MMM d, yyyy")}
                       </TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => {
+                            setEditTenantForm({
+                              id: tenant.id,
+                              name: tenant.name,
+                              isDemo: tenant.isDemo,
+                            });
+                            setIsEditTenantDialogOpen(true);
+                          }}
+                          data-testid={`button-edit-tenant-${tenant.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {allTenants.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
                         No tenants found
                       </TableCell>
                     </TableRow>
@@ -736,12 +822,12 @@ export default function AdminDashboard() {
         </TabsContent>
       </Tabs>
 
-      {/* Create User Dialog */}
+      {/* Create Team Member Dialog */}
       <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New User</DialogTitle>
-            <DialogDescription>Add a new clinician or administrator to the system.</DialogDescription>
+            <DialogTitle>Add Team Member</DialogTitle>
+            <DialogDescription>Add a new clinician or administrator{!isSuperAdmin && " to your clinic"}.</DialogDescription>
           </DialogHeader>
           <form 
             onSubmit={(e) => { 
@@ -797,31 +883,33 @@ export default function AdminDashboard() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="user-tenant">Tenant (optional)</Label>
-              <Select 
-                value={newUserForm.tenantId || "none"} 
-                onValueChange={(v) => setNewUserForm({ ...newUserForm, tenantId: v === "none" ? "" : v })}
-              >
-                <SelectTrigger data-testid="select-user-tenant">
-                  <SelectValue placeholder="Select tenant" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Tenant (Platform Admin)</SelectItem>
-                  {allTenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
-                      {tenant.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isSuperAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="user-tenant">Tenant</Label>
+                <Select 
+                  value={newUserForm.tenantId || "none"} 
+                  onValueChange={(v) => setNewUserForm({ ...newUserForm, tenantId: v === "none" ? "" : v })}
+                >
+                  <SelectTrigger data-testid="select-user-tenant">
+                    <SelectValue placeholder="Select tenant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Tenant (Platform Admin)</SelectItem>
+                    {allTenants.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsCreateUserDialogOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={createUserMutation.isPending} data-testid="button-submit-user">
-                {createUserMutation.isPending ? "Creating..." : "Create User"}
+                {createUserMutation.isPending ? "Creating..." : "Add Team Member"}
               </Button>
             </DialogFooter>
           </form>
@@ -884,6 +972,128 @@ export default function AdminDashboard() {
               </Button>
               <Button type="submit" disabled={createTenantMutation.isPending} data-testid="button-submit-tenant">
                 {createTenantMutation.isPending ? "Creating..." : "Create Tenant"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Team Member Dialog */}
+      <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Team Member</DialogTitle>
+            <DialogDescription>Update team member details.</DialogDescription>
+          </DialogHeader>
+          <form 
+            onSubmit={(e) => { 
+              e.preventDefault(); 
+              updateUserMutation.mutate(editUserForm); 
+            }} 
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="edit-user-name">Full Name</Label>
+              <Input
+                id="edit-user-name"
+                value={editUserForm.name}
+                onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                required
+                data-testid="input-edit-user-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-user-role">Role</Label>
+              <Select 
+                value={editUserForm.role} 
+                onValueChange={(v) => setEditUserForm({ ...editUserForm, role: v })}
+              >
+                <SelectTrigger data-testid="select-edit-user-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="clinician">Clinician</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+            {isSuperAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-user-tenant">Tenant</Label>
+                <Select 
+                  value={editUserForm.tenantId || "none"} 
+                  onValueChange={(v) => setEditUserForm({ ...editUserForm, tenantId: v === "none" ? "" : v })}
+                >
+                  <SelectTrigger data-testid="select-edit-user-tenant">
+                    <SelectValue placeholder="Select tenant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Tenant (Platform Admin)</SelectItem>
+                    {allTenants.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditUserDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateUserMutation.isPending} data-testid="button-update-user">
+                {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tenant Dialog */}
+      <Dialog open={isEditTenantDialogOpen} onOpenChange={setIsEditTenantDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Tenant</DialogTitle>
+            <DialogDescription>Update tenant settings.</DialogDescription>
+          </DialogHeader>
+          <form 
+            onSubmit={(e) => { 
+              e.preventDefault(); 
+              updateTenantMutation.mutate(editTenantForm); 
+            }} 
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="edit-tenant-name">Clinic Name</Label>
+              <Input
+                id="edit-tenant-name"
+                value={editTenantForm.name}
+                onChange={(e) => setEditTenantForm({ ...editTenantForm, name: e.target.value })}
+                required
+                data-testid="input-edit-tenant-name"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="edit-tenant-demo"
+                checked={editTenantForm.isDemo}
+                onChange={(e) => setEditTenantForm({ ...editTenantForm, isDemo: e.target.checked })}
+                className="h-4 w-4"
+                data-testid="checkbox-edit-tenant-demo"
+              />
+              <Label htmlFor="edit-tenant-demo" className="text-sm font-normal">
+                Demo tenant (sample data visible)
+              </Label>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditTenantDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateTenantMutation.isPending} data-testid="button-update-tenant">
+                {updateTenantMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>
           </form>

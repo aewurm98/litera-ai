@@ -56,6 +56,7 @@ export interface IStorage {
   clearAllData(): Promise<void>;
   
   getAllUsers(tenantId?: string): Promise<User[]>;
+  updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId'>>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   
   getAllTenants(): Promise<Tenant[]>;
@@ -299,6 +300,11 @@ export class DatabaseStorage implements IStorage {
       return db.select().from(users).where(eq(users.tenantId, tenantId)).orderBy(users.name);
     }
     return db.select().from(users).orderBy(users.name);
+  }
+
+  async updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId'>>): Promise<User | undefined> {
+    const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return user || undefined;
   }
 
   async deleteUser(id: string): Promise<boolean> {
