@@ -405,7 +405,7 @@ function AuthenticatedRoutes({ user }: { user: User }) {
   return (
     <Switch>
       <Route path="/">
-        {user.role === "admin" ? (
+        {user.role === "admin" || user.role === "super_admin" ? (
           <Redirect to="/admin" />
         ) : (
           <MainLayout user={user}>
@@ -414,7 +414,7 @@ function AuthenticatedRoutes({ user }: { user: User }) {
         )}
       </Route>
       <Route path="/admin">
-        {user.role === "admin" ? (
+        {user.role === "admin" || user.role === "super_admin" ? (
           <MainLayout user={user}>
             <AdminDashboard />
           </MainLayout>
