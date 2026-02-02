@@ -147,6 +147,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   (req as any).userId = req.session.userId;
   (req as any).userRole = req.session.userRole;
   (req as any).userName = req.session.userName;
+  (req as any).tenantId = req.session.tenantId;
   next();
 }
 
@@ -158,6 +159,7 @@ function requireClinicianAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(403).json({ error: "Access denied. Clinician or admin role required." });
   }
   (req as any).clinicianId = req.session.userId;
+  (req as any).tenantId = req.session.tenantId;
   next();
 }
 
@@ -169,6 +171,7 @@ function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
     return res.status(403).json({ error: "Access denied. Admin role required." });
   }
   (req as any).adminId = req.session.userId;
+  (req as any).tenantId = req.session.tenantId;
   next();
 }
 
@@ -262,6 +265,11 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
+      // Verify tenant for authenticated users (patients access via token, no tenant check needed)
+      if (isAuthenticated && req.session?.tenantId && carePlan.tenantId !== req.session.tenantId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       // If we have stored file data, serve it
       if (carePlan.originalFileData) {
         const buffer = Buffer.from(carePlan.originalFileData, "base64");
@@ -345,12 +353,14 @@ export async function registerRoutes(
       req.session.userId = user.id;
       req.session.userRole = user.role;
       req.session.userName = user.name;
+      req.session.tenantId = user.tenantId ?? undefined;
       
       res.json({ 
         id: user.id,
         username: user.username,
         name: user.name,
-        role: user.role 
+        role: user.role,
+        tenantId: user.tenantId
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -387,8 +397,9 @@ export async function registerRoutes(
     try {
       const clinicianId = req.session.userId;
       const userRole = req.session.userRole;
+      const tenantId = req.session.tenantId;
       
-      let carePlans = await storage.getAllCarePlans();
+      let carePlans = await storage.getAllCarePlans(tenantId);
       
       // Clinicians only see their own care plans; admins see all
       if (userRole === "clinician" && clinicianId) {
@@ -426,6 +437,7 @@ export async function registerRoutes(
       }
       
       const clinicianId = (req as any).clinicianId || "clinician-1";
+      const tenantId = req.session.tenantId;
       let extractedText = "";
 
       // Extract text based on file type
@@ -446,7 +458,7 @@ export async function registerRoutes(
           // Auto-match patient by extracted name
           let matchedPatientId: string | undefined = undefined;
           if (extracted.patientName) {
-            const matchedPatient = await storage.findPatientByName(extracted.patientName);
+            const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
             if (matchedPatient) {
               matchedPatientId = matchedPatient.id;
               console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
@@ -456,6 +468,7 @@ export async function registerRoutes(
           const carePlan = await storage.createCarePlan({
             clinicianId,
             patientId: matchedPatientId,
+            tenantId,
             status: "draft",
             originalContent: JSON.stringify(extracted),
             originalFileName: file.originalname,
@@ -489,7 +502,7 @@ export async function registerRoutes(
         // Auto-match patient by extracted name
         let matchedPatientId: string | undefined = undefined;
         if (extracted.patientName) {
-          const matchedPatient = await storage.findPatientByName(extracted.patientName);
+          const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
           if (matchedPatient) {
             matchedPatientId = matchedPatient.id;
             console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
@@ -500,6 +513,7 @@ export async function registerRoutes(
         const carePlan = await storage.createCarePlan({
           clinicianId,
           patientId: matchedPatientId,
+          tenantId,
           status: "draft",
           originalContent: JSON.stringify(extracted),
           originalFileName: file.originalname,
@@ -533,7 +547,7 @@ export async function registerRoutes(
       // Auto-match patient by extracted name
       let matchedPatientId: string | undefined = undefined;
       if (extracted.patientName) {
-        const matchedPatient = await storage.findPatientByName(extracted.patientName);
+        const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
         if (matchedPatient) {
           matchedPatientId = matchedPatient.id;
           console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
@@ -543,6 +557,7 @@ export async function registerRoutes(
       const carePlan = await storage.createCarePlan({
         clinicianId,
         patientId: matchedPatientId,
+        tenantId,
         status: "draft",
         originalContent: extractedText,
         originalFileName: file.originalname,
@@ -579,10 +594,16 @@ export async function registerRoutes(
       const id = req.params.id as string;
       const { language } = req.body;
       const clinicianId = (req as any).clinicianId || "clinician-1";
+      const tenantId = req.session.tenantId;
 
       const carePlan = await storage.getCarePlan(id);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
+      }
+      
+      // Verify tenant access
+      if (tenantId && carePlan.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       // Simplify content
@@ -654,10 +675,16 @@ export async function registerRoutes(
     try {
       const id = req.params.id as string;
       const clinicianId = (req as any).clinicianId || "clinician-1";
+      const tenantId = req.session.tenantId;
 
       const carePlan = await storage.getCarePlan(id);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
+      }
+      
+      // Verify tenant access
+      if (tenantId && carePlan.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       const updated = await storage.updateCarePlan(id, {
@@ -687,18 +714,24 @@ export async function registerRoutes(
       const id = req.params.id as string;
       const { name, email, phone, yearOfBirth, preferredLanguage } = req.body;
       const clinicianId = (req as any).clinicianId || "clinician-1";
+      const tenantId = req.session.tenantId;
 
       const carePlan = await storage.getCarePlan(id);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
+      }
+      
+      // Verify tenant access
+      if (tenantId && carePlan.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       // Generate PIN for patient verification (production security)
       const patientPin = generatePin();
       const lastName = extractLastName(name);
       
-      // Create or update patient
-      let patient = await storage.getPatientByEmail(email);
+      // Create or update patient (scoped by tenant)
+      let patient = await storage.getPatientByEmail(email, tenantId);
       if (!patient) {
         patient = await storage.createPatient({
           name,
@@ -708,6 +741,7 @@ export async function registerRoutes(
           yearOfBirth,
           pin: patientPin,
           preferredLanguage,
+          tenantId,
         });
       } else {
         // Update patient with new PIN and lastName for this care plan
@@ -778,10 +812,16 @@ export async function registerRoutes(
   app.post("/api/care-plans/:id/demo-token", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      const tenantId = req.session.tenantId;
       const carePlan = await storage.getCarePlan(id);
       
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
+      }
+      
+      // Verify tenant access
+      if (tenantId && carePlan.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
       }
       
       if (!carePlan.accessToken) {
@@ -800,10 +840,16 @@ export async function registerRoutes(
   app.delete("/api/care-plans/:id", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
+      const tenantId = req.session.tenantId;
       const carePlan = await storage.getCarePlan(id);
       
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
+      }
+      
+      // Verify tenant access
+      if (tenantId && carePlan.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
       }
       
       // Only allow deletion if not yet sent
@@ -1021,7 +1067,8 @@ export async function registerRoutes(
   // Get all care plans with full details (admin view)
   app.get("/api/admin/care-plans", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const carePlans = await storage.getAllCarePlans();
+      const tenantId = req.session.tenantId;
+      const carePlans = await storage.getAllCarePlans(tenantId);
       
       const enrichedPlans = await Promise.all(
         carePlans.map(async (plan) => {
@@ -1051,7 +1098,8 @@ export async function registerRoutes(
   // Get alerts
   app.get("/api/admin/alerts", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const alerts = await storage.getAlerts();
+      const tenantId = req.session.tenantId;
+      const alerts = await storage.getAlerts(tenantId);
       res.json(alerts);
     } catch (error) {
       console.error("Error fetching alerts:", error);
@@ -1076,7 +1124,8 @@ export async function registerRoutes(
   // Export CSV
   app.post("/api/admin/export", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const carePlans = await storage.getAllCarePlans();
+      const tenantId = req.session.tenantId;
+      const carePlans = await storage.getAllCarePlans(tenantId);
       
       const rows: string[] = [
         "patient_name,mrn,discharge_date,discharge_diagnosis,approved_by,approved_at,sent_at,first_contact_at,response_at,response_type,audit_log_id,suggested_cpt_code",

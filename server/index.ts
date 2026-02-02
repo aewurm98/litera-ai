@@ -33,6 +33,7 @@ declare module "express-session" {
     userId?: string;
     userRole?: string;
     userName?: string;
+    tenantId?: string;
   }
 }
 
