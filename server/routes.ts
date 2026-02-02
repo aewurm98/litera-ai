@@ -1005,10 +1005,15 @@ export async function registerRoutes(
       const { seedDatabase } = await import("./seed");
       await seedDatabase(true); // force=true to reseed even if data exists
       
+      // Clear session data first to ensure no stale userId even if destroy fails
+      delete req.session.userId;
+      delete req.session.userRole;
+      
       // Destroy the session since user IDs have changed
       req.session.destroy((err) => {
         if (err) {
           console.error("Error destroying session:", err);
+          // Session data already cleared, so return success but log the error
         }
         res.json({ success: true, message: "Demo data reset successfully", requiresRelogin: true });
       });
