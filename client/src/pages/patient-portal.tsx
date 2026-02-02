@@ -94,7 +94,15 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     verifying: "Verifying...",
     attemptsRemaining: "attempts remaining",
     tooManyAttempts: "Too Many Attempts",
-    tryAgainLater: "Please try again in 15 minutes or contact your care team."
+    tryAgainLater: "Please try again in 15 minutes or contact your care team.",
+    greatToHear: "Great to hear!",
+    keepFollowing: "Keep following your care plan. We're here if you need us.",
+    weveNotifiedTeam: "We've notified your care team",
+    theyWillCall: "They will call you within 24 hours.",
+    ifEmergency: "If this is an emergency",
+    teamNotifiedReachOut: "Your care team has been notified and will reach out to you.",
+    listenToSection: "Listen to this section",
+    readFullSummary: "Read Full Summary Aloud"
   },
   es: {
     yourCarePlan: "Su Plan de Cuidado",
@@ -146,7 +154,15 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     verifying: "Verificando...",
     attemptsRemaining: "intentos restantes",
     tooManyAttempts: "Demasiados Intentos",
-    tryAgainLater: "Por favor intente de nuevo en 15 minutos o contacte a su equipo de atención."
+    tryAgainLater: "Por favor intente de nuevo en 15 minutos o contacte a su equipo de atención.",
+    greatToHear: "¡Qué bueno!",
+    keepFollowing: "Siga su plan de cuidado. Estamos aquí si nos necesita.",
+    weveNotifiedTeam: "Hemos notificado a su equipo de atención",
+    theyWillCall: "Le llamarán dentro de 24 horas.",
+    ifEmergency: "Si es una emergencia",
+    teamNotifiedReachOut: "Su equipo de atención ha sido notificado y se comunicará con usted.",
+    listenToSection: "Escuchar esta sección",
+    readFullSummary: "Leer Resumen Completo en Voz Alta"
   },
   zh: {
     yourCarePlan: "您的护理计划",
@@ -198,7 +214,15 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     verifying: "验证中...",
     attemptsRemaining: "剩余尝试次数",
     tooManyAttempts: "尝试次数过多",
-    tryAgainLater: "请在15分钟后重试或联系您的护理团队。"
+    tryAgainLater: "请在15分钟后重试或联系您的护理团队。",
+    greatToHear: "太好了！",
+    keepFollowing: "继续遵循您的护理计划。如有需要，我们随时为您服务。",
+    weveNotifiedTeam: "我们已通知您的护理团队",
+    theyWillCall: "他们将在24小时内联系您。",
+    ifEmergency: "如果是紧急情况",
+    teamNotifiedReachOut: "您的护理团队已收到通知，将与您联系。",
+    listenToSection: "收听此部分",
+    readFullSummary: "朗读完整摘要"
   },
   vi: {
     yourCarePlan: "Kế Hoạch Chăm Sóc Của Bạn",
@@ -250,7 +274,15 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     verifying: "Đang xác minh...",
     attemptsRemaining: "lần thử còn lại",
     tooManyAttempts: "Quá Nhiều Lần Thử",
-    tryAgainLater: "Vui lòng thử lại sau 15 phút hoặc liên hệ đội ngũ chăm sóc."
+    tryAgainLater: "Vui lòng thử lại sau 15 phút hoặc liên hệ đội ngũ chăm sóc.",
+    greatToHear: "Thật tuyệt!",
+    keepFollowing: "Tiếp tục tuân theo kế hoạch chăm sóc. Chúng tôi ở đây nếu bạn cần.",
+    weveNotifiedTeam: "Chúng tôi đã thông báo cho đội ngũ chăm sóc của bạn",
+    theyWillCall: "Họ sẽ gọi cho bạn trong vòng 24 giờ.",
+    ifEmergency: "Nếu đây là trường hợp khẩn cấp",
+    teamNotifiedReachOut: "Đội ngũ chăm sóc của bạn đã được thông báo và sẽ liên hệ với bạn.",
+    listenToSection: "Nghe phần này",
+    readFullSummary: "Đọc To Toàn Bộ Tóm Tắt"
   },
   ar: {
     yourCarePlan: "خطة الرعاية الخاصة بك",
@@ -302,7 +334,15 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     verifying: "جاري التحقق...",
     attemptsRemaining: "محاولات متبقية",
     tooManyAttempts: "محاولات كثيرة جداً",
-    tryAgainLater: "يرجى المحاولة مرة أخرى بعد 15 دقيقة أو اتصل بفريق الرعاية."
+    tryAgainLater: "يرجى المحاولة مرة أخرى بعد 15 دقيقة أو اتصل بفريق الرعاية.",
+    greatToHear: "خبر رائع!",
+    keepFollowing: "استمر في اتباع خطة الرعاية. نحن هنا إذا احتجتنا.",
+    weveNotifiedTeam: "لقد أبلغنا فريق الرعاية الخاص بك",
+    theyWillCall: "سيتصلون بك خلال 24 ساعة.",
+    ifEmergency: "إذا كانت هذه حالة طوارئ",
+    teamNotifiedReachOut: "تم إبلاغ فريق الرعاية الخاص بك وسيتواصلون معك.",
+    listenToSection: "استمع لهذا القسم",
+    readFullSummary: "اقرأ الملخص الكامل بصوت عالٍ"
   },
   ko: {
     yourCarePlan: "귀하의 케어 플랜",
@@ -354,7 +394,15 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     verifying: "확인 중...",
     attemptsRemaining: "남은 시도 횟수",
     tooManyAttempts: "시도 횟수 초과",
-    tryAgainLater: "15분 후에 다시 시도하거나 케어 팀에 연락하세요."
+    tryAgainLater: "15분 후에 다시 시도하거나 케어 팀에 연락하세요.",
+    greatToHear: "다행이에요!",
+    keepFollowing: "케어 플랜을 계속 따르세요. 필요하시면 저희가 여기 있습니다.",
+    weveNotifiedTeam: "케어 팀에게 알렸습니다",
+    theyWillCall: "24시간 이내에 연락드릴 것입니다.",
+    ifEmergency: "긴급 상황이라면",
+    teamNotifiedReachOut: "케어 팀에게 알렸으며 연락드릴 것입니다.",
+    listenToSection: "이 섹션 듣기",
+    readFullSummary: "전체 요약 소리내어 읽기"
   },
   tl: {
     yourCarePlan: "Iyong Plano ng Pangangalaga",
@@ -406,7 +454,15 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     verifying: "Nag-ve-verify...",
     attemptsRemaining: "mga natitirang pagsubok",
     tooManyAttempts: "Sobrang Daming Pagsubok",
-    tryAgainLater: "Mangyaring subukan ulit sa 15 minuto o makipag-ugnayan sa iyong care team."
+    tryAgainLater: "Mangyaring subukan ulit sa 15 minuto o makipag-ugnayan sa iyong care team.",
+    greatToHear: "Magandang balita!",
+    keepFollowing: "Patuloy na sundin ang iyong plano ng pangangalaga. Narito kami kung kailangan mo kami.",
+    weveNotifiedTeam: "Nai-notify na namin ang iyong care team",
+    theyWillCall: "Tatawagan ka nila sa loob ng 24 na oras.",
+    ifEmergency: "Kung ito ay isang emerhensya",
+    teamNotifiedReachOut: "Na-notify na ang iyong care team at makikipag-ugnayan sa iyo.",
+    listenToSection: "Pakinggan ang seksyong ito",
+    readFullSummary: "Basahin ang Buong Buod ng Malakas"
   }
 };
 
@@ -612,6 +668,32 @@ export default function PatientPortal() {
     setIsSpeaking(true);
     window.speechSynthesis.speak(utterance);
   }, [carePlan, showEnglish, isSpeaking, toast]);
+
+  // Per-section TTS function
+  const speakSection = useCallback((text: string) => {
+    if (!text || !isTTSSupported) return;
+    
+    // Stop any current speech
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    const targetLang = showEnglish ? "en-US" : getLanguageCode(carePlan?.translatedLanguage || "en");
+    utterance.lang = targetLang;
+    utterance.rate = 0.9;
+    
+    const voices = window.speechSynthesis.getVoices();
+    const matchingVoice = voices.find(v => v.lang.startsWith(targetLang.split('-')[0]));
+    if (matchingVoice) {
+      utterance.voice = matchingVoice;
+    }
+    
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }, [carePlan, showEnglish, isTTSSupported]);
 
   const handlePrint = () => {
     window.print();
@@ -853,6 +935,7 @@ export default function PatientPortal() {
 
   // Check-in submitted response
   if (checkInSubmitted && checkInResponse) {
+    const responseLang = carePlan?.translatedLanguage || "en";
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -862,9 +945,11 @@ export default function PatientPortal() {
                 <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
                   <Check className="h-10 w-10 text-green-600 dark:text-green-400" />
                 </div>
-                <h2 className="text-2xl font-semibold mb-2 text-green-700 dark:text-green-400">Great to hear!</h2>
+                <h2 className="text-2xl font-semibold mb-2 text-green-700 dark:text-green-400">
+                  {getTranslation(responseLang, "greatToHear")}
+                </h2>
                 <p className="text-muted-foreground text-lg">
-                  Keep following your care plan. We're here if you need us.
+                  {getTranslation(responseLang, "keepFollowing")}
                 </p>
               </>
             )}
@@ -873,14 +958,16 @@ export default function PatientPortal() {
                 <div className="w-20 h-20 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center mx-auto mb-4">
                   <Phone className="h-10 w-10 text-yellow-600 dark:text-yellow-400" />
                 </div>
-                <h2 className="text-2xl font-semibold mb-2 text-yellow-700 dark:text-yellow-400">We've notified your care team</h2>
+                <h2 className="text-2xl font-semibold mb-2 text-yellow-700 dark:text-yellow-400">
+                  {getTranslation(responseLang, "weveNotifiedTeam")}
+                </h2>
                 <p className="text-muted-foreground text-lg mb-6">
-                  They will call you within 24 hours.
+                  {getTranslation(responseLang, "theyWillCall")}
                 </p>
                 <Button size="lg" className="gap-2" asChild>
                   <a href="tel:+15551234567">
                     <Phone className="h-5 w-5" />
-                    Call Clinic: (555) 123-4567
+                    {getTranslation(responseLang, "callClinic")}: (555) 123-4567
                   </a>
                 </Button>
               </>
@@ -890,7 +977,9 @@ export default function PatientPortal() {
                 <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
                   <AlertTriangle className="h-10 w-10 text-red-600 dark:text-red-400" />
                 </div>
-                <h2 className="text-2xl font-semibold mb-2 text-red-700 dark:text-red-400">If this is an emergency</h2>
+                <h2 className="text-2xl font-semibold mb-2 text-red-700 dark:text-red-400">
+                  {getTranslation(responseLang, "ifEmergency")}
+                </h2>
                 <Button 
                   size="lg" 
                   variant="destructive" 
@@ -899,11 +988,11 @@ export default function PatientPortal() {
                 >
                   <a href="tel:911">
                     <Phone className="h-6 w-6 mr-2" />
-                    Call 911
+                    {getTranslation(responseLang, "call911")}
                   </a>
                 </Button>
                 <p className="text-muted-foreground">
-                  Your care team has been notified and will reach out to you.
+                  {getTranslation(responseLang, "teamNotifiedReachOut")}
                 </p>
               </>
             )}
@@ -1061,9 +1150,23 @@ export default function PatientPortal() {
         {diagnosis && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Heart className="h-5 w-5 text-primary" />
-                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "whatsWrong")}
+              <CardTitle className="text-lg flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Heart className="h-5 w-5 text-primary" />
+                  {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "whatsWrong")}
+                </div>
+                {isTTSSupported && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => speakSection(diagnosis)}
+                    data-testid="button-speak-diagnosis"
+                    className="h-8 w-8"
+                    aria-label="Read diagnosis aloud"
+                  >
+                    <Volume2 className="h-4 w-4" />
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1076,9 +1179,28 @@ export default function PatientPortal() {
         {medications && medications.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Pill className="h-5 w-5 text-primary" />
-                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "medications")}
+              <CardTitle className="text-lg flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Pill className="h-5 w-5 text-primary" />
+                  {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "medications")}
+                </div>
+                {isTTSSupported && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const medsText = medications.map(med => 
+                        `${med.name}, ${med.dose}, ${med.frequency}. ${med.instructions || ''}`
+                      ).join(' ');
+                      speakSection(medsText);
+                    }}
+                    data-testid="button-speak-medications"
+                    className="h-8 w-8"
+                    aria-label="Read medications aloud"
+                  >
+                    <Volume2 className="h-4 w-4" />
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1105,9 +1227,28 @@ export default function PatientPortal() {
         {appointments && appointments.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "appointments")}
+              <CardTitle className="text-lg flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "appointments")}
+                </div>
+                {isTTSSupported && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const aptsText = appointments.map(apt => 
+                        `${apt.purpose}, ${apt.date} at ${apt.time}, ${apt.location}`
+                      ).join('. ');
+                      speakSection(aptsText);
+                    }}
+                    data-testid="button-speak-appointments"
+                    className="h-8 w-8"
+                    aria-label="Read appointments aloud"
+                  >
+                    <Volume2 className="h-4 w-4" />
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1134,9 +1275,23 @@ export default function PatientPortal() {
         {instructions && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Check className="h-5 w-5 text-primary" />
-                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "whatToDo")}
+              <CardTitle className="text-lg flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Check className="h-5 w-5 text-primary" />
+                  {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "whatToDo")}
+                </div>
+                {isTTSSupported && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => speakSection(instructions)}
+                    data-testid="button-speak-instructions"
+                    className="h-8 w-8"
+                    aria-label="Read instructions aloud"
+                  >
+                    <Volume2 className="h-4 w-4" />
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1151,9 +1306,23 @@ export default function PatientPortal() {
         {warnings && (
           <Card className="border-destructive/50 bg-destructive/5">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2 text-destructive">
-                <AlertTriangle className="h-5 w-5" />
-                {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "warningSigns")}
+              <CardTitle className="text-lg flex items-center justify-between gap-2 text-destructive">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "warningSigns")}
+                </div>
+                {isTTSSupported && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => speakSection(warnings)}
+                    data-testid="button-speak-warnings"
+                    className="h-8 w-8 text-destructive"
+                    aria-label="Read warnings aloud"
+                  >
+                    <Volume2 className="h-4 w-4" />
+                  </Button>
+                )}
               </CardTitle>
               <CardDescription>
                 {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "warningSubtitle")}

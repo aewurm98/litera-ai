@@ -7,6 +7,8 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 ## Recent Changes
 
 - **February 2026**: Internationalization and UX improvements
+  - **Expanded Language Support**: Extended from 16 to 49 languages including Traditional Chinese, South Asian (Bengali, Gujarati, Tamil, Telugu, Marathi, Punjabi), Southeast Asian (Thai, Indonesian, Malay, Burmese, Khmer, Lao), African (Amharic, Somali, Swahili, Yoruba, Igbo), and European (German, Italian, Dutch, Greek, Turkish, Hebrew, Ukrainian, Czech, Romanian, Hungarian, Serbian, Croatian, Bulgarian, Slovak)
+  - **Per-Section TTS**: Each care plan section (Diagnosis, Medications, Appointments, Instructions, Warnings) now has its own speaker icon for reading individual sections aloud
   - **Patient Portal Translations**: Full UI translation for 7 languages (English, Spanish, Chinese, Vietnamese, Arabic, Korean, Tagalog) - all CTAs now translated including Read Aloud, Save as PDF, Print, View Original, Call Clinic, Emergency 911
   - **Collapsible Back-translations**: Back-translation displays are now collapsible to reduce visual clutter in the review interface
   - **Demo Reset Button**: Added to clinician dashboard sidebar - resets demo data (accessible to all authenticated users)
@@ -62,7 +64,7 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 - Upload discharge documents (PDF/images)
 - AI extracts structured content (diagnosis, medications, appointments, warnings)
 - Simplifies to 5th grade reading level
-- Translates to 16+ languages with back-translation verification
+- Translates to 49 languages with back-translation verification
 - 3-column review interface: Original | Simplified | Translated
 - Scroll-to-approve workflow for compliance
 
@@ -105,9 +107,17 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 ### Internal Routes
 - `POST /api/internal/send-pending-check-ins` - Cron endpoint for scheduled emails
 
-## Supported Languages
+## Supported Languages (49 Total)
 
-English, Spanish, Chinese (Simplified), Vietnamese, Tagalog, Korean, Russian, Arabic, French, Portuguese, Hindi, Urdu, Farsi, Polish, Haitian Creole, Japanese
+**Core Languages**: English, Spanish, Chinese (Simplified), Chinese (Traditional), Vietnamese, Tagalog, Korean, Russian, Arabic, French, Portuguese, Hindi, Urdu, Farsi, Polish, Haitian Creole, Japanese
+
+**South Asian**: Bengali, Gujarati, Tamil, Telugu, Marathi, Punjabi, Nepali
+
+**Southeast Asian**: Thai, Indonesian, Malay, Burmese, Khmer (Cambodian), Lao
+
+**African**: Amharic, Somali, Swahili, Yoruba, Igbo
+
+**European**: German, Italian, Dutch, Greek, Turkish, Hebrew, Ukrainian, Czech, Romanian, Hungarian, Serbian, Croatian, Bulgarian, Slovak
 
 ## Environment Variables
 

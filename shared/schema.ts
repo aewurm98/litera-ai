@@ -196,11 +196,12 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 
-// Supported languages for translation
+// Supported languages for translation (GPT-4 supports 100+ languages)
 export const SUPPORTED_LANGUAGES = [
   { code: "en", name: "English" },
   { code: "es", name: "Spanish" },
   { code: "zh", name: "Chinese (Simplified)" },
+  { code: "zh-TW", name: "Chinese (Traditional)" },
   { code: "vi", name: "Vietnamese" },
   { code: "tl", name: "Tagalog" },
   { code: "ko", name: "Korean" },
@@ -214,6 +215,38 @@ export const SUPPORTED_LANGUAGES = [
   { code: "pl", name: "Polish" },
   { code: "ht", name: "Haitian Creole" },
   { code: "ja", name: "Japanese" },
+  { code: "bn", name: "Bengali" },
+  { code: "gu", name: "Gujarati" },
+  { code: "ta", name: "Tamil" },
+  { code: "te", name: "Telugu" },
+  { code: "mr", name: "Marathi" },
+  { code: "pa", name: "Punjabi" },
+  { code: "th", name: "Thai" },
+  { code: "id", name: "Indonesian" },
+  { code: "ms", name: "Malay" },
+  { code: "my", name: "Burmese" },
+  { code: "ne", name: "Nepali" },
+  { code: "km", name: "Khmer (Cambodian)" },
+  { code: "lo", name: "Lao" },
+  { code: "am", name: "Amharic" },
+  { code: "so", name: "Somali" },
+  { code: "sw", name: "Swahili" },
+  { code: "yo", name: "Yoruba" },
+  { code: "ig", name: "Igbo" },
+  { code: "de", name: "German" },
+  { code: "it", name: "Italian" },
+  { code: "nl", name: "Dutch" },
+  { code: "el", name: "Greek" },
+  { code: "tr", name: "Turkish" },
+  { code: "he", name: "Hebrew" },
+  { code: "uk", name: "Ukrainian" },
+  { code: "cs", name: "Czech" },
+  { code: "ro", name: "Romanian" },
+  { code: "hu", name: "Hungarian" },
+  { code: "sr", name: "Serbian" },
+  { code: "hr", name: "Croatian" },
+  { code: "bg", name: "Bulgarian" },
+  { code: "sk", name: "Slovak" },
 ] as const;
 
 export type LanguageCode = typeof SUPPORTED_LANGUAGES[number]["code"];
