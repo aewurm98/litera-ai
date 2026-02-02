@@ -367,7 +367,7 @@ export default function AdminDashboard() {
                       <TableRow key={plan.id} data-testid={`row-patient-${plan.id}`}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{plan.patient?.name || "Unknown"}</p>
+                            <p className="font-medium">{plan.patient?.name || plan.extractedPatientName || "Unknown"}</p>
                             <p className="text-sm text-muted-foreground truncate max-w-[200px]">
                               {plan.diagnosis?.slice(0, 40)}...
                             </p>

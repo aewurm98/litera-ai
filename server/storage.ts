@@ -7,7 +7,7 @@ import {
   type AuditLog, type InsertAuditLog,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, lte, isNull } from "drizzle-orm";
+import { eq, desc, and, lte, isNull, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -17,6 +17,7 @@ export interface IStorage {
   
   getPatient(id: string): Promise<Patient | undefined>;
   getPatientByEmail(email: string): Promise<Patient | undefined>;
+  findPatientByName(name: string): Promise<Patient | undefined>;
   getAllPatients(): Promise<Patient[]>;
   createPatient(patient: InsertPatient): Promise<Patient>;
   updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined>;
@@ -75,6 +76,14 @@ export class DatabaseStorage implements IStorage {
 
   async getPatientByEmail(email: string): Promise<Patient | undefined> {
     const [patient] = await db.select().from(patients).where(eq(patients.email, email));
+    return patient || undefined;
+  }
+
+  async findPatientByName(name: string): Promise<Patient | undefined> {
+    // Case-insensitive search for patient by name using DB query (scalable)
+    const normalizedName = name.toLowerCase().trim();
+    const [patient] = await db.select().from(patients)
+      .where(sql`lower(trim(${patients.name})) = ${normalizedName}`);
     return patient || undefined;
   }
 

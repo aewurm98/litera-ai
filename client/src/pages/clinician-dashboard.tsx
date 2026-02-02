@@ -350,6 +350,10 @@ export default function ClinicianDashboard() {
       // Select first uploaded care plan for immediate processing
       if (data.length > 0) {
         setSelectedCarePlan(data[0]);
+        // Pre-fill language from matched patient's preferred language
+        if (data[0].patient?.preferredLanguage) {
+          setPatientLanguage(data[0].patient.preferredLanguage);
+        }
       }
       setIsUploadDialogOpen(false);
       setUploadFiles([]);
@@ -828,7 +832,7 @@ export default function ClinicianDashboard() {
               <div>
                 <h1 className="text-xl font-semibold flex items-center gap-2">
                   <Stethoscope className="h-5 w-5 text-primary" />
-                  {selectedCarePlan.patient?.name || "New Care Plan"}
+                  {selectedCarePlan.patient?.name || selectedCarePlan.extractedPatientName || "New Care Plan"}
                 </h1>
                 {selectedCarePlan.originalFileName ? (
                   <button
