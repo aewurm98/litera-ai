@@ -75,14 +75,23 @@ import { SUPPORTED_LANGUAGES } from "@shared/schema";
 // Helper function to format content that may be array or string (for display in textareas)
 function formatContent(content: string | string[] | null | undefined): string {
   if (!content) return "";
+  
+  const addNumbering = (items: string[]) => {
+    return items.map((item, i) => {
+      const cleaned = item.replace(/^\d+\.\s*/, '').trim();
+      return `${i + 1}. ${cleaned}`;
+    }).join("\n");
+  };
+
   if (Array.isArray(content)) {
-    return content.map((item, i) => `${i + 1}. ${item}`).join("\n");
+    return addNumbering(content);
   }
+  
   // Handle JSON string that looks like an array
   if (typeof content === "string" && content.startsWith("{") && content.includes('","')) {
     try {
       const cleaned = content.replace(/^\{"|"\}$/g, '').split('","');
-      return cleaned.map((item, i) => `${i + 1}. ${item}`).join("\n");
+      return addNumbering(cleaned);
     } catch {
       return content;
     }
