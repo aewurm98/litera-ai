@@ -224,6 +224,63 @@ export async function registerRoutes(
     }
   });
 
+  // Serve PDF from care plan's stored data (for both clinician and patient portal)
+  // Authorization: requires either clinician session OR valid patient access token
+  app.get("/api/care-plans/:id/document", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { token } = req.query; // Patient access token from query param
+      
+      const carePlan = await storage.getCarePlan(id);
+      
+      if (!carePlan) {
+        return res.status(404).json({ error: "Care plan not found" });
+      }
+      
+      // Check authorization: clinician/admin session OR valid patient access token
+      const isAuthenticated = req.session?.userId && (req.session?.userRole === "clinician" || req.session?.userRole === "admin");
+      const hasValidToken = token && carePlan.accessToken === token && 
+        (!carePlan.accessTokenExpiry || new Date(carePlan.accessTokenExpiry) > new Date());
+      
+      if (!isAuthenticated && !hasValidToken) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // If we have stored file data, serve it
+      if (carePlan.originalFileData) {
+        const buffer = Buffer.from(carePlan.originalFileData, "base64");
+        const filename = carePlan.originalFileName || "document.pdf";
+        const isPdf = filename.toLowerCase().endsWith(".pdf");
+        
+        res.setHeader("Content-Type", isPdf ? "application/pdf" : "image/png");
+        res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+        res.send(buffer);
+        return;
+      }
+      
+      // Fallback: try to serve from mock_pdfs folder for seed data
+      if (carePlan.originalFileName) {
+        const path = await import("path");
+        const fs = await import("fs");
+        const sanitizedFilename = path.basename(carePlan.originalFileName);
+        const filePath = path.join(process.cwd(), "attached_assets", "mock_pdfs", sanitizedFilename);
+        
+        if (fs.existsSync(filePath)) {
+          res.setHeader("Content-Type", "application/pdf");
+          res.setHeader("Content-Disposition", `inline; filename="${sanitizedFilename}"`);
+          const fileStream = fs.createReadStream(filePath);
+          fileStream.pipe(res);
+          return;
+        }
+      }
+      
+      return res.status(404).json({ error: "Document file not found" });
+    } catch (error) {
+      console.error("Error serving care plan document:", error);
+      res.status(500).json({ error: "Failed to serve document" });
+    }
+  });
+
   // Serve sample documents for upload dialog
   app.get("/sample-docs/:filename", async (req: Request, res: Response) => {
     try {
@@ -375,6 +432,7 @@ export async function registerRoutes(
             status: "draft",
             originalContent: JSON.stringify(extracted),
             originalFileName: file.originalname,
+            originalFileData: file.buffer.toString("base64"),
             extractedPatientName: extracted.patientName,
             diagnosis: extracted.diagnosis,
             medications: extracted.medications,
@@ -405,6 +463,7 @@ export async function registerRoutes(
           status: "draft",
           originalContent: JSON.stringify(extracted),
           originalFileName: file.originalname,
+          originalFileData: base64Image,
           extractedPatientName: extracted.patientName,
           diagnosis: extracted.diagnosis,
           medications: extracted.medications,
@@ -434,6 +493,7 @@ export async function registerRoutes(
         status: "draft",
         originalContent: extractedText,
         originalFileName: file.originalname,
+        originalFileData: file.buffer.toString("base64"),
         extractedPatientName: extracted.patientName,
         diagnosis: extracted.diagnosis,
         medications: extracted.medications,
@@ -943,7 +1003,7 @@ export async function registerRoutes(
   app.post("/api/admin/reset-demo", requireAuth, async (req: Request, res: Response) => {
     try {
       const { seedDatabase } = await import("./seed");
-      await seedDatabase();
+      await seedDatabase(true); // force=true to reseed even if data exists
       res.json({ success: true, message: "Demo data reset successfully" });
     } catch (error) {
       console.error("Error resetting demo data:", error);

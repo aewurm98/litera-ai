@@ -1402,7 +1402,7 @@ export default function PatientPortal() {
 
         {/* Original Document Modal */}
         <Dialog open={showOriginalDocument} onOpenChange={setShowOriginalDocument}>
-          <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogContent className="max-w-4xl max-h-[90vh]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
@@ -1412,11 +1412,20 @@ export default function PatientPortal() {
                 {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "originalBeforeSimplification")}
               </DialogDescription>
             </DialogHeader>
-            <ScrollArea className="max-h-[50vh] mt-4">
-              <pre className="whitespace-pre-wrap text-sm font-mono bg-muted p-4 rounded-lg">
-                {carePlan.originalContent}
-              </pre>
-            </ScrollArea>
+            {carePlan.originalFileName?.toLowerCase().endsWith(".pdf") ? (
+              <iframe
+                src={`/api/care-plans/${carePlan.id}/document?token=${token}`}
+                className="w-full h-[60vh] border rounded-lg"
+                title="Original Document"
+                data-testid="iframe-original-document"
+              />
+            ) : (
+              <ScrollArea className="max-h-[50vh] mt-4">
+                <pre className="whitespace-pre-wrap text-sm font-mono bg-muted p-4 rounded-lg">
+                  {carePlan.originalContent}
+                </pre>
+              </ScrollArea>
+            )}
           </DialogContent>
         </Dialog>
       </main>

@@ -27,7 +27,8 @@ import {
   Eye,
   CheckCircle,
   XCircle,
-  Bell
+  Bell,
+  RefreshCw
 } from "lucide-react";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
@@ -103,6 +104,21 @@ export default function AdminDashboard() {
     },
   });
 
+  // Reset demo data mutation
+  const resetDemoMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/admin/reset-demo");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/care-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/alerts"] });
+      toast({ title: "Demo data reset", description: "Database has been reset to initial state" });
+    },
+    onError: () => {
+      toast({ title: "Reset failed", variant: "destructive" });
+    },
+  });
+
   const filteredCarePlans = carePlans.filter((plan) => {
     const matchesStatus = statusFilter === "all" || plan.status === statusFilter;
     const matchesSearch = 
@@ -162,18 +178,37 @@ export default function AdminDashboard() {
           <h1 className="text-2xl font-bold">Admin Dashboard</h1>
           <p className="text-muted-foreground">TCM billing and patient management</p>
         </div>
-        <Button 
-          onClick={() => exportMutation.mutate()}
-          disabled={exportMutation.isPending}
-          data-testid="button-export"
-        >
-          {exportMutation.isPending ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4 mr-2" />
-          )}
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              if (confirm("This will reset all data to the demo state. Are you sure?")) {
+                resetDemoMutation.mutate();
+              }
+            }}
+            disabled={resetDemoMutation.isPending}
+            data-testid="button-reset-demo"
+          >
+            {resetDemoMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Reset Demo
+          </Button>
+          <Button 
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending}
+            data-testid="button-export"
+          >
+            {exportMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
