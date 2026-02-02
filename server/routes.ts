@@ -1027,12 +1027,14 @@ export async function registerRoutes(
         carePlans.map(async (plan) => {
           const patient = plan.patientId ? await storage.getPatient(plan.patientId) : undefined;
           const clinician = plan.clinicianId ? await storage.getUser(plan.clinicianId) : undefined;
+          const approver = plan.approvedBy ? await storage.getUser(plan.approvedBy) : undefined;
           const checkIns = await storage.getCheckInsByCarePlanId(plan.id);
           const auditLogs = await storage.getAuditLogsByCarePlanId(plan.id);
           return { 
             ...plan, 
             patient, 
             clinician: clinician ? { id: clinician.id, name: clinician.name } : undefined,
+            approver: approver ? { id: approver.id, name: approver.name } : undefined,
             checkIns, 
             auditLogs 
           };
