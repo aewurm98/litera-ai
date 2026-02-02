@@ -32,11 +32,12 @@ import {
 } from "lucide-react";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 
 type CarePlanWithDetails = CarePlan & { 
   patient?: Patient; 
   clinician?: { id: string; name: string };
+  approver?: { id: string; name: string };
   checkIns?: CheckIn[];
   auditLogs?: AuditLog[];
 };
@@ -549,7 +550,7 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Approved By</p>
-                      <p className="font-medium">{selectedCarePlan.approvedBy || "-"}</p>
+                      <p className="font-medium">{selectedCarePlan.approver?.name || "-"}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Approved At</p>
@@ -568,7 +569,26 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Suggested CPT</p>
-                      <p className="font-medium">99495 / 99496</p>
+                      <p className="font-medium">
+                        {(() => {
+                          if (selectedCarePlan.status !== "sent" && selectedCarePlan.status !== "completed") return "Not Sent";
+                          const sentLog = selectedCarePlan.auditLogs?.find(l => l.action === "sent");
+                          if (!sentLog) return "Not Sent";
+                          const sentDate = new Date(sentLog.createdAt);
+                          const respondedCheckIns = selectedCarePlan.checkIns?.filter(c => c.respondedAt) || [];
+                          if (respondedCheckIns.length === 0) return "Pending Contact";
+                          const earliestContact = respondedCheckIns.reduce((earliest, current) => {
+                            const currentDate = new Date(current.respondedAt!);
+                            const earliestDate = new Date(earliest.respondedAt!);
+                            return currentDate < earliestDate ? current : earliest;
+                          });
+                          const contactDate = new Date(earliestContact.respondedAt!);
+                          const daysDiff = differenceInCalendarDays(contactDate, sentDate);
+                          if (daysDiff <= 7) return "99496";
+                          if (daysDiff <= 14) return "99495";
+                          return "Not Eligible";
+                        })()}
+                      </p>
                     </div>
                   </div>
                 </div>
