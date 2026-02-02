@@ -225,6 +225,13 @@ type CarePlanWithPatient = CarePlan & { patient?: Patient };
 
 export default function ClinicianDashboard() {
   const { toast } = useToast();
+  
+  // Fetch environment info to determine if we're in demo mode
+  const { data: envInfo } = useQuery<{ isDemoMode: boolean; isProduction: boolean }>({
+    queryKey: ["/api/env-info"],
+  });
+  const isDemoMode = envInfo?.isDemoMode ?? false;
+  
   const [selectedCarePlan, setSelectedCarePlan] =
     useState<CarePlanWithPatient | null>(null);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
@@ -790,24 +797,26 @@ export default function ClinicianDashboard() {
           </div>
         </div>
 
-        {/* Demo Reset Button */}
-        <div className="p-3 border-t bg-muted/30">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full text-xs text-muted-foreground"
-            onClick={() => resetDemoMutation.mutate()}
-            disabled={resetDemoMutation.isPending}
-            data-testid="button-reset-demo"
-          >
-            {resetDemoMutation.isPending ? (
-              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            ) : (
-              <RotateCcw className="h-3 w-3 mr-1" />
-            )}
-            Reset Demo Data
-          </Button>
-        </div>
+        {/* Demo Reset Button - only show in demo mode */}
+        {isDemoMode && (
+          <div className="p-3 border-t bg-muted/30">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-xs text-muted-foreground"
+              onClick={() => resetDemoMutation.mutate()}
+              disabled={resetDemoMutation.isPending}
+              data-testid="button-reset-demo"
+            >
+              {resetDemoMutation.isPending ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3 w-3 mr-1" />
+              )}
+              Reset Demo Data
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Main Content Area */}
@@ -1404,7 +1413,7 @@ export default function ClinicianDashboard() {
           
           {/* Sample Documents Dropdown */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Sample Documents (Demo)</Label>
+            <Label className="text-sm font-medium">Sample Documents{isDemoMode ? " (Demo)" : ""}</Label>
             <Select
               onValueChange={async (filename) => {
                 try {

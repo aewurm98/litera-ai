@@ -58,6 +58,12 @@ export default function AdminDashboard() {
   const [selectedCarePlan, setSelectedCarePlan] = useState<CarePlanWithDetails | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
+  // Fetch environment info to determine if we're in demo mode
+  const { data: envInfo } = useQuery<{ isDemoMode: boolean; isProduction: boolean }>({
+    queryKey: ["/api/env-info"],
+  });
+  const isDemoMode = envInfo?.isDemoMode ?? false;
+
   // Fetch all care plans
   const { data: carePlans = [], isLoading } = useQuery<CarePlanWithDetails[]>({
     queryKey: ["/api/admin/care-plans"],
@@ -184,23 +190,25 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground">TCM billing and patient management</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline"
-            onClick={() => {
-              if (confirm("This will reset all data to the demo state. Are you sure?")) {
-                resetDemoMutation.mutate();
-              }
-            }}
-            disabled={resetDemoMutation.isPending}
-            data-testid="button-reset-demo"
-          >
-            {resetDemoMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Reset Demo
-          </Button>
+          {isDemoMode && (
+            <Button 
+              variant="outline"
+              onClick={() => {
+                if (confirm("This will reset all data to the demo state. Are you sure?")) {
+                  resetDemoMutation.mutate();
+                }
+              }}
+              disabled={resetDemoMutation.isPending}
+              data-testid="button-reset-demo"
+            >
+              {resetDemoMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Reset Demo
+            </Button>
+          )}
           <Button 
             onClick={() => exportMutation.mutate()}
             disabled={exportMutation.isPending}
