@@ -6,6 +6,12 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 
 ## Recent Changes
 
+- **February 2026**: TCM Billing Improvements & Multi-Visit Support
+  - **TCM Billing Display**: "Approved By" now shows clinician name instead of UUID
+  - **Dynamic CPT Codes**: Suggested CPT code is now calculated based on first patient contact timing (99496 = contact within 7 days, 99495 = 8-14 days, Not Eligible = >14 days)
+  - **Multi-Visit Patient Matching**: When uploading discharge documents, system automatically matches to existing patients by name and pre-fills their preferred language
+  - **Scalable Patient Lookup**: Patient matching uses DB-level case-insensitive query instead of in-memory scan
+
 - **February 2026**: Production Security Hardening (Phase 1)
   - **Enhanced Patient Authentication**: Production mode now requires 3-factor verification (lastName + yearOfBirth + 4-digit PIN). Demo mode uses yearOfBirth only for backward compatibility.
   - **PIN Generation**: When sending care plans, a secure 4-digit PIN is auto-generated and included in the patient email. PIN is extracted from patient's name and stored for verification.
