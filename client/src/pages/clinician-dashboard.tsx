@@ -62,6 +62,7 @@ import {
   Trash2,
   ChevronsUpDown,
   RotateCcw,
+  X,
 } from "lucide-react";
 import type {
   CarePlan,
@@ -192,7 +193,8 @@ export default function ClinicianDashboard() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [columnsScrolled, setColumnsScrolled] = useState<boolean[]>([
     false,
@@ -256,30 +258,42 @@ export default function ClinicianDashboard() {
 
   // Upload mutation
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch("/api/care-plans/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) throw new Error("Upload failed");
-      return response.json();
+    mutationFn: async (files: File[]) => {
+      const results: CarePlanWithPatient[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ current: i + 1, total: files.length });
+        const formData = new FormData();
+        formData.append("file", files[i]);
+        const response = await fetch("/api/care-plans/upload", {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) throw new Error(`Upload failed for ${files[i].name}`);
+        results.push(await response.json());
+      }
+      return results;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
-      setSelectedCarePlan(data);
+      // Select first uploaded care plan for immediate processing
+      if (data.length > 0) {
+        setSelectedCarePlan(data[0]);
+      }
       setIsUploadDialogOpen(false);
-      setUploadFile(null);
+      setUploadFiles([]);
+      setUploadProgress(null);
       toast({
-        title: "Document uploaded",
-        description: "AI is processing your discharge summary...",
+        title: data.length === 1 ? "Document uploaded" : `${data.length} documents uploaded`,
+        description: data.length === 1 
+          ? "AI is processing your discharge summary..." 
+          : "Select each care plan from the sidebar to process.",
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
+      setUploadProgress(null);
       toast({
         title: "Upload failed",
-        description: "Please try again",
+        description: error.message || "Please try again",
         variant: "destructive",
       });
     },
@@ -425,25 +439,26 @@ export default function ClinicianDashboard() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (
-      file &&
-      (file.type === "application/pdf" || file.type.startsWith("image/"))
-    ) {
-      setUploadFile(file);
+    const files = Array.from(e.dataTransfer.files).filter(
+      (file) => file.type === "application/pdf" || file.type.startsWith("image/")
+    );
+    if (files.length > 0) {
+      setUploadFiles((prev) => [...prev, ...files]);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUploadFile(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setUploadFiles((prev) => [...prev, ...files]);
     }
+    // Reset input to allow re-selecting same files
+    e.target.value = '';
   };
 
   const handleUpload = () => {
-    if (uploadFile) {
-      uploadMutation.mutate(uploadFile);
+    if (uploadFiles.length > 0) {
+      uploadMutation.mutate(uploadFiles);
     }
   };
 
@@ -1310,7 +1325,7 @@ export default function ClinicianDashboard() {
                   const response = await fetch(`/sample-docs/${filename}`);
                   const blob = await response.blob();
                   const file = new File([blob], filename, { type: 'application/pdf' });
-                  setUploadFile(file);
+                  setUploadFiles((prev) => [...prev, file]);
                 } catch (error) {
                   toast({
                     title: "Failed to load sample",
@@ -1371,7 +1386,7 @@ export default function ClinicianDashboard() {
           </div>
 
           <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
               isDragging
                 ? "border-primary bg-primary/5"
                 : "border-muted-foreground/25"
@@ -1380,19 +1395,45 @@ export default function ClinicianDashboard() {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
-            {uploadFile ? (
-              <div className="space-y-2">
-                <FileText className="h-10 w-10 text-primary mx-auto" />
-                <p className="font-medium">{uploadFile.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {(uploadFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
+            {uploadFiles.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-center gap-2">
+                  <FileText className="h-6 w-6 text-primary" />
+                  <span className="font-medium">{uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''} selected</span>
+                </div>
+                <div className="max-h-32 overflow-y-auto text-left space-y-1">
+                  {uploadFiles.map((file, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1">
+                      <span className="truncate flex-1">{file.name}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 ml-2"
+                        onClick={() => setUploadFiles(prev => prev.filter((_, i) => i !== idx))}
+                        data-testid={`button-remove-file-${idx}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Label htmlFor="file-upload-add" className="cursor-pointer">
+                  <span className="text-xs text-primary hover:underline">+ Add more files</span>
+                  <Input
+                    id="file-upload-add"
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,image/*"
+                    multiple
+                    onChange={handleFileChange}
+                  />
+                </Label>
               </div>
             ) : (
               <>
                 <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
                 <p className="text-sm text-muted-foreground mb-2">
-                  Drag and drop your file here, or
+                  Drag and drop files here, or
                 </p>
                 <Label htmlFor="file-upload" className="cursor-pointer">
                   <span className="text-primary hover:underline">
@@ -1403,12 +1444,13 @@ export default function ClinicianDashboard() {
                     type="file"
                     className="hidden"
                     accept=".pdf,image/*"
+                    multiple
                     onChange={handleFileChange}
                     data-testid="input-file-upload"
                   />
                 </Label>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Supports PDF, JPG, PNG (max 10MB)
+                  Supports PDF, JPG, PNG - Select multiple files
                 </p>
               </>
             )}
@@ -1418,22 +1460,29 @@ export default function ClinicianDashboard() {
               variant="outline"
               onClick={() => {
                 setIsUploadDialogOpen(false);
-                setUploadFile(null);
+                setUploadFiles([]);
+                setUploadProgress(null);
               }}
+              disabled={uploadMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               onClick={handleUpload}
-              disabled={!uploadFile || uploadMutation.isPending}
+              disabled={uploadFiles.length === 0 || uploadMutation.isPending}
               data-testid="button-upload-confirm"
             >
               {uploadMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {uploadProgress ? `${uploadProgress.current}/${uploadProgress.total}` : 'Uploading...'}
+                </>
               ) : (
-                <Upload className="h-4 w-4 mr-2" />
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload {uploadFiles.length > 1 ? `${uploadFiles.length} files` : ''}
+                </>
               )}
-              Upload
             </Button>
           </DialogFooter>
         </DialogContent>
