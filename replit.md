@@ -6,6 +6,18 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 
 ## Recent Changes
 
+- **February 2026**: Multi-Tenancy Foundation & Patient Password System
+  - **Multi-Tenant Architecture**: Added tenants table with id, name, isDemo flag, and createdAt; users now have tenantId foreign key
+  - **Tenant Isolation**: All data queries (patients, care_plans, alerts) scoped by tenant for data isolation between clinics
+  - **Admin User Management**: New "Users" tab in admin dashboard - view, create, and delete users across tenants
+  - **Admin Tenant Management**: New "Tenants" tab in admin dashboard - view, create, and edit tenant settings (name, demo mode)
+  - **Patient Password Creation**: Patients can set a permanent password after first PIN verification; passwords bcrypt-hashed
+  - **Dual Authentication**: Patients can verify with either PIN or password in production mode
+  - **Password Change UI**: Clinicians and admins can change their own passwords from the dashboard
+  - **Sample Documents Isolation**: Sample discharge documents dropdown only visible to demo tenant users
+  - **Environment Feature Flags**: Reset Demo buttons and demo login credentials hidden in production mode via isDemoMode flag
+  - **Security Hardening**: All password hashes explicitly excluded from API responses; bcrypt with salt rounds=10 for all passwords
+
 - **February 2026**: TCM Billing Improvements & Multi-Visit Support
   - **TCM Billing Display**: "Approved By" now shows clinician name instead of UUID
   - **Dynamic CPT Codes**: Suggested CPT code is now calculated based on first patient contact timing (99496 = contact within 7 days, 99495 = 8-14 days, Not Eligible = >14 days)
