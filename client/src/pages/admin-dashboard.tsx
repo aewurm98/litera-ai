@@ -58,6 +58,7 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCarePlan, setSelectedCarePlan] = useState<CarePlanWithDetails | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState<"current" | "history">("current");
 
   // Fetch environment info to determine if we're in demo mode
   const { data: envInfo } = useQuery<{ isDemoMode: boolean; isProduction: boolean }>({
@@ -181,6 +182,38 @@ export default function AdminDashboard() {
     p.checkIns?.some(c => c.respondedAt)
   ).length;
   const pendingAlerts = alerts.filter(a => !a.resolved).length;
+
+  // Get all care plans for the selected patient (by patientId or by name fallback)
+  const getPatientHistory = (plan: CarePlanWithDetails) => {
+    if (plan.patientId) {
+      return carePlans.filter(cp => cp.patientId === plan.patientId);
+    }
+    // Fallback: match by normalized patient name when patientId is null
+    const patientName = plan.patient?.name || plan.extractedPatientName;
+    if (!patientName) return [plan];
+    const normalizedName = patientName.toLowerCase().trim();
+    return carePlans.filter(cp => {
+      const cpName = cp.patient?.name || cp.extractedPatientName;
+      return cpName && cpName.toLowerCase().trim() === normalizedName;
+    });
+  };
+
+  const patientHistory = selectedCarePlan ? getPatientHistory(selectedCarePlan) : [];
+
+  // Get visit count for a patient (by patientId or by name fallback)
+  const getVisitCount = (plan: CarePlanWithDetails) => {
+    if (plan.patientId) {
+      return carePlans.filter(cp => cp.patientId === plan.patientId).length;
+    }
+    // Fallback: match by normalized patient name when patientId is null
+    const patientName = plan.patient?.name || plan.extractedPatientName;
+    if (!patientName) return 1;
+    const normalizedName = patientName.toLowerCase().trim();
+    return carePlans.filter(cp => {
+      const cpName = cp.patient?.name || cp.extractedPatientName;
+      return cpName && cpName.toLowerCase().trim() === normalizedName;
+    }).length;
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -367,11 +400,18 @@ export default function AdminDashboard() {
                     filteredCarePlans.map((plan) => (
                       <TableRow key={plan.id} data-testid={`row-patient-${plan.id}`}>
                         <TableCell>
-                          <div>
-                            <p className="font-medium">{plan.patient?.name || plan.extractedPatientName || "Unknown"}</p>
-                            <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                              {plan.diagnosis?.slice(0, 40)}...
-                            </p>
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <p className="font-medium">{plan.patient?.name || plan.extractedPatientName || "Unknown"}</p>
+                              <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                                {plan.diagnosis?.slice(0, 40)}...
+                              </p>
+                            </div>
+                            {getVisitCount(plan) > 1 && (
+                              <Badge variant="secondary" className="text-xs" data-testid={`badge-visits-${plan.id}`}>
+                                {getVisitCount(plan)} visits
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -394,6 +434,7 @@ export default function AdminDashboard() {
                             size="sm"
                             onClick={() => {
                               setSelectedCarePlan(plan);
+                              setDetailTab("current");
                               setIsDetailDialogOpen(true);
                             }}
                             data-testid={`button-view-${plan.id}`}
@@ -494,107 +535,190 @@ export default function AdminDashboard() {
           <DialogHeader>
             <DialogTitle>Patient Detail</DialogTitle>
             <DialogDescription>
-              {selectedCarePlan?.patient?.name} - Care Plan Audit Trail
+              {selectedCarePlan?.patient?.name || selectedCarePlan?.extractedPatientName}
+              {patientHistory.length > 1 && ` - ${patientHistory.length} visits`}
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="flex-1">
-            {selectedCarePlan && (
-              <div className="space-y-6 pr-4">
-                {/* Patient Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-xs text-muted-foreground uppercase">Patient</Label>
-                    <p className="font-medium">{selectedCarePlan.patient?.name}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground uppercase">Email</Label>
-                    <p>{selectedCarePlan.patient?.email}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground uppercase">Discharge Date</Label>
-                    <p>{selectedCarePlan.dischargeDate 
-                      ? format(new Date(selectedCarePlan.dischargeDate), "MMM d, yyyy")
-                      : "-"
-                    }</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground uppercase">Language</Label>
-                    <p>{SUPPORTED_LANGUAGES.find(l => l.code === selectedCarePlan.translatedLanguage)?.name || "-"}</p>
-                  </div>
-                </div>
+          
+          {selectedCarePlan && (
+            <Tabs value={detailTab} onValueChange={(v) => setDetailTab(v as "current" | "history")} className="flex-1 flex flex-col overflow-hidden">
+              <TabsList className="shrink-0">
+                <TabsTrigger value="current" className="gap-2" data-testid="tab-current-visit">
+                  <FileText className="h-4 w-4" />
+                  Current Visit
+                </TabsTrigger>
+                <TabsTrigger value="history" className="gap-2" data-testid="tab-visit-history">
+                  <Clock className="h-4 w-4" />
+                  Visit History
+                  {patientHistory.length > 1 && (
+                    <Badge variant="secondary" className="ml-1 h-5 min-w-5 p-0 justify-center">
+                      {patientHistory.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
 
-                {/* Audit Timeline */}
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase mb-3 block">Audit Trail</Label>
-                  <div className="space-y-3">
-                    {selectedCarePlan.auditLogs?.map((log, index) => (
-                      <div key={log.id} className="flex gap-3">
-                        <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-                        <div className="flex-1">
-                          <p className="font-medium capitalize">{log.action.replace(/_/g, " ")}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(log.createdAt), "MMM d, yyyy h:mm a")}
+              <TabsContent value="current" className="flex-1 overflow-hidden mt-4">
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-6">
+                    {/* Patient Info */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase">Patient</Label>
+                        <p className="font-medium">{selectedCarePlan.patient?.name || selectedCarePlan.extractedPatientName}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase">Email</Label>
+                        <p>{selectedCarePlan.patient?.email || "-"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase">Discharge Date</Label>
+                        <p>{selectedCarePlan.dischargeDate 
+                          ? format(new Date(selectedCarePlan.dischargeDate), "MMM d, yyyy")
+                          : "-"
+                        }</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase">Language</Label>
+                        <p>{SUPPORTED_LANGUAGES.find(l => l.code === selectedCarePlan.translatedLanguage)?.name || "-"}</p>
+                      </div>
+                    </div>
+
+                    {/* Audit Timeline */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground uppercase mb-3 block">Audit Trail</Label>
+                      <div className="space-y-3">
+                        {selectedCarePlan.auditLogs?.map((log) => (
+                          <div key={log.id} className="flex gap-3">
+                            <div className="w-2 h-2 rounded-full bg-primary mt-2" />
+                            <div className="flex-1">
+                              <p className="font-medium capitalize">{log.action.replace(/_/g, " ")}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {format(new Date(log.createdAt), "MMM d, yyyy h:mm a")}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {(!selectedCarePlan.auditLogs || selectedCarePlan.auditLogs.length === 0) && (
+                          <p className="text-muted-foreground text-sm">No audit logs available</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* TCM Billing Info */}
+                    <div className="bg-muted/50 rounded-lg p-4">
+                      <Label className="text-xs text-muted-foreground uppercase mb-2 block">TCM Billing</Label>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Approved By</p>
+                          <p className="font-medium">{selectedCarePlan.approver?.name || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Approved At</p>
+                          <p className="font-medium">
+                            {selectedCarePlan.approvedAt 
+                              ? format(new Date(selectedCarePlan.approvedAt), "MMM d, yyyy h:mm a")
+                              : "-"
+                            }
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Interactive Contact</p>
+                          <p className="font-medium">
+                            {selectedCarePlan.checkIns?.some(c => c.respondedAt) ? "Yes" : "No"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Suggested CPT</p>
+                          <p className="font-medium">
+                            {(() => {
+                              if (selectedCarePlan.status !== "sent" && selectedCarePlan.status !== "completed") return "Not Sent";
+                              const sentLog = selectedCarePlan.auditLogs?.find(l => l.action === "sent");
+                              if (!sentLog) return "Not Sent";
+                              const sentDate = new Date(sentLog.createdAt);
+                              const respondedCheckIns = selectedCarePlan.checkIns?.filter(c => c.respondedAt) || [];
+                              if (respondedCheckIns.length === 0) return "Pending Contact";
+                              const earliestContact = respondedCheckIns.reduce((earliest, current) => {
+                                const currentDate = new Date(current.respondedAt!);
+                                const earliestDate = new Date(earliest.respondedAt!);
+                                return currentDate < earliestDate ? current : earliest;
+                              });
+                              const contactDate = new Date(earliestContact.respondedAt!);
+                              const daysDiff = differenceInCalendarDays(contactDate, sentDate);
+                              if (daysDiff <= 7) return "99496";
+                              if (daysDiff <= 14) return "99495";
+                              return "Not Eligible";
+                            })()}
                           </p>
                         </div>
                       </div>
-                    ))}
-                    {(!selectedCarePlan.auditLogs || selectedCarePlan.auditLogs.length === 0) && (
-                      <p className="text-muted-foreground text-sm">No audit logs available</p>
+                    </div>
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="history" className="flex-1 overflow-hidden mt-4">
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-4">
+                    {patientHistory.length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8">No visit history available</p>
+                    ) : (
+                      patientHistory
+                        .sort((a, b) => {
+                          const dateA = a.dischargeDate ? new Date(a.dischargeDate) : new Date(a.createdAt);
+                          const dateB = b.dischargeDate ? new Date(b.dischargeDate) : new Date(b.createdAt);
+                          return dateB.getTime() - dateA.getTime();
+                        })
+                        .map((plan, index) => (
+                          <div 
+                            key={plan.id} 
+                            className={`p-4 rounded-lg border ${plan.id === selectedCarePlan.id ? "border-primary bg-primary/5" : ""}`}
+                            data-testid={`history-item-${plan.id}`}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium">Visit {patientHistory.length - index}</span>
+                                  {plan.id === selectedCarePlan.id && (
+                                    <Badge variant="outline" className="text-xs">Current</Badge>
+                                  )}
+                                  {getStatusBadge(plan.status)}
+                                </div>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                  {plan.diagnosis?.slice(0, 60)}{(plan.diagnosis?.length || 0) > 60 ? "..." : ""}
+                                </p>
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    {plan.dischargeDate 
+                                      ? format(new Date(plan.dischargeDate), "MMM d, yyyy")
+                                      : format(new Date(plan.createdAt), "MMM d, yyyy")
+                                    }
+                                  </span>
+                                  <span>
+                                    {SUPPORTED_LANGUAGES.find(l => l.code === plan.translatedLanguage)?.name || "-"}
+                                  </span>
+                                </div>
+                              </div>
+                              {plan.id !== selectedCarePlan.id && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setSelectedCarePlan(plan)}
+                                  data-testid={`button-view-visit-${plan.id}`}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))
                     )}
                   </div>
-                </div>
-
-                {/* TCM Billing Info */}
-                <div className="bg-muted/50 rounded-lg p-4">
-                  <Label className="text-xs text-muted-foreground uppercase mb-2 block">TCM Billing</Label>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Approved By</p>
-                      <p className="font-medium">{selectedCarePlan.approver?.name || "-"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Approved At</p>
-                      <p className="font-medium">
-                        {selectedCarePlan.approvedAt 
-                          ? format(new Date(selectedCarePlan.approvedAt), "MMM d, yyyy h:mm a")
-                          : "-"
-                        }
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Interactive Contact</p>
-                      <p className="font-medium">
-                        {selectedCarePlan.checkIns?.some(c => c.respondedAt) ? "Yes" : "No"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Suggested CPT</p>
-                      <p className="font-medium">
-                        {(() => {
-                          if (selectedCarePlan.status !== "sent" && selectedCarePlan.status !== "completed") return "Not Sent";
-                          const sentLog = selectedCarePlan.auditLogs?.find(l => l.action === "sent");
-                          if (!sentLog) return "Not Sent";
-                          const sentDate = new Date(sentLog.createdAt);
-                          const respondedCheckIns = selectedCarePlan.checkIns?.filter(c => c.respondedAt) || [];
-                          if (respondedCheckIns.length === 0) return "Pending Contact";
-                          const earliestContact = respondedCheckIns.reduce((earliest, current) => {
-                            const currentDate = new Date(current.respondedAt!);
-                            const earliestDate = new Date(earliest.respondedAt!);
-                            return currentDate < earliestDate ? current : earliest;
-                          });
-                          const contactDate = new Date(earliestContact.respondedAt!);
-                          const daysDiff = differenceInCalendarDays(contactDate, sentDate);
-                          if (daysDiff <= 7) return "99496";
-                          if (daysDiff <= 14) return "99495";
-                          return "Not Eligible";
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </ScrollArea>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
+          )}
         </DialogContent>
       </Dialog>
     </div>
