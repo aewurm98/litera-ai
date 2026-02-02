@@ -196,6 +196,57 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // ============= Serve Mock PDFs =============
+  // Route to serve PDF files from attached_assets/mock_pdfs
+  app.get("/api/documents/:filename", requireClinicianAuth, async (req: Request, res: Response) => {
+    try {
+      const { filename } = req.params;
+      const path = await import("path");
+      const fs = await import("fs");
+      
+      // Sanitize filename to prevent directory traversal
+      const sanitizedFilename = path.basename(filename);
+      const filePath = path.join(process.cwd(), "attached_assets", "mock_pdfs", sanitizedFilename);
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // Serve the PDF
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${sanitizedFilename}"`);
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error("Error serving document:", error);
+      res.status(500).json({ error: "Failed to serve document" });
+    }
+  });
+
+  // Serve sample documents for upload dialog
+  app.get("/sample-docs/:filename", async (req: Request, res: Response) => {
+    try {
+      const { filename } = req.params;
+      const path = await import("path");
+      const fs = await import("fs");
+      
+      const sanitizedFilename = path.basename(filename);
+      const filePath = path.join(process.cwd(), "attached_assets", "mock_pdfs", sanitizedFilename);
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "Sample document not found" });
+      }
+      
+      res.setHeader("Content-Type", "application/pdf");
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error("Error serving sample document:", error);
+      res.status(500).json({ error: "Failed to serve sample document" });
+    }
+  });
+
   // ============= Authentication API =============
   
   // Login
@@ -324,6 +375,7 @@ export async function registerRoutes(
             status: "draft",
             originalContent: JSON.stringify(extracted),
             originalFileName: file.originalname,
+            extractedPatientName: extracted.patientName,
             diagnosis: extracted.diagnosis,
             medications: extracted.medications,
             appointments: extracted.appointments,
@@ -335,7 +387,7 @@ export async function registerRoutes(
             carePlanId: carePlan.id,
             userId: clinicianId,
             action: "uploaded",
-            details: { fileName: file.originalname, fileType: file.mimetype, method: "ai-fallback" },
+            details: { fileName: file.originalname, fileType: file.mimetype, method: "ai-fallback", patientName: extracted.patientName },
             ipAddress: req.ip || null,
             userAgent: req.get("user-agent") || null,
           });
@@ -353,6 +405,7 @@ export async function registerRoutes(
           status: "draft",
           originalContent: JSON.stringify(extracted),
           originalFileName: file.originalname,
+          extractedPatientName: extracted.patientName,
           diagnosis: extracted.diagnosis,
           medications: extracted.medications,
           appointments: extracted.appointments,
@@ -365,7 +418,7 @@ export async function registerRoutes(
           carePlanId: carePlan.id,
           userId: clinicianId,
           action: "uploaded",
-          details: { fileName: file.originalname, fileType: file.mimetype },
+          details: { fileName: file.originalname, fileType: file.mimetype, patientName: extracted.patientName },
           ipAddress: req.ip || null,
           userAgent: req.get("user-agent") || null,
         });
@@ -381,6 +434,7 @@ export async function registerRoutes(
         status: "draft",
         originalContent: extractedText,
         originalFileName: file.originalname,
+        extractedPatientName: extracted.patientName,
         diagnosis: extracted.diagnosis,
         medications: extracted.medications,
         appointments: extracted.appointments,
@@ -392,7 +446,7 @@ export async function registerRoutes(
         carePlanId: carePlan.id,
         userId: clinicianId,
         action: "uploaded",
-        details: { fileName: file.originalname, fileType: file.mimetype },
+        details: { fileName: file.originalname, fileType: file.mimetype, patientName: extracted.patientName },
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });

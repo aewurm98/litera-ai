@@ -62,6 +62,7 @@ export const carePlans = pgTable("care_plans", {
   originalFileName: text("original_file_name"),
   
   // Structured extracted content
+  extractedPatientName: text("extracted_patient_name"),
   diagnosis: text("diagnosis"),
   medications: jsonb("medications").$type<Medication[]>(),
   appointments: jsonb("appointments").$type<Appointment[]>(),
