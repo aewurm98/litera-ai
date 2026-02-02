@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, patients, carePlans, checkIns, auditLogs } from "@shared/schema";
+import { users, patients, carePlans, checkIns, auditLogs, tenants } from "@shared/schema";
 import { randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 
@@ -41,16 +41,27 @@ export async function seedDatabase(force: boolean = false) {
   await db.delete(carePlans);
   await db.delete(patients);
   await db.delete(users);
+  await db.delete(tenants);
 
   // Hash the demo password
   const hashedPassword = await hashPassword("password123");
 
-  // Create users
+  // Create demo tenant
+  const [demoTenant] = await db.insert(tenants).values({
+    name: "Demo Clinic",
+    slug: "demo",
+    isDemo: true,
+  }).returning();
+
+  console.log("Created demo tenant:", demoTenant.name);
+
+  // Create users (assigned to demo tenant)
   const [clinician1] = await db.insert(users).values({
     username: "nurse",
     password: hashedPassword,
     role: "clinician",
     name: "Maria Chen, RN",
+    tenantId: demoTenant.id,
   }).returning();
 
   const [admin1] = await db.insert(users).values({
@@ -58,11 +69,12 @@ export async function seedDatabase(force: boolean = false) {
     password: hashedPassword,
     role: "admin",
     name: "Angela Torres",
+    tenantId: demoTenant.id,
   }).returning();
 
   console.log("Created users:", clinician1.name, admin1.name);
 
-  // Create patients matching actual mock PDFs
+  // Create patients matching actual mock PDFs (assigned to demo tenant)
   // Demo patients have known lastName and PIN for testing (PIN: 1234)
   const [patient1] = await db.insert(patients).values({
     name: "Rosa Martinez",
@@ -72,6 +84,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "es",
     lastName: "Martinez",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   const [patient2] = await db.insert(patients).values({
@@ -82,6 +95,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "vi",
     lastName: "Lan",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   const [patient3] = await db.insert(patients).values({
@@ -92,6 +106,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "zh",
     lastName: "Zhang",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   const [patient4] = await db.insert(patients).values({
@@ -102,6 +117,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "ar",
     lastName: "Al-Hassan",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   const [patient5] = await db.insert(patients).values({
@@ -112,6 +128,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "ar",
     lastName: "Rahman",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   // Additional patients for multi-visit testing
@@ -123,6 +140,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "fr",
     lastName: "Diallo",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   const [patient7] = await db.insert(patients).values({
@@ -133,6 +151,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "hi",
     lastName: "Sharma",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   const [patient8] = await db.insert(patients).values({
@@ -143,6 +162,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "ru",
     lastName: "Petrov",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   const [patient9] = await db.insert(patients).values({
@@ -153,6 +173,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "es",
     lastName: "Gutierrez",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   const [patient10] = await db.insert(patients).values({
@@ -163,6 +184,7 @@ export async function seedDatabase(force: boolean = false) {
     preferredLanguage: "vi",
     lastName: "Duc",
     pin: "1234",
+    tenantId: demoTenant.id,
   }).returning();
 
   console.log("Created patients:", patient1.name, patient2.name, patient3.name, patient4.name, patient5.name, patient6.name, patient7.name, patient8.name, patient9.name, patient10.name);
@@ -173,6 +195,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan1] = await db.insert(carePlans).values({
     patientId: patient1.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "sent",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Rosa Martinez\nDiagnosis: Type 2 Diabetes with Hypertension\n\nMEDICATIONS:\n1. Metformin 500mg - Take twice daily with meals\n2. Lisinopril 10mg - Take once daily in the morning\n3. Aspirin 81mg - Take once daily\n\nFOLLOW-UP APPOINTMENTS:\n- Primary Care: Dr. Johnson, February 5, 2026 at 10:00 AM\n- Endocrinology: Dr. Patel, February 12, 2026 at 2:00 PM\n\nWARNINGS:\n- Call immediately if you experience chest pain, difficulty breathing, or severe headache\n- Monitor blood sugar daily\n- Avoid excessive salt intake",
     originalFileName: "discharge_rosa_martinez_chf.pdf",
@@ -228,6 +251,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan2] = await db.insert(carePlans).values({
     patientId: patient2.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "approved",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Nguyen Thi Lan\nDiagnosis: Post-operative care following appendectomy\n\nMEDICATIONS:\n1. Acetaminophen 500mg - Take every 6 hours as needed for pain\n2. Antibiotics (Amoxicillin) 500mg - Take 3 times daily for 7 days\n\nWOUND CARE:\n- Keep incision clean and dry\n- Change bandage daily\n- Watch for signs of infection\n\nFOLLOW-UP:\n- Surgeon: Dr. Williams, February 8, 2026 at 9:00 AM",
     originalFileName: "discharge_nguyen_thi_lan_appendectomy.pdf",
@@ -276,6 +300,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan3] = await db.insert(carePlans).values({
     patientId: patient3.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "pending_review",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Wei Zhang\nDiagnosis: Acute bronchitis\n\nMEDICATIONS:\n1. Cough syrup (Dextromethorphan) - Take 10ml every 4-6 hours\n2. Ibuprofen 400mg - Take every 6 hours as needed for fever\n3. Antibiotics (Azithromycin) 250mg - Take once daily for 5 days\n\nINSTRUCTIONS:\n- Rest and drink plenty of fluids\n- Use a humidifier\n- Avoid smoking and secondhand smoke",
     originalFileName: "discharge_wei_zhang_pneumonia.pdf",
@@ -323,6 +348,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan4] = await db.insert(carePlans).values({
     patientId: patient4.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "draft",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Fatima Al-Hassan\nDiagnosis: Gestational diabetes\n\nMEDICATIONS:\n1. Insulin (as directed)\n2. Prenatal vitamins - Take daily\n\nMONITORING:\n- Check blood sugar 4 times daily\n- Keep food diary\n\nFOLLOW-UP:\n- OB-GYN: Dr. Martinez, February 3, 2026",
     originalFileName: "discharge_fatima_al_hassan_gestational_diabetes.pdf",
@@ -335,6 +361,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan5] = await db.insert(carePlans).values({
     patientId: patient5.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "sent",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Aisha Rahman\nDiagnosis: Congestive Heart Failure (CHF)\n\nMEDICATIONS:\n1. Furosemide 40mg - Take once daily in the morning\n2. Lisinopril 10mg - Take once daily\n3. Metoprolol 25mg - Take twice daily\n\nMONITORING:\n- Weigh yourself every morning\n- Check for swelling in ankles/legs\n\nFOLLOW-UP:\n- Cardiologist: Dr. Chen, February 10, 2026 at 2:00 PM",
     originalFileName: "discharge_aisha_rahman_chf.pdf",
@@ -632,6 +659,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan6] = await db.insert(carePlans).values({
     patientId: patient6.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "draft",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Amadou Diallo\nDiagnosis: Sickle Cell Crisis\n\nMEDICATIONS:\n1. Hydroxyurea 500mg - Once daily\n2. Folic acid 1mg - Once daily\n\nWARNINGS:\n- Seek immediate care for severe pain, fever, or difficulty breathing",
     originalFileName: "discharge_amadou_diallo_sickle_cell.pdf",
@@ -645,6 +673,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan7] = await db.insert(carePlans).values({
     patientId: patient7.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "draft",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Arjun Sharma (Pediatric)\nDiagnosis: Acute Asthma Exacerbation\n\nMEDICATIONS:\n1. Albuterol inhaler - Every 4-6 hours as needed\n2. Prednisolone 15mg - Once daily for 5 days\n\nWARNINGS:\n- Return if breathing worsens or lips turn blue",
     originalFileName: "discharge_arjun_sharma_asthma.pdf",
@@ -658,6 +687,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan8] = await db.insert(carePlans).values({
     patientId: patient8.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "draft",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Olga Petrov\nDiagnosis: COPD Exacerbation\n\nMEDICATIONS:\n1. Tiotropium 18mcg - Once daily\n2. Prednisone 40mg - Taper over 5 days\n3. Azithromycin 250mg - Once daily for 5 days\n\nWARNINGS:\n- Call if shortness of breath worsens or oxygen levels drop below 90%",
     originalFileName: "discharge_olga_petrov_copd.pdf",
@@ -671,6 +701,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan9] = await db.insert(carePlans).values({
     patientId: patient9.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "draft",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Pedro Gutierrez\nDiagnosis: Post-Operative Knee Arthroscopy\n\nMEDICATIONS:\n1. Oxycodone 5mg - Every 4-6 hours as needed for pain\n2. Ibuprofen 600mg - Every 8 hours with food\n\nWARNINGS:\n- Keep leg elevated, watch for increased swelling, redness, or fever",
     originalFileName: "discharge_pedro_gutierrez_knee.pdf",
@@ -684,6 +715,7 @@ export async function seedDatabase(force: boolean = false) {
   const [carePlan10] = await db.insert(carePlans).values({
     patientId: patient10.id,
     clinicianId: clinician1.id,
+    tenantId: demoTenant.id,
     status: "draft",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Tran Van Duc\nDiagnosis: Ischemic Stroke - Left MCA Territory\n\nMEDICATIONS:\n1. Aspirin 325mg - Once daily\n2. Atorvastatin 80mg - Once daily at bedtime\n3. Lisinopril 10mg - Once daily\n\nWARNINGS:\n- Call 911 immediately for sudden weakness, vision changes, or difficulty speaking",
     originalFileName: "discharge_tran_van_duc_stroke.pdf",

@@ -10,13 +10,31 @@ export const sessions = pgTable("session", {
   expire: timestamp("expire", { precision: 6 }).notNull(),
 });
 
+// Tenants table (clinics/organizations for multi-tenancy)
+export const tenants = pgTable("tenants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(), // URL-friendly identifier (e.g., "mercy-hospital")
+  isDemo: boolean("is_demo").notNull().default(false), // Demo tenant flag for sample data
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTenantSchema = createInsertSchema(tenants).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTenant = z.infer<typeof insertTenantSchema>;
+export type Tenant = typeof tenants.$inferSelect;
+
 // Users table (clinicians and admins)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").notNull().default("clinician"), // clinician, admin
+  role: text("role").notNull().default("clinician"), // clinician, admin, super_admin
   name: text("name").notNull(),
+  tenantId: varchar("tenant_id").references(() => tenants.id), // Null for super_admin (platform-level)
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -24,6 +42,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   role: true,
   name: true,
+  tenantId: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -39,6 +58,7 @@ export const patients = pgTable("patients", {
   yearOfBirth: integer("year_of_birth").notNull(),
   pin: varchar("pin", { length: 4 }), // 4-digit PIN for patient portal access (production auth)
   preferredLanguage: text("preferred_language").notNull().default("en"),
+  tenantId: varchar("tenant_id").references(() => tenants.id), // Tenant isolation
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -55,6 +75,7 @@ export const carePlans = pgTable("care_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   patientId: varchar("patient_id").references(() => patients.id),
   clinicianId: varchar("clinician_id").references(() => users.id),
+  tenantId: varchar("tenant_id").references(() => tenants.id), // Tenant isolation
   
   // Status workflow: draft -> pending_review -> approved -> sent -> completed
   status: text("status").notNull().default("draft"),
