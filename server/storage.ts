@@ -16,16 +16,16 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   
   getPatient(id: string): Promise<Patient | undefined>;
-  getPatientByEmail(email: string): Promise<Patient | undefined>;
-  findPatientByName(name: string): Promise<Patient | undefined>;
-  getAllPatients(): Promise<Patient[]>;
+  getPatientByEmail(email: string, tenantId?: string): Promise<Patient | undefined>;
+  findPatientByName(name: string, tenantId?: string): Promise<Patient | undefined>;
+  getAllPatients(tenantId?: string): Promise<Patient[]>;
   createPatient(patient: InsertPatient): Promise<Patient>;
   updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined>;
   
   getCarePlan(id: string): Promise<CarePlan | undefined>;
   getCarePlanByToken(token: string): Promise<CarePlan | undefined>;
-  getCarePlansByClinicianId(clinicianId: string): Promise<CarePlan[]>;
-  getAllCarePlans(): Promise<CarePlan[]>;
+  getCarePlansByClinicianId(clinicianId: string, tenantId?: string): Promise<CarePlan[]>;
+  getAllCarePlans(tenantId?: string): Promise<CarePlan[]>;
   createCarePlan(carePlan: InsertCarePlan): Promise<CarePlan>;
   updateCarePlan(id: string, data: Partial<CarePlan>): Promise<CarePlan | undefined>;
   deleteCarePlan(id: string): Promise<boolean>;
@@ -40,7 +40,7 @@ export interface IStorage {
   getAuditLogsByCarePlanId(carePlanId: string): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   
-  getAlerts(): Promise<Array<{
+  getAlerts(tenantId?: string): Promise<Array<{
     id: string;
     carePlanId: string;
     patientName: string;
@@ -74,20 +74,39 @@ export class DatabaseStorage implements IStorage {
     return patient || undefined;
   }
 
-  async getPatientByEmail(email: string): Promise<Patient | undefined> {
+  async getPatientByEmail(email: string, tenantId?: string): Promise<Patient | undefined> {
+    if (tenantId) {
+      const [patient] = await db.select().from(patients).where(
+        and(eq(patients.email, email), eq(patients.tenantId, tenantId))
+      );
+      return patient || undefined;
+    }
     const [patient] = await db.select().from(patients).where(eq(patients.email, email));
     return patient || undefined;
   }
 
-  async findPatientByName(name: string): Promise<Patient | undefined> {
+  async findPatientByName(name: string, tenantId?: string): Promise<Patient | undefined> {
     // Case-insensitive search for patient by name using DB query (scalable)
     const normalizedName = name.toLowerCase().trim();
+    if (tenantId) {
+      const [patient] = await db.select().from(patients)
+        .where(and(
+          sql`lower(trim(${patients.name})) = ${normalizedName}`,
+          eq(patients.tenantId, tenantId)
+        ));
+      return patient || undefined;
+    }
     const [patient] = await db.select().from(patients)
       .where(sql`lower(trim(${patients.name})) = ${normalizedName}`);
     return patient || undefined;
   }
 
-  async getAllPatients(): Promise<Patient[]> {
+  async getAllPatients(tenantId?: string): Promise<Patient[]> {
+    if (tenantId) {
+      return await db.select().from(patients)
+        .where(eq(patients.tenantId, tenantId))
+        .orderBy(desc(patients.createdAt));
+    }
     return await db.select().from(patients).orderBy(desc(patients.createdAt));
   }
 
@@ -111,11 +130,21 @@ export class DatabaseStorage implements IStorage {
     return carePlan || undefined;
   }
 
-  async getCarePlansByClinicianId(clinicianId: string): Promise<CarePlan[]> {
+  async getCarePlansByClinicianId(clinicianId: string, tenantId?: string): Promise<CarePlan[]> {
+    if (tenantId) {
+      return await db.select().from(carePlans)
+        .where(and(eq(carePlans.clinicianId, clinicianId), eq(carePlans.tenantId, tenantId)))
+        .orderBy(desc(carePlans.createdAt));
+    }
     return await db.select().from(carePlans).where(eq(carePlans.clinicianId, clinicianId)).orderBy(desc(carePlans.createdAt));
   }
 
-  async getAllCarePlans(): Promise<CarePlan[]> {
+  async getAllCarePlans(tenantId?: string): Promise<CarePlan[]> {
+    if (tenantId) {
+      return await db.select().from(carePlans)
+        .where(eq(carePlans.tenantId, tenantId))
+        .orderBy(desc(carePlans.createdAt));
+    }
     return await db.select().from(carePlans).orderBy(desc(carePlans.createdAt));
   }
 
@@ -181,7 +210,7 @@ export class DatabaseStorage implements IStorage {
     return log;
   }
 
-  async getAlerts(): Promise<Array<{
+  async getAlerts(tenantId?: string): Promise<Array<{
     id: string;
     carePlanId: string;
     patientName: string;
@@ -191,9 +220,7 @@ export class DatabaseStorage implements IStorage {
     resolvedAt?: Date | null;
   }>> {
     const alertCheckIns = await db.select().from(checkIns).where(
-      and(
-        eq(checkIns.response, "yellow"),
-      )
+      eq(checkIns.response, "yellow")
     );
     
     const redCheckIns = await db.select().from(checkIns).where(
@@ -205,6 +232,12 @@ export class DatabaseStorage implements IStorage {
     const alerts = [];
     for (const checkIn of allAlertCheckIns) {
       const [carePlan] = await db.select().from(carePlans).where(eq(carePlans.id, checkIn.carePlanId));
+      
+      // Filter by tenant if provided
+      if (tenantId && carePlan?.tenantId !== tenantId) {
+        continue;
+      }
+      
       let patientName = "Unknown";
       if (carePlan?.patientId) {
         const [patient] = await db.select().from(patients).where(eq(patients.id, carePlan.patientId));
