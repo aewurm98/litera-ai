@@ -131,8 +131,9 @@ const sendCarePlanSchema = z.object({
 // Demo mode only requires yearOfBirth for backward compatibility
 const verifyPatientSchema = z.object({
   yearOfBirth: z.number().int().min(1900).max(2100),
-  lastName: z.string().optional(), // Required in production mode
-  pin: z.string().length(4).optional(), // 4-digit PIN, required in production mode
+  lastName: z.string().optional(), // Required in production mode (unless using password)
+  pin: z.string().length(4).optional(), // 4-digit PIN, required in production mode (unless using password)
+  password: z.string().optional(), // Alternative to PIN for returning patients
 });
 
 const changePasswordSchema = z.object({
@@ -142,6 +143,10 @@ const changePasswordSchema = z.object({
 
 const checkInResponseSchema = z.object({
   response: z.enum(["green", "yellow", "red"]),
+});
+
+const setPatientPasswordSchema = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 // ============= Session-based Auth Middleware =============
@@ -416,14 +421,23 @@ export async function registerRoutes(
   });
   
   // Get current user
-  app.get("/api/auth/me", (req: Request, res: Response) => {
+  app.get("/api/auth/me", async (req: Request, res: Response) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
     }
+    
+    // Get tenant info if user has a tenantId
+    let tenant = null;
+    if (req.session.tenantId) {
+      tenant = await storage.getTenant(req.session.tenantId);
+    }
+    
     res.json({
       id: req.session.userId,
       name: req.session.userName,
       role: req.session.userRole,
+      tenantId: req.session.tenantId,
+      tenant: tenant ? { id: tenant.id, name: tenant.name, isDemo: tenant.isDemo } : null,
     });
   });
   
@@ -932,7 +946,7 @@ export async function registerRoutes(
   app.post("/api/patient/:token/verify", validateBody(verifyPatientSchema), async (req: Request, res: Response) => {
     try {
       const token = req.params.token as string;
-      const { yearOfBirth, lastName, pin } = req.body;
+      const { yearOfBirth, lastName, pin, password } = req.body;
 
       // Check if locked out
       if (checkVerificationLock(token)) {
@@ -966,21 +980,41 @@ export async function registerRoutes(
         // Demo mode: only year of birth required
         isValid = patient.yearOfBirth === yearOfBirth;
       } else {
-        // Production mode: require all three fields
-        if (!lastName || !pin) {
+        // Production mode: require lastName + yearOfBirth + (PIN or password)
+        const hasPatientPassword = patient.password !== null && patient.password !== undefined;
+        
+        // If patient has set a password, they can use either PIN or password
+        if (!lastName) {
           return res.status(400).json({ 
-            error: "Last name, year of birth, and PIN are required",
-            requiresFullAuth: true
+            error: "Last name and year of birth are required",
+            requiresFullAuth: true,
+            hasPassword: hasPatientPassword
+          });
+        }
+        
+        if (!pin && !password) {
+          return res.status(400).json({ 
+            error: hasPatientPassword ? "Please enter your PIN or password" : "Please enter your PIN",
+            requiresFullAuth: true,
+            hasPassword: hasPatientPassword
           });
         }
         
         // Case-insensitive last name comparison
         const patientLastName = (patient.lastName || extractLastName(patient.name)).toLowerCase();
         const providedLastName = lastName.toLowerCase().trim();
+        const lastNameMatches = patientLastName === providedLastName;
+        const yearMatches = patient.yearOfBirth === yearOfBirth;
         
-        isValid = patientLastName === providedLastName && 
-                  patient.yearOfBirth === yearOfBirth && 
-                  patient.pin === pin;
+        // Check PIN or password
+        let credentialValid = false;
+        if (password && hasPatientPassword) {
+          credentialValid = await bcrypt.compare(password, patient.password!);
+        } else if (pin) {
+          credentialValid = patient.pin === pin;
+        }
+        
+        isValid = lastNameMatches && yearMatches && credentialValid;
       }
       
       if (!isValid) {
@@ -1096,6 +1130,44 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error submitting check-in:", error);
       res.status(500).json({ error: "Failed to submit check-in" });
+    }
+  });
+
+  // Set patient password (for repeat access without PIN)
+  app.post("/api/patient/:token/set-password", validateBody(setPatientPasswordSchema), async (req: Request, res: Response) => {
+    try {
+      const token = req.params.token as string;
+      const { password } = req.body;
+      
+      const carePlan = await storage.getCarePlanByToken(token);
+      if (!carePlan) {
+        return res.status(404).json({ error: "Care plan not found" });
+      }
+      
+      // Check token expiry
+      if (carePlan.accessTokenExpiry && new Date() > new Date(carePlan.accessTokenExpiry)) {
+        return res.status(403).json({ error: "Access link has expired" });
+      }
+      
+      const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
+      if (!patient) {
+        return res.status(404).json({ error: "Patient not found" });
+      }
+      
+      // Hash the password and save
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await storage.updatePatientPassword(patient.id, hashedPassword);
+      
+      await storage.createAuditLog({
+        carePlanId: carePlan.id,
+        action: "password_set",
+        details: { patientId: patient.id },
+      });
+      
+      res.json({ success: true, message: "Password set successfully" });
+    } catch (error) {
+      console.error("Error setting patient password:", error);
+      res.status(500).json({ error: "Failed to set password" });
     }
   });
 
@@ -1277,6 +1349,139 @@ export async function registerRoutes(
       delete process.env.ALLOW_SEED;
       console.error("Error resetting demo data:", error);
       res.status(500).json({ error: "Failed to reset demo data" });
+    }
+  });
+
+  // ============= Admin User & Tenant Management =============
+  
+  // Get all users (admin only)
+  app.get("/api/admin/users", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const allTenants = await storage.getAllTenants();
+      const tenantMap = new Map(allTenants.map(t => [t.id, t]));
+      
+      const usersWithTenant = allUsers.map(user => ({
+        ...user,
+        password: undefined,
+        tenant: user.tenantId ? tenantMap.get(user.tenantId) : null,
+      }));
+      
+      res.json(usersWithTenant);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+  
+  // Create user (admin only)
+  app.post("/api/admin/users", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { username, password, name, role, tenantId } = req.body;
+      
+      if (!username || !password || !name) {
+        return res.status(400).json({ error: "Username, password, and name are required" });
+      }
+      
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(409).json({ error: "Username already exists" });
+      }
+      
+      const { hashPassword } = await import("./auth");
+      const hashedPassword = await hashPassword(password);
+      
+      const user = await storage.createUser({
+        username,
+        password: hashedPassword,
+        name,
+        role: role || "clinician",
+        tenantId: tenantId || null,
+      });
+      
+      res.json({ ...user, password: undefined });
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ error: "Failed to create user" });
+    }
+  });
+  
+  // Delete user (admin only)
+  app.delete("/api/admin/users/:id", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      
+      // Prevent deleting yourself
+      if (id === req.session.userId) {
+        return res.status(400).json({ error: "Cannot delete your own account" });
+      }
+      
+      const success = await storage.deleteUser(id);
+      if (!success) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+  
+  // Get all tenants (admin only)
+  app.get("/api/admin/tenants", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const allTenants = await storage.getAllTenants();
+      res.json(allTenants);
+    } catch (error) {
+      console.error("Error fetching tenants:", error);
+      res.status(500).json({ error: "Failed to fetch tenants" });
+    }
+  });
+  
+  // Create tenant (admin only)
+  app.post("/api/admin/tenants", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { name, slug, isDemo } = req.body;
+      
+      if (!name || !slug) {
+        return res.status(400).json({ error: "Name and slug are required" });
+      }
+      
+      // Check for slug uniqueness
+      const existingTenants = await storage.getAllTenants();
+      if (existingTenants.some(t => t.slug === slug)) {
+        return res.status(409).json({ error: "Tenant slug already exists" });
+      }
+      
+      const tenant = await storage.createTenant({
+        name,
+        slug,
+        isDemo: isDemo || false,
+      });
+      
+      res.json(tenant);
+    } catch (error) {
+      console.error("Error creating tenant:", error);
+      res.status(500).json({ error: "Failed to create tenant" });
+    }
+  });
+  
+  // Update tenant (admin only)
+  app.patch("/api/admin/tenants/:id", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { name, isDemo } = req.body;
+      
+      const tenant = await storage.updateTenant(id, { name, isDemo });
+      if (!tenant) {
+        return res.status(404).json({ error: "Tenant not found" });
+      }
+      
+      res.json(tenant);
+    } catch (error) {
+      console.error("Error updating tenant:", error);
+      res.status(500).json({ error: "Failed to update tenant" });
     }
   });
 
