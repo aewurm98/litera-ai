@@ -590,7 +590,7 @@ export default function ClinicianDashboard() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="font-medium truncate">
-                          {plan.patient?.name || "New Patient"}
+                          {plan.patient?.name || plan.extractedPatientName || "New Patient"}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {plan.diagnosis || "Processing..."}
@@ -607,37 +607,80 @@ export default function ClinicianDashboard() {
           </div>
         </div>
 
-        {/* Test Patient View - Token Entry */}
+        {/* Test Patient View - Patient Search */}
         <div className="p-3 border-t bg-muted/30">
           <p className="text-xs text-muted-foreground mb-2">
             Test Patient View
           </p>
-          <div className="flex gap-1">
-            <Input
-              placeholder="Enter access token..."
-              value={testPatientToken}
-              onChange={(e) => setTestPatientToken(e.target.value)}
-              className="flex-1 text-xs h-8"
-              data-testid="input-test-patient-token"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 px-2"
-              onClick={() => {
-                if (testPatientToken.trim()) {
-                  window.open(`/p/${testPatientToken.trim()}?demo=1`, "_blank");
-                }
-              }}
-              disabled={!testPatientToken.trim()}
-              data-testid="button-view-patient"
-            >
-              <Eye className="h-3 w-3" />
-            </Button>
+          <div className="relative">
+            <div className="flex gap-1">
+              <Input
+                placeholder="Search patient or enter token..."
+                value={testPatientToken}
+                onChange={(e) => setTestPatientToken(e.target.value)}
+                className="flex-1 text-xs h-8"
+                data-testid="input-test-patient-search"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 px-2"
+                onClick={() => {
+                  if (testPatientToken.trim()) {
+                    window.open(`/p/${testPatientToken.trim()}?demo=1`, "_blank");
+                  }
+                }}
+                disabled={!testPatientToken.trim()}
+                data-testid="button-open-token"
+              >
+                <Eye className="h-3 w-3" />
+              </Button>
+            </div>
+            {testPatientToken.trim() && testPatientToken.length < 20 && (
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                {carePlans
+                  .filter((p) => 
+                    (p.status === "sent" || p.status === "completed") && 
+                    p.accessToken &&
+                    (p.patient?.name?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
+                     p.extractedPatientName?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
+                     p.diagnosis?.toLowerCase().includes(testPatientToken.toLowerCase()))
+                  )
+                  .map((plan) => (
+                    <button
+                      key={plan.id}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors border-b last:border-b-0"
+                      onClick={() => {
+                        window.open(`/p/${plan.accessToken}?demo=1`, "_blank");
+                        setTestPatientToken("");
+                      }}
+                      data-testid={`search-result-${plan.id}`}
+                    >
+                      <div className="font-medium truncate">
+                        {plan.patient?.name || plan.extractedPatientName || "Patient"}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {plan.diagnosis} ({plan.translatedLanguage?.toUpperCase() || "EN"})
+                      </div>
+                    </button>
+                  ))}
+                {carePlans.filter((p) => 
+                  (p.status === "sent" || p.status === "completed") && 
+                  p.accessToken &&
+                  (p.patient?.name?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
+                   p.extractedPatientName?.toLowerCase().includes(testPatientToken.toLowerCase()) ||
+                   p.diagnosis?.toLowerCase().includes(testPatientToken.toLowerCase()))
+                ).length === 0 && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    No matching patients - click eye to open by token
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          {carePlans.some((p) => (p.status === "sent" || p.status === "completed") && p.accessToken) && (
+          {!testPatientToken.trim() && carePlans.some((p) => (p.status === "sent" || p.status === "completed") && p.accessToken) && (
             <div className="mt-2 text-xs text-muted-foreground">
-              <p className="mb-1">Quick access:</p>
+              <p className="mb-1">Recent patients:</p>
               <div className="space-y-1">
                 {carePlans
                   .filter((p) => (p.status === "sent" || p.status === "completed") && p.accessToken)
@@ -645,11 +688,11 @@ export default function ClinicianDashboard() {
                   .map((plan) => (
                     <button
                       key={plan.id}
-                      className="block w-full text-left text-primary truncate text-xs"
-                      onClick={() => setTestPatientToken(plan.accessToken!)}
-                      data-testid={`quick-token-${plan.id}`}
+                      className="block w-full text-left text-primary truncate text-xs hover:underline"
+                      onClick={() => window.open(`/p/${plan.accessToken}?demo=1`, "_blank")}
+                      data-testid={`recent-patient-${plan.id}`}
                     >
-                      {plan.patient?.name || "Patient"} ({plan.translatedLanguage?.toUpperCase() || "EN"})
+                      {plan.patient?.name || plan.extractedPatientName || "Patient"} ({plan.translatedLanguage?.toUpperCase() || "EN"})
                     </button>
                   ))}
               </div>
@@ -728,7 +771,29 @@ export default function ClinicianDashboard() {
                 )}
                 {selectedCarePlan.status === "approved" && (
                   <Button
-                    onClick={() => setIsSendDialogOpen(true)}
+                    onClick={() => {
+                      // Pre-fill form with patient data or extracted data
+                      if (selectedCarePlan.patient) {
+                        setPatientName(selectedCarePlan.patient.name || "");
+                        setPatientEmail(selectedCarePlan.patient.email || "");
+                        setPatientPhone(selectedCarePlan.patient.phone || "");
+                        setPatientYearOfBirth(selectedCarePlan.patient.yearOfBirth?.toString() || "");
+                        setPatientLanguage(selectedCarePlan.patient.preferredLanguage || selectedCarePlan.translatedLanguage || "es");
+                      } else if (selectedCarePlan.extractedPatientName) {
+                        setPatientName(selectedCarePlan.extractedPatientName);
+                        setPatientEmail("");
+                        setPatientPhone("");
+                        setPatientYearOfBirth("");
+                        setPatientLanguage(selectedCarePlan.translatedLanguage || "es");
+                      } else {
+                        setPatientName("");
+                        setPatientEmail("");
+                        setPatientPhone("");
+                        setPatientYearOfBirth("");
+                        setPatientLanguage(selectedCarePlan.translatedLanguage || "es");
+                      }
+                      setIsSendDialogOpen(true);
+                    }}
                     data-testid="button-send-dialog"
                   >
                     <Send className="h-4 w-4 mr-2" />
@@ -1170,10 +1235,12 @@ export default function ClinicianDashboard() {
                         <Select
                           value={patientLanguage}
                           onValueChange={setPatientLanguage}
+                          disabled={processMutation.isPending}
                         >
                           <SelectTrigger
                             className="w-[180px]"
                             data-testid="select-language"
+                            disabled={processMutation.isPending}
                           >
                             <SelectValue placeholder="Select language" />
                           </SelectTrigger>

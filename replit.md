@@ -6,6 +6,14 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 
 ## Recent Changes
 
+- **February 2026**: UI/UX refinements and patient name extraction
+  - **Patient Name Extraction**: OpenAI extraction now captures patient name from discharge documents and stores it in `extractedPatientName` field for pre-filling forms
+  - **Send to Patient Pre-fill**: Modal now pre-fills patient name, email, phone, year of birth, and language from existing patient record or extracted patient name
+  - **Test Patient View Enhancement**: Combined search and token input - search by patient name or diagnosis, with eye button for direct token entry
+  - **Language Dropdown Lock**: Language selection is disabled during PDF processing to prevent mid-stream changes
+  - **Alert Resolution Timestamps**: Admin dashboard now displays resolution timestamps for resolved alerts
+  - **Care Plan Name Display**: Patient name fallback now uses extractedPatientName when no patient record exists
+
 - **February 2026**: Internationalization and UX improvements
   - **Expanded Language Support**: Extended from 16 to 49 languages including Traditional Chinese, South Asian (Bengali, Gujarati, Tamil, Telugu, Marathi, Punjabi), Southeast Asian (Thai, Indonesian, Malay, Burmese, Khmer, Lao), African (Amharic, Somali, Swahili, Yoruba, Igbo), and European (German, Italian, Dutch, Greek, Turkish, Hebrew, Ukrainian, Czech, Romanian, Hungarian, Serbian, Croatian, Bulgarian, Slovak)
   - **Per-Section TTS**: Each care plan section (Diagnosis, Medications, Appointments, Instructions, Warnings) now has its own speaker icon for reading individual sections aloud

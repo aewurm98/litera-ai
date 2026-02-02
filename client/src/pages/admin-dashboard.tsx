@@ -47,6 +47,7 @@ type Alert = {
   response: "yellow" | "red";
   respondedAt: Date;
   resolved: boolean;
+  resolvedAt?: Date | null;
 };
 
 export default function AdminDashboard() {
@@ -407,10 +408,17 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex items-center gap-2">
                         {alert.resolved ? (
-                          <Badge variant="outline" className="gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            Resolved
-                          </Badge>
+                          <div className="text-right">
+                            <Badge variant="outline" className="gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Resolved
+                            </Badge>
+                            {alert.resolvedAt && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {format(new Date(alert.resolvedAt), "MMM d, h:mm a")}
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           <Button
                             size="sm"

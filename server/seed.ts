@@ -41,7 +41,7 @@ export async function seedDatabase() {
 
   console.log("Created users:", clinician1.name, admin1.name);
 
-  // Create patients with various languages
+  // Create patients matching actual mock PDFs
   const [patient1] = await db.insert(patients).values({
     name: "Rosa Martinez",
     email: "rosa.martinez@example.com",
@@ -67,18 +67,18 @@ export async function seedDatabase() {
   }).returning();
 
   const [patient4] = await db.insert(patients).values({
-    name: "Maria Santos",
-    email: "maria.santos@example.com",
+    name: "Fatima Al-Hassan",
+    email: "fatima.alhassan@example.com",
     phone: "+1-555-0104",
-    yearOfBirth: 1982,
-    preferredLanguage: "es",
+    yearOfBirth: 1990,
+    preferredLanguage: "ar",
   }).returning();
 
   const [patient5] = await db.insert(patients).values({
-    name: "Fatima Al-Hassan",
-    email: "fatima.alhassan@example.com",
+    name: "Aisha Rahman",
+    email: "aisha.rahman@example.com",
     phone: "+1-555-0105",
-    yearOfBirth: 1990,
+    yearOfBirth: 1978,
     preferredLanguage: "ar",
   }).returning();
 
@@ -92,7 +92,7 @@ export async function seedDatabase() {
     clinicianId: clinician1.id,
     status: "sent",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Rosa Martinez\nDiagnosis: Type 2 Diabetes with Hypertension\n\nMEDICATIONS:\n1. Metformin 500mg - Take twice daily with meals\n2. Lisinopril 10mg - Take once daily in the morning\n3. Aspirin 81mg - Take once daily\n\nFOLLOW-UP APPOINTMENTS:\n- Primary Care: Dr. Johnson, February 5, 2026 at 10:00 AM\n- Endocrinology: Dr. Patel, February 12, 2026 at 2:00 PM\n\nWARNINGS:\n- Call immediately if you experience chest pain, difficulty breathing, or severe headache\n- Monitor blood sugar daily\n- Avoid excessive salt intake",
-    originalFileName: "rosa_discharge.pdf",
+    originalFileName: "discharge_rosa_martinez_chf.pdf",
     diagnosis: "Type 2 Diabetes with Hypertension",
     medications: [
       { name: "Metformin", dose: "500mg", frequency: "Twice daily", instructions: "Take with meals" },
@@ -147,7 +147,7 @@ export async function seedDatabase() {
     clinicianId: clinician1.id,
     status: "approved",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Nguyen Thi Lan\nDiagnosis: Post-operative care following appendectomy\n\nMEDICATIONS:\n1. Acetaminophen 500mg - Take every 6 hours as needed for pain\n2. Antibiotics (Amoxicillin) 500mg - Take 3 times daily for 7 days\n\nWOUND CARE:\n- Keep incision clean and dry\n- Change bandage daily\n- Watch for signs of infection\n\nFOLLOW-UP:\n- Surgeon: Dr. Williams, February 8, 2026 at 9:00 AM",
-    originalFileName: "nguyen_discharge.pdf",
+    originalFileName: "discharge_nguyen_thi_lan_appendectomy.pdf",
     diagnosis: "Post-operative care following appendectomy",
     medications: [
       { name: "Acetaminophen", dose: "500mg", frequency: "Every 6 hours", instructions: "As needed for pain" },
@@ -195,7 +195,7 @@ export async function seedDatabase() {
     clinicianId: clinician1.id,
     status: "pending_review",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Wei Zhang\nDiagnosis: Acute bronchitis\n\nMEDICATIONS:\n1. Cough syrup (Dextromethorphan) - Take 10ml every 4-6 hours\n2. Ibuprofen 400mg - Take every 6 hours as needed for fever\n3. Antibiotics (Azithromycin) 250mg - Take once daily for 5 days\n\nINSTRUCTIONS:\n- Rest and drink plenty of fluids\n- Use a humidifier\n- Avoid smoking and secondhand smoke",
-    originalFileName: "wei_discharge.pdf",
+    originalFileName: "discharge_wei_zhang_pneumonia.pdf",
     diagnosis: "Acute bronchitis",
     medications: [
       { name: "Dextromethorphan", dose: "10ml", frequency: "Every 4-6 hours", instructions: "For cough" },
@@ -236,59 +236,62 @@ export async function seedDatabase() {
     dischargeDate: new Date(),
   }).returning();
 
-  // 4. Draft care plan (Maria - Tagalog)
+  // 4. Draft care plan (Fatima - Arabic, gestational diabetes)
   const [carePlan4] = await db.insert(carePlans).values({
     patientId: patient4.id,
     clinicianId: clinician1.id,
     status: "draft",
-    originalContent: "DISCHARGE SUMMARY\n\nPatient: Maria Santos\nDiagnosis: Migraine headaches\n\nMEDICATIONS:\n1. Sumatriptan 50mg - Take at onset of migraine\n2. Topiramate 25mg - Take daily for prevention\n\nLIFESTYLE CHANGES:\n- Maintain regular sleep schedule\n- Avoid trigger foods\n- Stay hydrated",
-    originalFileName: "maria_discharge.pdf",
-    diagnosis: "Migraine headaches",
+    originalContent: "DISCHARGE SUMMARY\n\nPatient: Fatima Al-Hassan\nDiagnosis: Gestational diabetes\n\nMEDICATIONS:\n1. Insulin (as directed)\n2. Prenatal vitamins - Take daily\n\nMONITORING:\n- Check blood sugar 4 times daily\n- Keep food diary\n\nFOLLOW-UP:\n- OB-GYN: Dr. Martinez, February 3, 2026",
+    originalFileName: "discharge_fatima_al_hassan_gestational_diabetes.pdf",
+    diagnosis: "Gestational diabetes",
     dischargeDate: new Date(),
   }).returning();
 
-  // 5. Sent care plan with yellow alert (Fatima - Arabic)
+  // 5. Sent care plan with yellow alert (Aisha - Arabic, CHF)
   const token5 = generateToken();
   const [carePlan5] = await db.insert(carePlans).values({
     patientId: patient5.id,
     clinicianId: clinician1.id,
     status: "sent",
-    originalContent: "DISCHARGE SUMMARY\n\nPatient: Fatima Al-Hassan\nDiagnosis: Gestational diabetes\n\nMEDICATIONS:\n1. Insulin (as directed)\n2. Prenatal vitamins - Take daily\n\nMONITORING:\n- Check blood sugar 4 times daily\n- Keep food diary\n\nFOLLOW-UP:\n- OB-GYN: Dr. Martinez, February 3, 2026",
-    originalFileName: "fatima_discharge.pdf",
-    diagnosis: "Gestational diabetes",
+    originalContent: "DISCHARGE SUMMARY\n\nPatient: Aisha Rahman\nDiagnosis: Congestive Heart Failure (CHF)\n\nMEDICATIONS:\n1. Furosemide 40mg - Take once daily in the morning\n2. Lisinopril 10mg - Take once daily\n3. Metoprolol 25mg - Take twice daily\n\nMONITORING:\n- Weigh yourself every morning\n- Check for swelling in ankles/legs\n\nFOLLOW-UP:\n- Cardiologist: Dr. Chen, February 10, 2026 at 2:00 PM",
+    originalFileName: "discharge_aisha_rahman_chf.pdf",
+    diagnosis: "Congestive Heart Failure (CHF)",
     medications: [
-      { name: "Insulin", dose: "As directed", frequency: "Multiple times daily", instructions: "Per your doctor's instructions" },
-      { name: "Prenatal vitamins", dose: "1 tablet", frequency: "Once daily", instructions: "Take with food" }
+      { name: "Furosemide", dose: "40mg", frequency: "Once daily", instructions: "Take in the morning" },
+      { name: "Lisinopril", dose: "10mg", frequency: "Once daily", instructions: "Take in the morning" },
+      { name: "Metoprolol", dose: "25mg", frequency: "Twice daily", instructions: "Take morning and evening" }
     ],
     appointments: [
-      { date: "February 3, 2026", time: "11:00 AM", provider: "Dr. Martinez", location: "OB-GYN Clinic", purpose: "Pregnancy checkup" }
+      { date: "February 10, 2026", time: "2:00 PM", provider: "Dr. Chen", location: "Cardiology Clinic", purpose: "Heart failure follow-up" }
     ],
-    instructions: "Check blood sugar 4 times daily. Keep a food diary. Eat balanced meals.",
-    warnings: "Call your doctor immediately if blood sugar is very high or very low, or if you feel dizzy or faint.",
-    simplifiedDiagnosis: "You have high blood sugar because you are pregnant. This is called gestational diabetes.",
+    instructions: "Weigh yourself every morning. Check for swelling in ankles and legs. Limit salt and fluid intake.",
+    warnings: "Call your doctor immediately if you have sudden weight gain, severe swelling, or difficulty breathing.",
+    simplifiedDiagnosis: "Your heart is not pumping as well as it should. This is called heart failure.",
     simplifiedMedications: [
-      { name: "Insulin", dose: "As your doctor said", frequency: "Several times a day", instructions: "Follow your doctor's plan" },
-      { name: "Prenatal vitamins", dose: "1 pill", frequency: "Once a day", instructions: "Take with food" }
+      { name: "Furosemide (water pill)", dose: "40mg", frequency: "Once a day", instructions: "Take in the morning" },
+      { name: "Lisinopril", dose: "10mg", frequency: "Once a day", instructions: "Take in the morning" },
+      { name: "Metoprolol", dose: "25mg", frequency: "2 times a day", instructions: "Take morning and evening" }
     ],
     simplifiedAppointments: [
-      { date: "February 3, 2026", time: "11:00 AM", provider: "Dr. Martinez", location: "OB-GYN Clinic", purpose: "Check on you and your baby" }
+      { date: "February 10, 2026", time: "2:00 PM", provider: "Dr. Chen", location: "Cardiology Clinic", purpose: "Check on your heart" }
     ],
-    simplifiedInstructions: "Check your blood sugar 4 times every day. Write down what you eat. Eat healthy foods.",
-    simplifiedWarnings: "Call your doctor right away if your blood sugar is very high or very low, or if you feel dizzy.",
+    simplifiedInstructions: "Weigh yourself every morning. Look for swelling in your feet and legs. Don't eat too much salt. Don't drink too much water.",
+    simplifiedWarnings: "Call your doctor right away if you gain a lot of weight suddenly, your feet swell a lot, or you can't breathe well.",
     translatedLanguage: "ar",
-    translatedDiagnosis: "لديك سكر مرتفع في الدم بسبب الحمل. يسمى هذا سكري الحمل.",
+    translatedDiagnosis: "قلبك لا يضخ الدم كما ينبغي. هذا يسمى قصور القلب.",
     translatedMedications: [
-      { name: "الأنسولين", dose: "كما قال طبيبك", frequency: "عدة مرات في اليوم", instructions: "اتبعي خطة طبيبك" },
-      { name: "فيتامينات الحمل", dose: "حبة واحدة", frequency: "مرة واحدة في اليوم", instructions: "تناوليها مع الطعام" }
+      { name: "فوروسيميد (حبة الماء)", dose: "40 ملغ", frequency: "مرة واحدة في اليوم", instructions: "تناوله في الصباح" },
+      { name: "ليسينوبريل", dose: "10 ملغ", frequency: "مرة واحدة في اليوم", instructions: "تناوله في الصباح" },
+      { name: "ميتوبرولول", dose: "25 ملغ", frequency: "مرتين في اليوم", instructions: "تناوله صباحاً ومساءً" }
     ],
     translatedAppointments: [
-      { date: "3 فبراير 2026", time: "11:00 صباحاً", provider: "د. مارتينيز", location: "عيادة أمراض النساء والتوليد", purpose: "فحص لك ولطفلك" }
+      { date: "10 فبراير 2026", time: "2:00 مساءً", provider: "د. تشين", location: "عيادة القلب", purpose: "فحص قلبك" }
     ],
-    translatedInstructions: "افحصي سكر الدم 4 مرات كل يوم. اكتبي ما تأكلين. تناولي أطعمة صحية.",
-    translatedWarnings: "اتصلي بطبيبك فوراً إذا كان سكر الدم مرتفعاً جداً أو منخفضاً جداً، أو إذا شعرت بالدوار.",
-    backTranslatedDiagnosis: "You have high blood sugar because you are pregnant. This is called gestational diabetes.",
-    backTranslatedInstructions: "Check your blood sugar 4 times every day. Write down what you eat. Eat healthy foods.",
-    backTranslatedWarnings: "Call your doctor immediately if your blood sugar is very high or very low, or if you feel dizzy.",
+    translatedInstructions: "زن نفسك كل صباح. ابحث عن تورم في قدميك وساقيك. لا تأكل الكثير من الملح. لا تشرب الكثير من الماء.",
+    translatedWarnings: "اتصل بطبيبك فوراً إذا زاد وزنك كثيراً فجأة، أو تورمت قدماك كثيراً، أو لم تستطع التنفس جيداً.",
+    backTranslatedDiagnosis: "Your heart is not pumping blood as it should. This is called heart failure.",
+    backTranslatedInstructions: "Weigh yourself every morning. Look for swelling in your feet and legs. Don't eat too much salt. Don't drink too much water.",
+    backTranslatedWarnings: "Call your doctor immediately if you gain a lot of weight suddenly, your feet swell a lot, or you can't breathe well.",
     accessToken: token5,
     accessTokenExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     approvedBy: clinician1.id,
@@ -563,8 +566,11 @@ export async function seedDatabase() {
   console.log("Seeding complete!");
 }
 
-// Only run if executed directly (not imported)
-if (require.main === module) {
+// ESM direct execution check using import.meta.url
+const isMainModule = import.meta.url.endsWith(process.argv[1]?.replace(/^file:\/\//, '')) ||
+                     process.argv[1]?.endsWith('seed.ts');
+
+if (isMainModule) {
   seedDatabase()
     .then(() => process.exit(0))
     .catch((err) => {

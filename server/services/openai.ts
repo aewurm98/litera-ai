@@ -8,6 +8,7 @@ const openai = new OpenAI({
 });
 
 interface ExtractedContent {
+  patientName: string;
   diagnosis: string;
   medications: Medication[];
   appointments: Appointment[];
@@ -39,13 +40,14 @@ export async function extractDischargeContent(text: string): Promise<ExtractedCo
         content: `You are a medical document parser. Extract structured information from discharge summaries.
 Output valid JSON with this exact structure:
 {
+  "patientName": "Full name of the patient",
   "diagnosis": "Primary diagnosis and conditions",
   "medications": [{"name": "Drug name", "dose": "Amount", "frequency": "How often", "instructions": "Special notes"}],
   "appointments": [{"date": "Date", "time": "Time", "provider": "Doctor name", "location": "Address", "purpose": "Reason"}],
   "instructions": "All care instructions and activity restrictions",
   "warnings": "Warning signs that require immediate medical attention"
 }
-Preserve all medical information accurately. Extract medications with exact dosages.`,
+Preserve all medical information accurately. Extract medications with exact dosages. Extract the patient's full name from the document.`,
       },
       {
         role: "user",
@@ -70,13 +72,14 @@ export async function extractFromImage(base64Image: string): Promise<ExtractedCo
         content: `You are a medical document parser. Extract structured information from discharge summary images.
 Output valid JSON with this exact structure:
 {
+  "patientName": "Full name of the patient",
   "diagnosis": "Primary diagnosis and conditions",
   "medications": [{"name": "Drug name", "dose": "Amount", "frequency": "How often", "instructions": "Special notes"}],
   "appointments": [{"date": "Date", "time": "Time", "provider": "Doctor name", "location": "Address", "purpose": "Reason"}],
   "instructions": "All care instructions and activity restrictions",
   "warnings": "Warning signs that require immediate medical attention"
 }
-Preserve all medical information accurately.`,
+Preserve all medical information accurately. Extract the patient's full name from the document.`,
       },
       {
         role: "user",
@@ -89,7 +92,7 @@ Preserve all medical information accurately.`,
           },
           {
             type: "text",
-            text: "Extract all discharge information from this medical document image into structured JSON.",
+            text: "Extract all discharge information from this medical document image into structured JSON, including the patient's full name.",
           },
         ],
       },

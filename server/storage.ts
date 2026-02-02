@@ -46,6 +46,7 @@ export interface IStorage {
     response: "yellow" | "red";
     respondedAt: Date;
     resolved: boolean;
+    resolvedAt?: Date | null;
   }>>;
   resolveAlert(checkInId: string, resolvedBy: string): Promise<void>;
   clearAllData(): Promise<void>;
@@ -178,6 +179,7 @@ export class DatabaseStorage implements IStorage {
     response: "yellow" | "red";
     respondedAt: Date;
     resolved: boolean;
+    resolvedAt?: Date | null;
   }>> {
     const alertCheckIns = await db.select().from(checkIns).where(
       and(
@@ -207,6 +209,7 @@ export class DatabaseStorage implements IStorage {
         response: checkIn.response as "yellow" | "red",
         respondedAt: checkIn.respondedAt || new Date(),
         resolved: !!checkIn.alertResolvedAt,
+        resolvedAt: checkIn.alertResolvedAt,
       });
     }
 
