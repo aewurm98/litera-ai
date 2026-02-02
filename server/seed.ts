@@ -63,12 +63,15 @@ export async function seedDatabase(force: boolean = false) {
   console.log("Created users:", clinician1.name, admin1.name);
 
   // Create patients matching actual mock PDFs
+  // Demo patients have known lastName and PIN for testing (PIN: 1234)
   const [patient1] = await db.insert(patients).values({
     name: "Rosa Martinez",
     email: "rosa.martinez@example.com",
     phone: "+1-555-0101",
     yearOfBirth: 1956,
     preferredLanguage: "es",
+    lastName: "Martinez",
+    pin: "1234",
   }).returning();
 
   const [patient2] = await db.insert(patients).values({
@@ -77,6 +80,8 @@ export async function seedDatabase(force: boolean = false) {
     phone: "+1-555-0102",
     yearOfBirth: 1968,
     preferredLanguage: "vi",
+    lastName: "Lan",
+    pin: "1234",
   }).returning();
 
   const [patient3] = await db.insert(patients).values({
@@ -85,6 +90,8 @@ export async function seedDatabase(force: boolean = false) {
     phone: "+1-555-0103",
     yearOfBirth: 1975,
     preferredLanguage: "zh",
+    lastName: "Zhang",
+    pin: "1234",
   }).returning();
 
   const [patient4] = await db.insert(patients).values({
@@ -93,6 +100,8 @@ export async function seedDatabase(force: boolean = false) {
     phone: "+1-555-0104",
     yearOfBirth: 1990,
     preferredLanguage: "ar",
+    lastName: "Al-Hassan",
+    pin: "1234",
   }).returning();
 
   const [patient5] = await db.insert(patients).values({
@@ -101,6 +110,8 @@ export async function seedDatabase(force: boolean = false) {
     phone: "+1-555-0105",
     yearOfBirth: 1978,
     preferredLanguage: "ar",
+    lastName: "Rahman",
+    pin: "1234",
   }).returning();
 
   console.log("Created patients:", patient1.name, patient2.name, patient3.name, patient4.name, patient5.name);
