@@ -223,6 +223,14 @@ function AppointmentsList({
 
 type CarePlanWithPatient = CarePlan & { patient?: Patient };
 
+type UserWithTenant = {
+  id: string;
+  name: string;
+  role: string;
+  tenantId?: string | null;
+  tenant?: { id: string; name: string; isDemo: boolean } | null;
+};
+
 export default function ClinicianDashboard() {
   const { toast } = useToast();
   
@@ -231,6 +239,12 @@ export default function ClinicianDashboard() {
     queryKey: ["/api/env-info"],
   });
   const isDemoMode = envInfo?.isDemoMode ?? false;
+  
+  // Fetch current user info to get tenant's isDemo flag
+  const { data: currentUser } = useQuery<UserWithTenant>({
+    queryKey: ["/api/auth/me"],
+  });
+  const isTenantDemo = currentUser?.tenant?.isDemo ?? false;
   
   const [selectedCarePlan, setSelectedCarePlan] =
     useState<CarePlanWithPatient | null>(null);
@@ -1415,9 +1429,10 @@ export default function ClinicianDashboard() {
             </DialogDescription>
           </DialogHeader>
           
-          {/* Sample Documents Dropdown */}
+          {/* Sample Documents Dropdown - Only visible for demo tenants */}
+          {isTenantDemo && (
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Sample Documents{isDemoMode ? " (Demo)" : ""}</Label>
+            <Label className="text-sm font-medium">Sample Documents (Demo)</Label>
             <Select
               onValueChange={async (filename) => {
                 try {
@@ -1483,6 +1498,7 @@ export default function ClinicianDashboard() {
               Or upload your own file below
             </p>
           </div>
+          )}
 
           <div
             className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${

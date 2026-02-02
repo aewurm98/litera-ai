@@ -524,9 +524,15 @@ export default function PatientPortal() {
   const [yearOfBirth, setYearOfBirth] = useState("");
   const [lastName, setLastName] = useState("");
   const [pin, setPin] = useState("");
+  const [password, setPassword] = useState(""); // For returning patients with password
   const [attemptsRemaining, setAttemptsRemaining] = useState(3);
   const [isLocked, setIsLocked] = useState(false);
   const [requiresFullAuth, setRequiresFullAuth] = useState(false); // Production mode needs full auth
+  const [hasPatientPassword, setHasPatientPassword] = useState(false); // Patient has set a password
+  const [usePasswordLogin, setUsePasswordLogin] = useState(false); // Toggle between PIN and password
+  const [showPasswordSetup, setShowPasswordSetup] = useState(false); // Show password creation after first login
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   
   // Once env info loads, allow clinician preview bypass in demo mode only
   useEffect(() => {
@@ -553,7 +559,7 @@ export default function PatientPortal() {
 
   // Verify patient identity mutation
   const verifyMutation = useMutation({
-    mutationFn: async (verificationData: { yearOfBirth: number; lastName?: string; pin?: string }) => {
+    mutationFn: async (verificationData: { yearOfBirth: number; lastName?: string; pin?: string; password?: string }) => {
       const response = await fetch(`/api/patient/${token}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -567,6 +573,10 @@ export default function PatientPortal() {
     },
     onSuccess: (data) => {
       setIsVerified(true);
+      // Prompt for password setup if patient hasn't set one yet (first-time login with PIN)
+      if (!hasPatientPassword && !usePasswordLogin) {
+        setShowPasswordSetup(true);
+      }
       toast({ title: "Verified!", description: "You can now view your care plan" });
     },
     onError: (error: any) => {
@@ -581,9 +591,12 @@ export default function PatientPortal() {
       } else if (error.requiresFullAuth) {
         // Server requires full authentication (production mode)
         setRequiresFullAuth(true);
+        if (error.hasPassword !== undefined) {
+          setHasPatientPassword(error.hasPassword);
+        }
         toast({ 
           title: "Additional verification required", 
-          description: "Please enter your last name and PIN",
+          description: error.hasPassword ? "Please enter your last name and PIN or password" : "Please enter your last name and PIN",
           variant: "default" 
         });
       } else if (error.attemptsRemaining !== undefined) {
@@ -596,6 +609,26 @@ export default function PatientPortal() {
       } else {
         toast({ title: "Verification failed", variant: "destructive" });
       }
+    },
+  });
+  
+  // Set password mutation
+  const setPasswordMutation = useMutation({
+    mutationFn: async (passwordData: { password: string }) => {
+      const response = await apiRequest("POST", `/api/patient/${token}/set-password`, passwordData);
+      return response.json();
+    },
+    onSuccess: () => {
+      setShowPasswordSetup(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({ 
+        title: "Password Created!", 
+        description: "You can use your password for future logins instead of the PIN" 
+      });
+    },
+    onError: () => {
+      toast({ title: "Failed to set password", variant: "destructive" });
     },
   });
 
@@ -616,17 +649,42 @@ export default function PatientPortal() {
   const handleVerify = () => {
     if (isLocked || attemptsRemaining <= 0) return;
     
-    // In production mode (requiresFullAuth), send all three fields
+    // In production mode (requiresFullAuth), send lastName + yearOfBirth + (PIN or password)
     // In demo mode, only send yearOfBirth
     if (requiresFullAuth || !isAppDemoMode) {
-      verifyMutation.mutate({
+      const verificationData: { yearOfBirth: number; lastName?: string; pin?: string; password?: string } = {
         yearOfBirth: parseInt(yearOfBirth),
         lastName: lastName.trim(),
-        pin: pin.trim(),
-      });
+      };
+      if (usePasswordLogin && password.trim()) {
+        verificationData.password = password.trim();
+      } else {
+        verificationData.pin = pin.trim();
+      }
+      verifyMutation.mutate(verificationData);
     } else {
       verifyMutation.mutate({ yearOfBirth: parseInt(yearOfBirth) });
     }
+  };
+  
+  const handleSetPassword = () => {
+    if (newPassword !== confirmPassword) {
+      toast({ 
+        title: "Passwords don't match", 
+        description: "Please make sure your passwords match",
+        variant: "destructive" 
+      });
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast({ 
+        title: "Password too short", 
+        description: "Password must be at least 8 characters",
+        variant: "destructive" 
+      });
+      return;
+    }
+    setPasswordMutation.mutate({ password: newPassword });
   };
 
   const getLanguageName = (code: string) => {
@@ -932,9 +990,11 @@ export default function PatientPortal() {
   // Determine if full auth is needed (production mode)
   const showFullAuthFields = !isAppDemoMode || requiresFullAuth;
   
-  // Validation for form submit
+  // Validation for form submit - supports both PIN and password login
   const isFormValid = showFullAuthFields 
-    ? yearOfBirth.length === 4 && lastName.trim().length > 0 && pin.length === 4
+    ? yearOfBirth.length === 4 && lastName.trim().length > 0 && (
+        usePasswordLogin ? password.trim().length >= 1 : pin.length === 4
+      )
     : yearOfBirth.length === 4;
   
   if (!isVerified) {
@@ -985,25 +1045,61 @@ export default function PatientPortal() {
             </div>
             {showFullAuthFields && (
               <div className="space-y-2">
-                <Label htmlFor="pin" className="text-base">4-Digit PIN</Label>
-                <p className="text-sm text-muted-foreground">
-                  This was sent to you in your email
-                </p>
-                <Input
-                  id="pin"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Enter 4-digit PIN"
-                  value={pin}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-                    setPin(value);
-                  }}
-                  className="text-center text-2xl h-14 tracking-widest"
-                  maxLength={4}
-                  disabled={isLocked}
-                  data-testid="input-verify-pin"
-                />
+                {usePasswordLogin ? (
+                  <>
+                    <Label htmlFor="password" className="text-base">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-12 text-lg"
+                      disabled={isLocked}
+                      data-testid="input-verify-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setUsePasswordLogin(false)}
+                      className="text-sm text-primary hover:underline"
+                      data-testid="button-use-pin"
+                    >
+                      Use PIN instead
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Label htmlFor="pin" className="text-base">4-Digit PIN</Label>
+                    <p className="text-sm text-muted-foreground">
+                      This was sent to you in your email
+                    </p>
+                    <Input
+                      id="pin"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Enter 4-digit PIN"
+                      value={pin}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                        setPin(value);
+                      }}
+                      className="text-center text-2xl h-14 tracking-widest"
+                      maxLength={4}
+                      disabled={isLocked}
+                      data-testid="input-verify-pin"
+                    />
+                    {hasPatientPassword && (
+                      <button
+                        type="button"
+                        onClick={() => setUsePasswordLogin(true)}
+                        className="text-sm text-primary hover:underline"
+                        data-testid="button-use-password"
+                      >
+                        Use password instead
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             )}
             <Button 
@@ -1225,6 +1321,61 @@ export default function PatientPortal() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Password Setup Dialog - shown after first successful verification */}
+      <Dialog open={showPasswordSetup} onOpenChange={setShowPasswordSetup}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create a Password</DialogTitle>
+            <DialogDescription>
+              Create a password to make future logins easier. You won't need to enter your PIN next time.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password (at least 8 characters)</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                data-testid="input-set-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-new-password">Confirm Password</Label>
+              <Input
+                id="confirm-new-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm password"
+                data-testid="input-confirm-set-password"
+              />
+            </div>
+          </div>
+          <div className="flex justify-between gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => setShowPasswordSetup(false)}
+              data-testid="button-skip-password"
+            >
+              Skip for now
+            </Button>
+            <Button
+              onClick={handleSetPassword}
+              disabled={setPasswordMutation.isPending}
+              data-testid="button-create-password"
+            >
+              {setPasswordMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Create Password
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       {/* Demo Mode Banner */}
       {isAppDemoMode && (
         <div className="bg-yellow-500 text-yellow-950 text-center py-2 px-4 text-sm font-medium">

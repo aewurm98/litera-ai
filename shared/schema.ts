@@ -57,6 +57,7 @@ export const patients = pgTable("patients", {
   phone: text("phone"),
   yearOfBirth: integer("year_of_birth").notNull(),
   pin: varchar("pin", { length: 4 }), // 4-digit PIN for patient portal access (production auth)
+  password: text("password"), // Optional hashed password for repeat access (set by patient on first portal visit)
   preferredLanguage: text("preferred_language").notNull().default("en"),
   tenantId: varchar("tenant_id").references(() => tenants.id), // Tenant isolation
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -1,10 +1,11 @@
 import { 
-  users, patients, carePlans, checkIns, auditLogs,
+  users, patients, carePlans, checkIns, auditLogs, tenants,
   type User, type InsertUser,
   type Patient, type InsertPatient,
   type CarePlan, type InsertCarePlan,
   type CheckIn, type InsertCheckIn,
   type AuditLog, type InsertAuditLog,
+  type Tenant, type InsertTenant,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, lte, isNull, sql } from "drizzle-orm";
@@ -22,6 +23,7 @@ export interface IStorage {
   getAllPatients(tenantId?: string): Promise<Patient[]>;
   createPatient(patient: InsertPatient): Promise<Patient>;
   updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined>;
+  updatePatientPassword(id: string, hashedPassword: string): Promise<void>;
   
   getCarePlan(id: string): Promise<CarePlan | undefined>;
   getCarePlanByToken(token: string): Promise<CarePlan | undefined>;
@@ -52,6 +54,14 @@ export interface IStorage {
   }>>;
   resolveAlert(checkInId: string, resolvedBy: string): Promise<void>;
   clearAllData(): Promise<void>;
+  
+  getAllUsers(tenantId?: string): Promise<User[]>;
+  deleteUser(id: string): Promise<boolean>;
+  
+  getAllTenants(): Promise<Tenant[]>;
+  getTenant(id: string): Promise<Tenant | undefined>;
+  createTenant(tenant: InsertTenant): Promise<Tenant>;
+  updateTenant(id: string, data: Partial<Tenant>): Promise<Tenant | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -123,6 +133,10 @@ export class DatabaseStorage implements IStorage {
   async updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined> {
     const [patient] = await db.update(patients).set(data).where(eq(patients.id, id)).returning();
     return patient || undefined;
+  }
+  
+  async updatePatientPassword(id: string, hashedPassword: string): Promise<void> {
+    await db.update(patients).set({ password: hashedPassword }).where(eq(patients.id, id));
   }
 
   async getCarePlan(id: string): Promise<CarePlan | undefined> {
@@ -278,6 +292,37 @@ export class DatabaseStorage implements IStorage {
     await db.delete(carePlans);
     await db.delete(patients);
     await db.delete(users);
+  }
+
+  async getAllUsers(tenantId?: string): Promise<User[]> {
+    if (tenantId) {
+      return db.select().from(users).where(eq(users.tenantId, tenantId)).orderBy(users.name);
+    }
+    return db.select().from(users).orderBy(users.name);
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getAllTenants(): Promise<Tenant[]> {
+    return db.select().from(tenants).orderBy(tenants.name);
+  }
+
+  async getTenant(id: string): Promise<Tenant | undefined> {
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, id));
+    return tenant || undefined;
+  }
+
+  async createTenant(insertTenant: InsertTenant): Promise<Tenant> {
+    const [tenant] = await db.insert(tenants).values(insertTenant).returning();
+    return tenant;
+  }
+
+  async updateTenant(id: string, data: Partial<Tenant>): Promise<Tenant | undefined> {
+    const [tenant] = await db.update(tenants).set(data).where(eq(tenants.id, id)).returning();
+    return tenant || undefined;
   }
 }
 

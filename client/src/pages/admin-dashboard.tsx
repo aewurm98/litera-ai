@@ -28,8 +28,13 @@ import {
   CheckCircle,
   XCircle,
   Bell,
-  RefreshCw
+  RefreshCw,
+  Building2,
+  UserPlus,
+  Plus,
+  Trash2
 } from "lucide-react";
+import { DialogFooter } from "@/components/ui/dialog";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
 import { format, differenceInCalendarDays } from "date-fns";
@@ -52,6 +57,23 @@ type Alert = {
   resolvedAt?: Date | null;
 };
 
+type Tenant = {
+  id: string;
+  name: string;
+  slug: string;
+  isDemo: boolean;
+  createdAt: string;
+};
+
+type UserWithTenant = {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  tenantId: string | null;
+  tenant: Tenant | null;
+};
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -59,6 +81,12 @@ export default function AdminDashboard() {
   const [selectedCarePlan, setSelectedCarePlan] = useState<CarePlanWithDetails | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<"current" | "history">("current");
+  
+  // User/Tenant management state
+  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  const [isCreateTenantDialogOpen, setIsCreateTenantDialogOpen] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ username: "", password: "", name: "", role: "clinician", tenantId: "" });
+  const [newTenantForm, setNewTenantForm] = useState({ name: "", slug: "", isDemo: false });
 
   // Fetch environment info to determine if we're in demo mode
   const { data: envInfo } = useQuery<{ isDemoMode: boolean; isProduction: boolean }>({
@@ -74,6 +102,65 @@ export default function AdminDashboard() {
   // Fetch alerts (yellow/red responses)
   const { data: alerts = [] } = useQuery<Alert[]>({
     queryKey: ["/api/admin/alerts"],
+  });
+
+  // Fetch users (admin only)
+  const { data: allUsers = [] } = useQuery<UserWithTenant[]>({
+    queryKey: ["/api/admin/users"],
+  });
+
+  // Fetch tenants (admin only)
+  const { data: allTenants = [] } = useQuery<Tenant[]>({
+    queryKey: ["/api/admin/tenants"],
+  });
+
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: async (data: typeof newUserForm) => {
+      return apiRequest("POST", "/api/admin/users", {
+        ...data,
+        tenantId: data.tenantId || null,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "User created successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setIsCreateUserDialogOpen(false);
+      setNewUserForm({ username: "", password: "", name: "", role: "clinician", tenantId: "" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest("DELETE", `/api/admin/users/${userId}`);
+    },
+    onSuccess: () => {
+      toast({ title: "User deleted successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Create tenant mutation
+  const createTenantMutation = useMutation({
+    mutationFn: async (data: typeof newTenantForm) => {
+      return apiRequest("POST", "/api/admin/tenants", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Tenant created successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tenants"] });
+      setIsCreateTenantDialogOpen(false);
+      setNewTenantForm({ name: "", slug: "", isDemo: false });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
   });
 
   // Resolve alert mutation
@@ -330,6 +417,14 @@ export default function AdminDashboard() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="users" className="gap-2" data-testid="tab-users">
+            <UserPlus className="h-4 w-4" />
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="tenants" className="gap-2" data-testid="tab-tenants">
+            <Building2 className="h-4 w-4" />
+            Tenants
+          </TabsTrigger>
         </TabsList>
 
         {/* Patients Tab */}
@@ -527,7 +622,273 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Users Tab */}
+        <TabsContent value="users" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>User Management</CardTitle>
+                <CardDescription>Manage clinicians and administrators</CardDescription>
+              </div>
+              <Button onClick={() => setIsCreateUserDialogOpen(true)} data-testid="button-create-user">
+                <Plus className="h-4 w-4 mr-2" />
+                Add User
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Username</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Tenant</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>{user.username}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.role === "admin" ? "default" : "secondary"}>
+                          {user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{user.tenant?.name || "-"}</TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => deleteUserMutation.mutate(user.id)}
+                          disabled={deleteUserMutation.isPending}
+                          data-testid={`button-delete-user-${user.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {allUsers.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        No users found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tenants Tab */}
+        <TabsContent value="tenants" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Tenant Management</CardTitle>
+                <CardDescription>Manage clinic organizations</CardDescription>
+              </div>
+              <Button onClick={() => setIsCreateTenantDialogOpen(true)} data-testid="button-create-tenant">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Tenant
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Slug</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allTenants.map((tenant) => (
+                    <TableRow key={tenant.id}>
+                      <TableCell className="font-medium">{tenant.name}</TableCell>
+                      <TableCell className="font-mono text-sm">{tenant.slug}</TableCell>
+                      <TableCell>
+                        <Badge variant={tenant.isDemo ? "secondary" : "default"}>
+                          {tenant.isDemo ? "Demo" : "Production"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(tenant.createdAt), "MMM d, yyyy")}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {allTenants.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No tenants found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Create User Dialog */}
+      <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+            <DialogDescription>Add a new clinician or administrator to the system.</DialogDescription>
+          </DialogHeader>
+          <form 
+            onSubmit={(e) => { 
+              e.preventDefault(); 
+              createUserMutation.mutate(newUserForm); 
+            }} 
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="user-name">Full Name</Label>
+              <Input
+                id="user-name"
+                value={newUserForm.name}
+                onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                required
+                data-testid="input-user-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-username">Username</Label>
+              <Input
+                id="user-username"
+                value={newUserForm.username}
+                onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
+                required
+                data-testid="input-user-username"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-password">Password</Label>
+              <Input
+                id="user-password"
+                type="password"
+                value={newUserForm.password}
+                onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                required
+                minLength={8}
+                data-testid="input-user-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-role">Role</Label>
+              <Select 
+                value={newUserForm.role} 
+                onValueChange={(v) => setNewUserForm({ ...newUserForm, role: v })}
+              >
+                <SelectTrigger data-testid="select-user-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="clinician">Clinician</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-tenant">Tenant (optional)</Label>
+              <Select 
+                value={newUserForm.tenantId || "none"} 
+                onValueChange={(v) => setNewUserForm({ ...newUserForm, tenantId: v === "none" ? "" : v })}
+              >
+                <SelectTrigger data-testid="select-user-tenant">
+                  <SelectValue placeholder="Select tenant" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Tenant (Platform Admin)</SelectItem>
+                  {allTenants.map((tenant) => (
+                    <SelectItem key={tenant.id} value={tenant.id}>
+                      {tenant.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateUserDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createUserMutation.isPending} data-testid="button-submit-user">
+                {createUserMutation.isPending ? "Creating..." : "Create User"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Tenant Dialog */}
+      <Dialog open={isCreateTenantDialogOpen} onOpenChange={setIsCreateTenantDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Tenant</DialogTitle>
+            <DialogDescription>Add a new clinic organization to the platform.</DialogDescription>
+          </DialogHeader>
+          <form 
+            onSubmit={(e) => { 
+              e.preventDefault(); 
+              createTenantMutation.mutate(newTenantForm); 
+            }} 
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="tenant-name">Clinic Name</Label>
+              <Input
+                id="tenant-name"
+                value={newTenantForm.name}
+                onChange={(e) => setNewTenantForm({ ...newTenantForm, name: e.target.value })}
+                required
+                placeholder="Mercy Hospital"
+                data-testid="input-tenant-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tenant-slug">URL Slug</Label>
+              <Input
+                id="tenant-slug"
+                value={newTenantForm.slug}
+                onChange={(e) => setNewTenantForm({ ...newTenantForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })}
+                required
+                placeholder="mercy-hospital"
+                data-testid="input-tenant-slug"
+              />
+              <p className="text-xs text-muted-foreground">URL-friendly identifier (lowercase, hyphens only)</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="tenant-demo"
+                checked={newTenantForm.isDemo}
+                onChange={(e) => setNewTenantForm({ ...newTenantForm, isDemo: e.target.checked })}
+                className="h-4 w-4"
+                data-testid="checkbox-tenant-demo"
+              />
+              <Label htmlFor="tenant-demo" className="text-sm font-normal">
+                Demo tenant (sample data visible)
+              </Label>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateTenantDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createTenantMutation.isPending} data-testid="button-submit-tenant">
+                {createTenantMutation.isPending ? "Creating..." : "Create Tenant"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Detail Dialog */}
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
