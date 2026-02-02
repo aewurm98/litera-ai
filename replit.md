@@ -7,9 +7,14 @@ Litera.ai is a healthcare companion platform that helps clinicians create simpli
 ## Recent Changes
 
 - **February 2026**: UI/UX refinements and patient name extraction
+  - **Quick Search**: Replaced Test Patient View with Quick Search - searches ALL care plans by patient name/diagnosis and selects in main list (no patient portal navigation)
+  - **PDF Storage**: Added originalFileData column to store uploaded PDFs as base64 - clinicians can click PDF filename to view original document
+  - **Patient Portal PDF Viewer**: View Original Document now displays actual PDF in iframe (with token-based authorization)
+  - **Data Persistence**: Database seeding only runs if database is empty - data persists across restarts
+  - **Reset Demo Button**: Moved to admin dashboard with confirmation dialog - force-reseeds database when needed
+  - **Recent Patients**: Sorted by most recent activity (updatedAt descending)
   - **Patient Name Extraction**: OpenAI extraction now captures patient name from discharge documents and stores it in `extractedPatientName` field for pre-filling forms
   - **Send to Patient Pre-fill**: Modal now pre-fills patient name, email, phone, year of birth, and language from existing patient record or extracted patient name
-  - **Test Patient View Enhancement**: Combined search and token input - search by patient name or diagnosis, with eye button for direct token entry
   - **Language Dropdown Lock**: Language selection is disabled during PDF processing to prevent mid-stream changes
   - **Alert Resolution Timestamps**: Admin dashboard now displays resolution timestamps for resolved alerts
   - **Care Plan Name Display**: Patient name fallback now uses extractedPatientName when no patient record exists
