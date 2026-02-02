@@ -107,12 +107,17 @@ export default function AdminDashboard() {
   // Reset demo data mutation
   const resetDemoMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", "/api/admin/reset-demo");
+      const res = await apiRequest("POST", "/api/admin/reset-demo");
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/care-plans"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/alerts"] });
-      toast({ title: "Demo data reset", description: "Database has been reset to initial state" });
+      toast({ title: "Demo data reset", description: "Please log in again with the demo credentials" });
+      // Redirect to login since session was destroyed
+      if (data?.requiresRelogin) {
+        window.location.href = "/login";
+      }
     },
     onError: () => {
       toast({ title: "Reset failed", variant: "destructive" });

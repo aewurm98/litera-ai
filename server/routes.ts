@@ -1004,7 +1004,14 @@ export async function registerRoutes(
     try {
       const { seedDatabase } = await import("./seed");
       await seedDatabase(true); // force=true to reseed even if data exists
-      res.json({ success: true, message: "Demo data reset successfully" });
+      
+      // Destroy the session since user IDs have changed
+      req.session.destroy((err) => {
+        if (err) {
+          console.error("Error destroying session:", err);
+        }
+        res.json({ success: true, message: "Demo data reset successfully", requiresRelogin: true });
+      });
     } catch (error) {
       console.error("Error resetting demo data:", error);
       res.status(500).json({ error: "Failed to reset demo data" });
