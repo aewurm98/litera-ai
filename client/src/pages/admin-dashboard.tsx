@@ -880,6 +880,7 @@ export default function AdminDashboard() {
                 <SelectContent>
                   <SelectItem value="clinician">Clinician</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

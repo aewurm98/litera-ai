@@ -231,7 +231,7 @@ function AppSidebar({ user }: { user: User }) {
       title: "Admin Dashboard",
       icon: LayoutDashboard,
       href: "/admin",
-      roles: ["admin"],
+      roles: ["admin", "super_admin"],
     },
   ];
 
