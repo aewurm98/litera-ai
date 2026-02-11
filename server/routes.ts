@@ -795,10 +795,9 @@ export async function registerRoutes(
           tenantId,
         });
       } else {
-        // Update patient with new PIN and lastName for this care plan
+        // Update patient lastName but preserve existing PIN
         patient = await storage.updatePatient(patient.id, {
           lastName,
-          pin: patientPin,
         });
       }
 
