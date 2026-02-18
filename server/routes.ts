@@ -209,13 +209,13 @@ function validateBody<T extends z.ZodSchema>(schema: T) {
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/heic"];
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic"];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Only PDF and images are allowed."));
+      cb(new Error("Unsupported file type. Please upload a PDF or image (JPEG, PNG, WebP)."));
     }
   },
 });
@@ -482,9 +482,20 @@ export async function registerRoutes(
 
       const file = req.file;
       
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(file.mimetype)) {
+        return res.status(400).json({ error: "Unsupported file type. Please upload a PDF or image (JPEG, PNG, WebP)." });
+      }
+      
       // Validate file size (must have content)
       if (file.size < 100) {
         return res.status(400).json({ error: "File appears to be empty or too small. Please upload a valid discharge document." });
+      }
+      
+      // Validate max file size (20MB)
+      if (file.size > 20 * 1024 * 1024) {
+        return res.status(400).json({ error: "File is too large. Maximum size is 20MB." });
       }
       
       const clinicianId = (req as any).clinicianId || "clinician-1";
@@ -633,9 +644,14 @@ export async function registerRoutes(
       // Include matched patient in response for language pre-fill
       const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
       res.json({ ...carePlan, patient: matchedPatient });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading file:", error);
-      res.status(500).json({ error: "Failed to process upload" });
+      const message = error?.message?.includes("OpenAI") || error?.message?.includes("API")
+        ? "AI processing failed. The document may be unreadable or in an unsupported format. Please try a clearer scan."
+        : error?.message?.includes("timeout") || error?.message?.includes("ETIMEDOUT")
+        ? "Processing timed out. Please try again."
+        : "Failed to process upload. Please try again with a different file.";
+      res.status(500).json({ error: message });
     }
   });
 
@@ -715,9 +731,14 @@ export async function registerRoutes(
       });
 
       res.json(updated);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error processing care plan:", error);
-      res.status(500).json({ error: "Failed to process care plan" });
+      const message = error?.message?.includes("rate") || error?.status === 429
+        ? "AI service is temporarily busy. Please wait a moment and try again."
+        : error?.message?.includes("timeout") || error?.message?.includes("ETIMEDOUT")
+        ? "Processing timed out. This can happen with large documents. Please try again."
+        : "Failed to simplify and translate content. Please try again.";
+      res.status(500).json({ error: message });
     }
   });
 
@@ -832,11 +853,13 @@ export async function registerRoutes(
         : "http://localhost:5000";
       const accessLink = `${baseUrl}/p/${accessToken}`;
 
+      let emailSent = true;
       try {
         // Include PIN in email for production auth (patient will need lastName + yearOfBirth + PIN)
         await sendCarePlanEmail(email, name, accessLink, patientPin);
       } catch (emailError) {
         console.error("Email sending failed:", emailError);
+        emailSent = false;
         // Continue even if email fails - care plan is still sent
       }
 
@@ -851,7 +874,7 @@ export async function registerRoutes(
 
       // Return enriched plan
       const checkIns = await storage.getCheckInsByCarePlanId(id);
-      res.json({ ...updated, patient, checkIns });
+      res.json({ ...updated, patient, checkIns, emailSent });
     } catch (error) {
       console.error("Error sending care plan:", error);
       res.status(500).json({ error: "Failed to send care plan" });
@@ -1069,6 +1092,11 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Care plan not found" });
       }
 
+      // Check if access token has expired
+      if (carePlan.accessTokenExpiry && new Date(carePlan.accessTokenExpiry) < new Date()) {
+        return res.status(410).json({ error: "This care plan link has expired. Please contact your clinic for a new link." });
+      }
+
       // Log view
       await storage.createAuditLog({
         carePlanId: carePlan.id,
@@ -1080,7 +1108,20 @@ export async function registerRoutes(
       const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
       const checkIns = await storage.getCheckInsByCarePlanId(carePlan.id);
 
-      res.json({ ...carePlan, patient, checkIns });
+      const safePatient = patient ? {
+        id: patient.id,
+        name: patient.name,
+        lastName: patient.lastName,
+        email: patient.email,
+        phone: patient.phone,
+        yearOfBirth: patient.yearOfBirth,
+        preferredLanguage: patient.preferredLanguage,
+        tenantId: patient.tenantId,
+        createdAt: patient.createdAt,
+        hasPassword: !!patient.password,
+      } : null;
+
+      res.json({ ...carePlan, patient: safePatient, checkIns });
     } catch (error) {
       console.error("Error fetching patient care plan:", error);
       res.status(500).json({ error: "Failed to fetch care plan" });
@@ -1126,9 +1167,12 @@ export async function registerRoutes(
       }
 
       res.json({ success: true, response });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting check-in:", error);
-      res.status(500).json({ error: "Failed to submit check-in" });
+      const message = error?.message?.includes("response") || error?.message?.includes("enum")
+        ? "Invalid response value. Please select a valid health status (Good, Needs Follow-up, or Urgent)."
+        : "Failed to submit check-in response. Please try again.";
+      res.status(500).json({ error: message });
     }
   });
 

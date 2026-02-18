@@ -1146,14 +1146,19 @@ export default function PatientPortal() {
 
   // Error state
   if (error || !carePlan) {
+    const isExpired = error?.message?.includes("410");
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-6">
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Care Plan Not Found</h2>
-            <p className="text-muted-foreground">
-              This link may have expired or is invalid. Please contact your care team.
+            <h2 className="text-xl font-semibold mb-2" data-testid="text-error-title">
+              {isExpired ? "Link Expired" : "Care Plan Not Found"}
+            </h2>
+            <p className="text-muted-foreground" data-testid="text-error-message">
+              {isExpired
+                ? "This care plan link has expired. Please contact your clinic for a new link."
+                : "This link may be invalid. Please contact your care team."}
             </p>
           </CardContent>
         </Card>

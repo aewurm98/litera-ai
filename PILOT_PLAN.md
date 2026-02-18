@@ -39,15 +39,24 @@ Take Litera.ai from a single-demo-clinic MVP to a platform that can onboard 2-5 
 
 ---
 
+### COMPLETED — This Session
+
+| # | Feature | Details |
+|---|---------|---------|
+| 21 | **Auth Flow Validation** | All staff auth flows verified (login/logout/password change for all 3 roles). Patient auth flows verified (PIN verification, password creation, password login). |
+| 22 | **Patient Data Security Fix** | `/api/patient/:token` endpoint no longer exposes patient PIN or password. Returns a `safePatient` object with only non-sensitive fields plus a `hasPassword` boolean flag. |
+| 23 | **AI Pipeline Error Handling** | Upload endpoint validates file types (PDF, JPEG, PNG, WebP, GIF, HEIC) and size (20MB max). Specific error messages for AI failures, timeouts, and unreadable documents. |
+| 24 | **Email Delivery Error Handling** | Send endpoint returns `emailSent` flag. Frontend shows specific toast when email fails but care plan is saved successfully. |
+| 25 | **Patient Portal Error Handling** | Expired access tokens return 410 status. Frontend distinguishes "Link Expired" from "Not Found" with specific messaging. Improved check-in error messages. |
+| 26 | **Multer Config Alignment** | Multer fileFilter and limits aligned with route-level validation (20MB, same allowed file types). |
+
 ### OUTSTANDING — Prioritized for Pilot
 
 | # | Feature | Priority | Details | Status |
 |---|---------|----------|---------|--------|
-| 1 | **Tenant Onboarding Workflow** | MEDIUM | No guided flow for creating a new clinic, setting up its first admin, and configuring it. Currently manual via the Tenants tab + Team tab. Works but could be streamlined. | Not started |
-| 2 | **Password Change / Account Setup Flow** | MEDIUM | Verify password change is fully wired up for pilot clinic staff. Confirm patient password creation flow works end-to-end. | Not verified |
-| 3 | **Tenant-Specific Branding / Settings** | LOW | No per-clinic customization (logo, clinic name in patient-facing UI, etc.) beyond the tenant name in the database. | Not started |
-| 4 | **Error Handling Polish** | LOW | Graceful AI pipeline failures (timeouts, malformed PDFs), user-friendly error messages, retry logic. | Not started |
-| 5 | **Deployment / Publishing** | LAST | App has not been published to a live URL yet for pilot clinics to access. Should be done after all pilot features are validated. | Not started |
+| 1 | **Tenant Onboarding Workflow** | MEDIUM | No guided flow for creating a new clinic. Currently manual via Tenants tab + Team tab. Works but could be streamlined. | Not started (manual setup sufficient for 2-5 clinics) |
+| 2 | **Tenant-Specific Branding / Settings** | LOW | No per-clinic customization (logo, clinic name in patient-facing UI). | Not started |
+| 3 | **Deployment / Publishing** | LAST | App has not been published to a live URL yet. Should be done after all pilot features are validated. | Not started |
 
 ---
 
