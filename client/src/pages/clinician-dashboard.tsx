@@ -383,7 +383,10 @@ export default function ClinicianDashboard() {
           method: "POST",
           body: formData,
         });
-        if (!response.ok) throw new Error(`Upload failed for ${files[i].name}`);
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({}));
+          throw new Error(errBody.error || `Upload failed for ${files[i].name}`);
+        }
         results.push(await response.json());
       }
       return results;
@@ -481,18 +484,25 @@ export default function ClinicianDashboard() {
         `/api/care-plans/${data.carePlanId}/send`,
         data.patient,
       );
-      return res.json() as Promise<CarePlanWithPatient>;
+      return res.json() as Promise<CarePlanWithPatient & { emailSent?: boolean }>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
       setSelectedCarePlan(data);
       setIsSendDialogOpen(false);
       resetPatientForm();
-      toast({
-        title: "Care plan sent!",
-        description:
-          "Patient will receive an email with their care instructions",
-      });
+      if (data.emailSent === false) {
+        toast({
+          title: "Care plan saved, but email failed",
+          description: "The care plan was created but the email could not be delivered. You can share the patient portal link manually.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Care plan sent!",
+          description: "Patient will receive an email with their care instructions",
+        });
+      }
     },
     onError: () => {
       toast({ title: "Failed to send", variant: "destructive" });
