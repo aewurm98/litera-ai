@@ -359,11 +359,11 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground">TCM billing and patient management</p>
         </div>
         <div className="flex items-center gap-2">
-          {isDemoMode && (
+          {(isDemoMode || isSuperAdmin) && (
             <Button 
               variant="outline"
               onClick={() => {
-                if (confirm("This will reset all data to the demo state. Are you sure?")) {
+                if (confirm("This will reset all demo data to the initial state. Are you sure?")) {
                   resetDemoMutation.mutate();
                 }
               }}

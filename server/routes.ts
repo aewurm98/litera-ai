@@ -1220,6 +1220,20 @@ export async function registerRoutes(
     try {
       const id = req.params.id as string;
       const adminId = (req as any).adminId || "admin-1";
+      const tenantId = req.session.tenantId;
+      
+      const checkIn = await storage.getCheckIn(id);
+      if (!checkIn) {
+        return res.status(404).json({ error: "Alert not found" });
+      }
+      
+      if (tenantId) {
+        const carePlan = await storage.getCarePlan(checkIn.carePlanId);
+        if (!carePlan || carePlan.tenantId !== tenantId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
+      
       await storage.resolveAlert(id, adminId);
       
       res.json({ success: true });
@@ -1282,25 +1296,21 @@ export async function registerRoutes(
   });
 
   // ============= Demo Reset Endpoint =============
-  // Reset the database to demo state (only available in demo mode)
+  // Reset the database to demo state (available in demo mode, or for super admins always)
   app.post("/api/admin/reset-demo", requireAuth, async (req: Request, res: Response) => {
     try {
-      // Block demo reset in production mode
-      if (!isDemoMode) {
+      const isSuperAdmin = req.session.userRole === "super_admin";
+      
+      // Block demo reset in production mode unless user is super_admin
+      if (!isDemoMode && !isSuperAdmin) {
         return res.status(403).json({ 
           error: "Demo reset is disabled in production mode",
           isDemoMode: false
         });
       }
       
-      // Set ALLOW_SEED temporarily for demo reset
-      process.env.ALLOW_SEED = "true";
-      
-      const { seedDatabase } = await import("./seed");
-      await seedDatabase(true); // force=true to reseed even if data exists
-      
-      // Clear the flag after seeding
-      delete process.env.ALLOW_SEED;
+      const { resetDemoTenant } = await import("./seed");
+      await resetDemoTenant();
       
       // Clear session data first to ensure no stale userId even if destroy fails
       delete req.session.userId;
@@ -1315,8 +1325,6 @@ export async function registerRoutes(
         res.json({ success: true, message: "Demo data reset successfully", requiresRelogin: true });
       });
     } catch (error) {
-      // Clear the flag on error too
-      delete process.env.ALLOW_SEED;
       console.error("Error resetting demo data:", error);
       res.status(500).json({ error: "Failed to reset demo data" });
     }
@@ -1325,7 +1333,6 @@ export async function registerRoutes(
   // Public reset endpoint for login page (no auth required, only in demo mode)
   app.post("/api/public/reset-demo", async (req: Request, res: Response) => {
     try {
-      // Block demo reset in production mode
       if (!isDemoMode) {
         return res.status(403).json({ 
           error: "Demo reset is disabled in production mode",
@@ -1333,19 +1340,11 @@ export async function registerRoutes(
         });
       }
       
-      // Set ALLOW_SEED temporarily for demo reset
-      process.env.ALLOW_SEED = "true";
-      
-      const { seedDatabase } = await import("./seed");
-      await seedDatabase(true);
-      
-      // Clear the flag after seeding
-      delete process.env.ALLOW_SEED;
+      const { resetDemoTenant } = await import("./seed");
+      await resetDemoTenant();
       
       res.json({ success: true, message: "Demo data reset successfully" });
     } catch (error) {
-      // Clear the flag on error too
-      delete process.env.ALLOW_SEED;
       console.error("Error resetting demo data:", error);
       res.status(500).json({ error: "Failed to reset demo data" });
     }
@@ -1489,9 +1488,13 @@ export async function registerRoutes(
     }
   });
   
-  // Get all tenants (admin only)
+  // Get all tenants (super admin only)
   app.get("/api/admin/tenants", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const isSuperAdmin = req.session.userRole === "super_admin";
+      if (!isSuperAdmin) {
+        return res.status(403).json({ error: "Only super admins can manage tenants" });
+      }
       const allTenants = await storage.getAllTenants();
       res.json(allTenants);
     } catch (error) {
@@ -1500,9 +1503,14 @@ export async function registerRoutes(
     }
   });
   
-  // Create tenant (admin only)
+  // Create tenant (super admin only)
   app.post("/api/admin/tenants", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const isSuperAdmin = req.session.userRole === "super_admin";
+      if (!isSuperAdmin) {
+        return res.status(403).json({ error: "Only super admins can create tenants" });
+      }
+      
       const { name, slug, isDemo } = req.body;
       
       if (!name || !slug) {
@@ -1528,9 +1536,14 @@ export async function registerRoutes(
     }
   });
   
-  // Update tenant (admin only)
+  // Update tenant (super admin only)
   app.patch("/api/admin/tenants/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const isSuperAdmin = req.session.userRole === "super_admin";
+      if (!isSuperAdmin) {
+        return res.status(403).json({ error: "Only super admins can update tenants" });
+      }
+      
       const { id } = req.params;
       const { name, isDemo } = req.body;
       
