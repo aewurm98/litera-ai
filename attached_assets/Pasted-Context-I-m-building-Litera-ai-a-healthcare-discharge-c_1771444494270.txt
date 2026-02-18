@@ -1,0 +1,116 @@
+Context
+I'm building Litera.ai, a healthcare discharge communication platform. The full project plan and feature status is documented in PILOT_PLAN.md at the project root — please read that file first.
+
+I want to implement outstanding items 1 through 4 from that plan. Here's exactly what each one involves, along with implementation details and checkpoints.
+
+Task 1: Demo Mode Toggle / Super Admin Reset Access
+Problem: The "Reset Demo" button is hidden when DEMO_MODE=false, but super admins should always be able to reset the demo tenant's data regardless of the environment mode. This is critical for demo/sales workflows.
+
+Files to modify:
+
+server/routes.ts — The /api/admin/reset-demo endpoint (around line 1286) currently blocks when isDemoMode is false. Change this so super admins can always trigger it.
+client/src/pages/admin-dashboard.tsx — The Reset Demo button (around line 362) is gated by isDemoMode. For super admins, show it regardless.
+client/src/pages/login.tsx — The public reset button (around line 139) should remain gated by isDemoMode (only visible when demoing).
+Implementation:
+
+On the backend: Allow the /api/admin/reset-demo endpoint to proceed if the user is a super_admin, even when isDemoMode is false. Keep the block for non-super-admin users when not in demo mode.
+On the frontend admin dashboard: Show the Reset Demo button for super admins always. For regular admins, only show it in demo mode.
+Leave the login page reset button as-is (only visible in demo mode).
+Testing:
+
+Set DEMO_MODE=false in Secrets
+Log in as admin / password123 (super admin)
+Confirm Reset Demo button is visible on Admin Dashboard
+Click it — data should reset successfully
+Log in as a regular admin (if one exists) — Reset Demo should NOT be visible
+Checkpoint: Pause here for my review before moving to Task 2.
+
+Task 2: Per-Tenant Demo Reset
+Problem: The current reset wipes ALL data (every tenant, every user, every patient) and reseeds from scratch. For a multi-clinic pilot, we need to reset only the demo tenant's data without destroying real clinic data.
+
+Files to modify:
+
+server/seed.ts — Create a new export function resetDemoTenant() that only deletes and reseeds data for tenants where isDemo = true. It should NOT touch tenants, users, patients, or care plans belonging to non-demo tenants.
+server/routes.ts — Update the /api/admin/reset-demo endpoint to call the new resetDemoTenant() function instead of the full seedDatabase(true).
+Implementation:
+
+New resetDemoTenant() in server/seed.ts should:
+Find all tenants where isDemo = true
+Delete audit logs, check-ins, care plans, and patients belonging to those tenants
+Delete users belonging to those tenants (but NOT the super admin user, who has tenantId = null)
+Delete the demo tenants themselves
+Re-run just the demo portion of the seed (create demo tenant, demo users, demo patients, demo care plans)
+Preserve the super admin account and any non-demo tenants/users/patients completely
+Keep the existing full seedDatabase(true) available as a separate function for complete resets if needed.
+Testing:
+
+Create a new non-demo tenant via Admin Dashboard (e.g., "Test Pilot Clinic")
+Create a user in that tenant
+Click Reset Demo
+Confirm the demo clinic data is fresh (original patients, care plans back to initial state)
+Confirm "Test Pilot Clinic" and its user still exist untouched
+Confirm super admin account still works
+Checkpoint: Pause here for my review before moving to Task 3.
+
+Task 3: Tenant-Scoped Data Isolation Audit
+Problem: We need to verify that ALL API endpoints properly filter by tenantId so one clinic can never see another clinic's data. This is a security requirement for the pilot.
+
+Files to review and potentially fix:
+
+server/routes.ts — Every endpoint that returns patients, care plans, check-ins, or audit logs
+server/storage.ts — All query methods that retrieve tenant-scoped data
+Implementation:
+
+Audit every API endpoint in server/routes.ts that reads or writes patients, care plans, check-ins, or audit logs
+Ensure each one filters by the logged-in user's tenantId (from their session/user record)
+Super admins (tenantId = null) should see all data; regular admins and clinicians should only see their own tenant's data
+Check the storage methods in server/storage.ts — if any method retrieves data without a tenant filter, add tenant-scoped variants or add filtering at the route level
+Pay special attention to:
+GET /api/patients — must filter by tenant
+GET /api/care-plans — must filter by tenant
+GET /api/admin/check-ins — must filter by tenant
+GET /api/admin/audit-logs — must filter by tenant
+Any endpoint that looks up a patient or care plan by ID — must verify the resource belongs to the user's tenant
+Testing:
+
+Create two non-demo tenants with one admin user each
+Create a patient in Tenant A
+Log in as Tenant B's admin — confirm they cannot see Tenant A's patient
+Test all list endpoints (patients, care plans, check-ins, audit logs) to confirm proper scoping
+Test direct ID access — Tenant B should get a 403 or 404 if they try to access Tenant A's patient by ID
+Checkpoint: Pause here for my review before moving to Task 4.
+
+Task 4: Production-Ready Session Management
+Problem: Sessions are stored in-memory and lost whenever the server restarts. For a deployed pilot, users will be logged out on every deploy or restart.
+
+Files to modify:
+
+server/index.ts — Session configuration (around where express-session is set up)
+May need to install connect-pg-simple or similar package for PostgreSQL-backed sessions
+Implementation:
+
+Install connect-pg-simple (PostgreSQL session store)
+Update the session middleware in server/index.ts to use the PostgreSQL store with the existing database connection
+The session table will be auto-created by connect-pg-simple if configured with createTableIfMissing: true
+Keep reasonable session settings: secure cookies in production, httpOnly, sameSite, appropriate maxAge (e.g., 24 hours)
+Ensure the existing DATABASE_URL environment variable is used for the session store connection
+Testing:
+
+Log in as admin
+Restart the application workflow
+Refresh the page — confirm you are still logged in (session persisted)
+Repeat for clinician login
+Confirm session expiry works (optional — can set a short maxAge temporarily to test)
+Checkpoint: Pause here for final review of all 4 tasks.
+
+Important References
+Pilot plan: PILOT_PLAN.md (project root) — update the status of items 1-4 as they're completed
+Server entry: server/index.ts — isDemoMode flag, session config
+API routes: server/routes.ts — all endpoints and auth middleware
+Storage layer: server/storage.ts — database queries
+Seed script: server/seed.ts — demo data seeding
+Schema: shared/schema.ts — Drizzle ORM table definitions
+Admin UI: client/src/pages/admin-dashboard.tsx
+Clinician UI: client/src/pages/clinician-dashboard.tsx
+Login page: client/src/pages/login.tsx
+Credentials: DEMO_CREDENTIALS.md, TESTING_CREDENTIALS.md
