@@ -437,7 +437,7 @@ export async function registerRoutes(
       name: req.session.userName,
       role: req.session.userRole,
       tenantId: req.session.tenantId,
-      tenant: tenant ? { id: tenant.id, name: tenant.name, isDemo: tenant.isDemo } : null,
+      tenant: tenant ? { id: tenant.id, name: tenant.name, slug: tenant.slug, isDemo: tenant.isDemo } : null,
     });
   });
   
