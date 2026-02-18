@@ -228,7 +228,7 @@ type UserWithTenant = {
   name: string;
   role: string;
   tenantId?: string | null;
-  tenant?: { id: string; name: string; isDemo: boolean } | null;
+  tenant?: { id: string; name: string; slug: string; isDemo: boolean } | null;
 };
 
 export default function ClinicianDashboard() {
@@ -247,6 +247,33 @@ export default function ClinicianDashboard() {
     staleTime: 0,
   });
   const isTenantDemo = currentUser?.tenant?.isDemo ?? false;
+  const tenantSlug = currentUser?.tenant?.slug ?? "";
+
+  const sampleDocsByTenant: Record<string, Array<{ file: string; label: string }>> = {
+    riverside: [
+      { file: "discharge_rosa_martinez_chf.pdf", label: "Rosa Martinez - CHF (Spanish)" },
+      { file: "discharge_nguyen_thi_lan_appendectomy.pdf", label: "Nguyen Thi Lan - Appendectomy (Vietnamese)" },
+      { file: "discharge_wei_zhang_pneumonia.pdf", label: "Wei Zhang - Pneumonia (Chinese)" },
+      { file: "discharge_amadou_diallo_sickle_cell.pdf", label: "Amadou Diallo - Sickle Cell (French)" },
+      { file: "discharge_olga_petrov_copd.pdf", label: "Olga Petrov - COPD (Russian)" },
+    ],
+    lakeside: [
+      { file: "discharge_fatima_al_hassan_gestational_diabetes.pdf", label: "Fatima Al-Hassan - Gestational Diabetes (Arabic)" },
+      { file: "discharge_aisha_rahman_chf.pdf", label: "Aisha Rahman - CHF (Arabic)" },
+      { file: "discharge_arjun_sharma_asthma.pdf", label: "Arjun Sharma - Asthma (Hindi)" },
+      { file: "discharge_pedro_gutierrez_knee.pdf", label: "Pedro Gutierrez - Knee Surgery (Spanish)" },
+      { file: "discharge_tran_van_duc_stroke.pdf", label: "Tran Van Duc - Stroke (Vietnamese)" },
+    ],
+  };
+  const sharedSampleDocs = [
+    { file: "discharge_keiko_tanaka_pancreatitis.pdf", label: "Keiko Tanaka - Pancreatitis (Japanese)" },
+    { file: "discharge_mei_ling_chen_postpartum.pdf", label: "Mei Ling Chen - Postpartum (Chinese)" },
+    { file: "discharge_james_oconnell_hip_replacement.pdf", label: "James O'Connell - Hip Replacement (English)" },
+  ];
+  const tenantSampleDocs = [
+    ...(sampleDocsByTenant[tenantSlug] || []),
+    ...sharedSampleDocs,
+  ];
   
   const [selectedCarePlan, setSelectedCarePlan] =
     useState<CarePlanWithPatient | null>(null);
@@ -1455,45 +1482,11 @@ export default function ClinicianDashboard() {
                 <SelectValue placeholder="Select a sample discharge document..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="discharge_rosa_martinez_chf.pdf">
-                  Rosa Martinez - CHF (Spanish)
-                </SelectItem>
-                <SelectItem value="discharge_nguyen_thi_lan_appendectomy.pdf">
-                  Nguyen Thi Lan - Appendectomy (Vietnamese)
-                </SelectItem>
-                <SelectItem value="discharge_wei_zhang_pneumonia.pdf">
-                  Wei Zhang - Pneumonia (Chinese)
-                </SelectItem>
-                <SelectItem value="discharge_fatima_al_hassan_gestational_diabetes.pdf">
-                  Fatima Al-Hassan - Gestational Diabetes (Arabic)
-                </SelectItem>
-                <SelectItem value="discharge_aisha_rahman_chf.pdf">
-                  Aisha Rahman - CHF (Bengali)
-                </SelectItem>
-                <SelectItem value="discharge_amadou_diallo_sickle_cell.pdf">
-                  Amadou Diallo - Sickle Cell (French)
-                </SelectItem>
-                <SelectItem value="discharge_arjun_sharma_asthma.pdf">
-                  Arjun Sharma - Asthma (Hindi)
-                </SelectItem>
-                <SelectItem value="discharge_keiko_tanaka_pancreatitis.pdf">
-                  Keiko Tanaka - Pancreatitis (Japanese)
-                </SelectItem>
-                <SelectItem value="discharge_mei_ling_chen_postpartum.pdf">
-                  Mei Ling Chen - Postpartum (Chinese)
-                </SelectItem>
-                <SelectItem value="discharge_olga_petrov_copd.pdf">
-                  Olga Petrov - COPD (Russian)
-                </SelectItem>
-                <SelectItem value="discharge_pedro_gutierrez_knee.pdf">
-                  Pedro Gutierrez - Knee Surgery (Spanish)
-                </SelectItem>
-                <SelectItem value="discharge_tran_van_duc_stroke.pdf">
-                  Tran Van Duc - Stroke (Vietnamese)
-                </SelectItem>
-                <SelectItem value="discharge_james_oconnell_hip_replacement.pdf">
-                  James O'Connell - Hip Replacement (English)
-                </SelectItem>
+                {tenantSampleDocs.map((doc) => (
+                  <SelectItem key={doc.file} value={doc.file}>
+                    {doc.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
