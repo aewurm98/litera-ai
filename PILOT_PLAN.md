@@ -39,10 +39,10 @@ Take Litera.ai from a single-demo-clinic MVP to a platform that can onboard 2-5 
 
 | # | Feature | Priority | Details | Status |
 |---|---------|----------|---------|--------|
-| 1 | **Demo Mode Toggle / Super Admin Reset Access** | HIGH | `DEMO_MODE` is an env var set to `false`, hiding the reset button. Super admins should be able to reset demo data regardless of mode, or there should be an easy way to toggle demo mode. | Not started |
-| 2 | **Per-Tenant Demo Reset** | HIGH | Current reset wipes ALL data and reseeds everything. For a multi-clinic pilot, need ability to reset only the demo tenant's data without touching real clinic data. | Not started |
-| 3 | **Tenant-Scoped Data Isolation Audit** | HIGH | Verify that ALL API queries properly filter by `tenantId` so Clinic A can never access Clinic B's patients, care plans, or check-ins. | Not started |
-| 4 | **Production-Ready Session Management** | MEDIUM | Sessions are currently in-memory and lost on server restart. For a deployed pilot, sessions should be database-backed or use a persistent store. | Not started |
+| 1 | **Demo Mode Toggle / Super Admin Reset Access** | HIGH | Super admins can now reset demo data regardless of `DEMO_MODE` setting. Regular admins only see reset button in demo mode. Login page reset stays gated by demo mode. | Complete |
+| 2 | **Per-Tenant Demo Reset** | HIGH | New `resetDemoTenant()` function only wipes `isDemo=true` tenant data. Non-demo tenants, their users, patients, and care plans are fully preserved. Super admin account preserved. | Complete |
+| 3 | **Tenant-Scoped Data Isolation Audit** | HIGH | All API endpoints audited. Fixed: alert resolution now checks tenant, tenant CRUD restricted to super admins only. All patient/care plan/check-in endpoints verified for tenant filtering. | Complete |
+| 4 | **Production-Ready Session Management** | MEDIUM | PostgreSQL-backed sessions via `connect-pg-simple`. Sessions survive server restarts. Configured with secure cookies, httpOnly, sameSite, 24-hour maxAge. | Complete |
 | 5 | **Tenant Onboarding Workflow** | MEDIUM | No guided flow for creating a new clinic, setting up its first admin, and configuring it. Currently manual via the Tenants tab + Team tab. | Not started |
 | 6 | **Password Change / Account Setup Flow** | MEDIUM | Verify password change is fully wired up for pilot clinic staff. Confirm patient password creation flow works end-to-end. | Not verified |
 | 7 | **Tenant-Specific Branding / Settings** | LOW | No per-clinic customization (logo, clinic name in patient-facing UI, etc.) beyond the tenant name in the database. | Not started |
@@ -107,3 +107,4 @@ See `DEMO_CREDENTIALS.md` and `TESTING_CREDENTIALS.md` for full details includin
 - **Feb 18, 2026:** Fixed PIN overwrite bug — existing patients no longer get random PINs when care plans are re-sent.
 - **Feb 18, 2026:** Reset Nguyen Thi Lan and Mei-Ling Chen PINs back to 1234 via direct DB update.
 - **Feb 18, 2026:** Created this pilot plan document for tracking across sessions.
+- **Feb 18, 2026:** Completed items 1-4: Super admin reset access, per-tenant demo reset, tenant isolation audit, production sessions (already done). Alert resolution now checks tenant ownership. Tenant management endpoints restricted to super admins only.
