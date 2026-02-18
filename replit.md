@@ -26,7 +26,7 @@ Litera.ai is built with a clear separation between its frontend, backend, and sh
 - **AI Integration**: Leverages OpenAI GPT-4o via Replit AI Integrations for core functionalities like content extraction, simplification, and translation.
 - **Email Service**: Resend, integrated via Replit Connector, handles email delivery.
 - **Authentication**: Supports multi-factor authentication for patients (lastName + yearOfBirth + PIN/Password) and clinicians, with robust session security and bcrypt hashing for passwords.
-- **Multi-Tenancy**: Implements a multi-tenant architecture to isolate data between different clinics, managed by a super admin role.
+- **Multi-Tenancy**: Implements a multi-tenant architecture to isolate data between different clinics, managed by a super admin role. Two demo tenants exist for validation: "Riverside Community Health" (slug: riverside) and "Lakeside Family Medicine" (slug: lakeside), each with separate clinicians, admins, and 5 patients. Sample docs dropdown is tenant-scoped. See DEMO_CREDENTIALS.md for full login details.
 - **Security**: Includes server-side rate limiting, Zod validation on API endpoints, comprehensive audit logging, and environment-based feature flags for secure production deployment.
 
 ### Shared
