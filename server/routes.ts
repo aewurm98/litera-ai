@@ -290,8 +290,8 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Care plan not found" });
       }
       
-      // Check authorization: clinician/admin session OR valid patient access token
-      const isAuthenticated = req.session?.userId && (req.session?.userRole === "clinician" || req.session?.userRole === "admin");
+      // Check authorization: clinician/admin/interpreter session OR valid patient access token
+      const isAuthenticated = req.session?.userId && (req.session?.userRole === "clinician" || req.session?.userRole === "admin" || req.session?.userRole === "interpreter");
       const hasValidToken = token && carePlan.accessToken === token && 
         (!carePlan.accessTokenExpiry || new Date(carePlan.accessTokenExpiry) > new Date());
       
@@ -842,6 +842,12 @@ export async function registerRoutes(
       // Verify tenant access
       if (tenantId && carePlan.tenantId !== tenantId) {
         return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Only allow sending from approved or interpreter_approved status
+      const sendableStatuses = ["approved", "interpreter_approved"];
+      if (!sendableStatuses.includes(carePlan.status)) {
+        return res.status(400).json({ error: `Care plan cannot be sent — current status is "${carePlan.status}". It must be approved first.` });
       }
 
       // Generate PIN for patient verification (production security)
@@ -2191,8 +2197,17 @@ export async function registerRoutes(
 
   // ============= Check-in Email Scheduler Endpoint =============
   // This endpoint can be called by a cron job or external scheduler
+  // Protected by a shared secret to prevent unauthorized access
   app.post("/api/internal/send-pending-check-ins", async (req: Request, res: Response) => {
     try {
+      const internalSecret = process.env.INTERNAL_API_SECRET;
+      if (internalSecret) {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || authHeader !== `Bearer ${internalSecret}`) {
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+      }
+
       const pendingCheckIns = await storage.getPendingCheckIns();
       let sentCount = 0;
 
