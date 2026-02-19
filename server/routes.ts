@@ -5,6 +5,7 @@ import { z } from "zod";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { storage, generateAccessToken } from "./storage";
+import { hashPassword } from "./auth";
 import { 
   extractDischargeContent, 
   extractFromImage, 
@@ -1601,7 +1602,6 @@ export async function registerRoutes(
         return res.status(409).json({ error: "Username already exists" });
       }
       
-      const { hashPassword } = await import("./auth");
       const hashedPassword = await hashPassword(password);
       
       // For non-super-admins, auto-assign to their tenant
