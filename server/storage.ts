@@ -1,11 +1,12 @@
 import { 
-  users, patients, carePlans, checkIns, auditLogs, tenants,
+  users, patients, carePlans, checkIns, auditLogs, tenants, chatMessages,
   type User, type InsertUser,
   type Patient, type InsertPatient,
   type CarePlan, type InsertCarePlan,
   type CheckIn, type InsertCheckIn,
   type AuditLog, type InsertAuditLog,
   type Tenant, type InsertTenant,
+  type ChatMessage, type InsertChatMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, lte, isNull, sql } from "drizzle-orm";
@@ -58,13 +59,16 @@ export interface IStorage {
   clearAllData(): Promise<void>;
   
   getAllUsers(tenantId?: string): Promise<User[]>;
-  updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId'>>): Promise<User | undefined>;
+  updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId' | 'languages'>>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   
   getAllTenants(): Promise<Tenant[]>;
   getTenant(id: string): Promise<Tenant | undefined>;
   createTenant(tenant: InsertTenant): Promise<Tenant>;
   updateTenant(id: string, data: Partial<Tenant>): Promise<Tenant | undefined>;
+  
+  getChatMessages(carePlanId: string, patientId: string): Promise<ChatMessage[]>;
+  createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -192,10 +196,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCarePlan(id: string): Promise<boolean> {
-    // First delete related check-ins and audit logs
+    await db.delete(chatMessages).where(eq(chatMessages.carePlanId, id));
     await db.delete(checkIns).where(eq(checkIns.carePlanId, id));
     await db.delete(auditLogs).where(eq(auditLogs.carePlanId, id));
-    // Then delete the care plan
     const result = await db.delete(carePlans).where(eq(carePlans.id, id)).returning();
     return result.length > 0;
   }
@@ -301,6 +304,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async clearAllData(): Promise<void> {
+    await db.delete(chatMessages);
     await db.delete(auditLogs);
     await db.delete(checkIns);
     await db.delete(carePlans);
@@ -315,7 +319,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(users).orderBy(users.name);
   }
 
-  async updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId'>>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId' | 'languages'>>): Promise<User | undefined> {
     const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return user || undefined;
   }
@@ -342,6 +346,17 @@ export class DatabaseStorage implements IStorage {
   async updateTenant(id: string, data: Partial<Tenant>): Promise<Tenant | undefined> {
     const [tenant] = await db.update(tenants).set(data).where(eq(tenants.id, id)).returning();
     return tenant || undefined;
+  }
+
+  async getChatMessages(carePlanId: string, patientId: string): Promise<ChatMessage[]> {
+    return await db.select().from(chatMessages)
+      .where(and(eq(chatMessages.carePlanId, carePlanId), eq(chatMessages.patientId, patientId)))
+      .orderBy(chatMessages.createdAt);
+  }
+
+  async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
+    const [msg] = await db.insert(chatMessages).values(message).returning();
+    return msg;
   }
 }
 

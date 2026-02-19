@@ -493,6 +493,8 @@ export default function AdminDashboard() {
     const statusConfig: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; label: string; icon: React.ReactNode }> = {
       draft: { variant: "outline", label: "Draft", icon: <FileText className="h-3 w-3" /> },
       pending_review: { variant: "secondary", label: "Pending Review", icon: <Clock className="h-3 w-3" /> },
+      interpreter_review: { variant: "secondary", label: "Interpreter Review", icon: <Clock className="h-3 w-3" /> },
+      interpreter_approved: { variant: "default", label: "Interpreter Approved", icon: <Check className="h-3 w-3" /> },
       approved: { variant: "default", label: "Approved", icon: <Check className="h-3 w-3" /> },
       sent: { variant: "default", label: "Sent", icon: <Check className="h-3 w-3" /> },
       completed: { variant: "default", label: "Completed", icon: <CheckCircle className="h-3 w-3" /> },
