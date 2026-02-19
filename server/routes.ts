@@ -28,6 +28,63 @@ function extractLastName(fullName: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : parts[0];
 }
 
+// Shared helper: patient-match + care plan create + audit log for all upload paths
+async function createCarePlanFromExtracted(
+  clinicianId: string,
+  tenantId: string | undefined,
+  extracted: Awaited<ReturnType<typeof extractDischargeContent>>,
+  originalContent: string,
+  fileData: string,
+  file: { originalname: string; mimetype: string },
+  req: Request,
+  auditMethod?: string,
+) {
+  let matchedPatientId: string | undefined = undefined;
+  if (extracted.patientName) {
+    const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
+    if (matchedPatient) {
+      matchedPatientId = matchedPatient.id;
+      console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
+    }
+  }
+
+  const carePlan = await storage.createCarePlan({
+    clinicianId,
+    patientId: matchedPatientId,
+    tenantId,
+    status: "draft",
+    originalContent,
+    originalFileName: file.originalname,
+    originalFileData: fileData,
+    extractedPatientName: extracted.patientName,
+    diagnosis: extracted.diagnosis,
+    medications: extracted.medications,
+    appointments: extracted.appointments,
+    instructions: extracted.instructions,
+    warnings: extracted.warnings,
+  });
+
+  const auditDetails: Record<string, unknown> = {
+    fileName: file.originalname,
+    fileType: file.mimetype,
+    patientName: extracted.patientName,
+    autoMatchedPatientId: matchedPatientId,
+  };
+  if (auditMethod) auditDetails.method = auditMethod;
+
+  await storage.createAuditLog({
+    carePlanId: carePlan.id,
+    userId: clinicianId,
+    action: "uploaded",
+    details: auditDetails,
+    ipAddress: req.ip || null,
+    userAgent: req.get("user-agent") || null,
+  });
+
+  const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
+  return { ...carePlan, patient: matchedPatient };
+}
+
 // Demo token store (in-memory, expires after 5 minutes)
 const demoTokens = new Map<string, { accessToken: string; expiresAt: Date }>();
 
@@ -600,137 +657,20 @@ export async function registerRoutes(
           }
         } catch (pdfError) {
           console.log("PDF parsing failed, falling back to AI extraction:", pdfError);
-          // Fall back to AI extraction - treat PDF as an image-like document
           const base64Doc = file.buffer.toString("base64");
           const extracted = await extractFromImage(base64Doc);
-          
-          // Auto-match patient by extracted name
-          let matchedPatientId: string | undefined = undefined;
-          if (extracted.patientName) {
-            const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
-            if (matchedPatient) {
-              matchedPatientId = matchedPatient.id;
-              console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
-            }
-          }
-          
-          const carePlan = await storage.createCarePlan({
-            clinicianId,
-            patientId: matchedPatientId,
-            tenantId,
-            status: "draft",
-            originalContent: JSON.stringify(extracted),
-            originalFileName: file.originalname,
-            originalFileData: file.buffer.toString("base64"),
-            extractedPatientName: extracted.patientName,
-            diagnosis: extracted.diagnosis,
-            medications: extracted.medications,
-            appointments: extracted.appointments,
-            instructions: extracted.instructions,
-            warnings: extracted.warnings,
-          });
-
-          await storage.createAuditLog({
-            carePlanId: carePlan.id,
-            userId: clinicianId,
-            action: "uploaded",
-            details: { fileName: file.originalname, fileType: file.mimetype, method: "ai-fallback", patientName: extracted.patientName, autoMatchedPatientId: matchedPatientId },
-            ipAddress: req.ip || null,
-            userAgent: req.get("user-agent") || null,
-          });
-
-          // Include matched patient in response for language pre-fill
-          const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
-          return res.json({ ...carePlan, patient: matchedPatient });
+          return res.json(await createCarePlanFromExtracted(clinicianId, tenantId, extracted, JSON.stringify(extracted), base64Doc, file, req, "ai-fallback"));
         }
       } else {
-        // For images, we'll use GPT-4o Vision
+        // For images, use GPT-4o Vision
         const base64Image = file.buffer.toString("base64");
         const extracted = await extractFromImage(base64Image);
-        
-        // Auto-match patient by extracted name
-        let matchedPatientId: string | undefined = undefined;
-        if (extracted.patientName) {
-          const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
-          if (matchedPatient) {
-            matchedPatientId = matchedPatient.id;
-            console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
-          }
-        }
-        
-        // Create care plan with extracted content
-        const carePlan = await storage.createCarePlan({
-          clinicianId,
-          patientId: matchedPatientId,
-          tenantId,
-          status: "draft",
-          originalContent: JSON.stringify(extracted),
-          originalFileName: file.originalname,
-          originalFileData: base64Image,
-          extractedPatientName: extracted.patientName,
-          diagnosis: extracted.diagnosis,
-          medications: extracted.medications,
-          appointments: extracted.appointments,
-          instructions: extracted.instructions,
-          warnings: extracted.warnings,
-        });
-
-        // Create audit log
-        await storage.createAuditLog({
-          carePlanId: carePlan.id,
-          userId: clinicianId,
-          action: "uploaded",
-          details: { fileName: file.originalname, fileType: file.mimetype, patientName: extracted.patientName, autoMatchedPatientId: matchedPatientId },
-          ipAddress: req.ip || null,
-          userAgent: req.get("user-agent") || null,
-        });
-
-        // Include matched patient in response for language pre-fill
-        const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
-        return res.json({ ...carePlan, patient: matchedPatient });
+        return res.json(await createCarePlanFromExtracted(clinicianId, tenantId, extracted, JSON.stringify(extracted), base64Image, file, req));
       }
 
-      // For PDFs, extract structured content
+      // PDF with extractable text
       const extracted = await extractDischargeContent(extractedText);
-      
-      // Auto-match patient by extracted name
-      let matchedPatientId: string | undefined = undefined;
-      if (extracted.patientName) {
-        const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
-        if (matchedPatient) {
-          matchedPatientId = matchedPatient.id;
-          console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
-        }
-      }
-      
-      const carePlan = await storage.createCarePlan({
-        clinicianId,
-        patientId: matchedPatientId,
-        tenantId,
-        status: "draft",
-        originalContent: extractedText,
-        originalFileName: file.originalname,
-        originalFileData: file.buffer.toString("base64"),
-        extractedPatientName: extracted.patientName,
-        diagnosis: extracted.diagnosis,
-        medications: extracted.medications,
-        appointments: extracted.appointments,
-        instructions: extracted.instructions,
-        warnings: extracted.warnings,
-      });
-
-      await storage.createAuditLog({
-        carePlanId: carePlan.id,
-        userId: clinicianId,
-        action: "uploaded",
-        details: { fileName: file.originalname, fileType: file.mimetype, patientName: extracted.patientName, autoMatchedPatientId: matchedPatientId },
-        ipAddress: req.ip || null,
-        userAgent: req.get("user-agent") || null,
-      });
-
-      // Include matched patient in response for language pre-fill
-      const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
-      res.json({ ...carePlan, patient: matchedPatient });
+      res.json(await createCarePlanFromExtracted(clinicianId, tenantId, extracted, extractedText, file.buffer.toString("base64"), file, req));
     } catch (error: any) {
       console.error("Error uploading file:", error);
       const message = error?.message?.includes("OpenAI") || error?.message?.includes("API")
