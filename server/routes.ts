@@ -12,6 +12,7 @@ import {
   translateContent 
 } from "./services/openai";
 import { sendCarePlanEmail, sendCheckInEmail } from "./services/resend";
+import { sendCarePlanSms, sendCheckInSms } from "./services/twilio";
 import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
 import { isDemoMode } from "./index";
 
@@ -982,6 +983,12 @@ export async function registerRoutes(
         // Continue even if email fails - care plan is still sent
       }
 
+      // Send SMS if patient has a phone number (gracefully skips if Twilio env vars not set)
+      let smsSent = false;
+      if (patient.phone) {
+        smsSent = await sendCarePlanSms(patient.phone, name, accessLink, patientPin);
+      }
+
       await storage.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
@@ -993,7 +1000,7 @@ export async function registerRoutes(
 
       // Return enriched plan
       const checkIns = await storage.getCheckInsByCarePlanId(id);
-      res.json({ ...updated, patient, checkIns, emailSent });
+      res.json({ ...updated, patient, checkIns, emailSent, smsSent });
     } catch (error) {
       console.error("Error sending care plan:", error);
       res.status(500).json({ error: "Failed to send care plan" });
@@ -2226,26 +2233,40 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Care plan is not in interpreter review status" });
       }
       
+      // M3.4: Enforce interpreter language match
+      const interpreter = await storage.getUser(interpreterId);
+      if (interpreter?.languages?.length && carePlan.translatedLanguage) {
+        if (!interpreter.languages.includes(carePlan.translatedLanguage)) {
+          return res.status(403).json({ error: "Language not in interpreter's specialties" });
+        }
+      }
+
       const {
         simplifiedDiagnosis, simplifiedInstructions, simplifiedWarnings,
+        simplifiedMedications, simplifiedAppointments,
         translatedDiagnosis, translatedInstructions, translatedWarnings,
+        translatedMedications, translatedAppointments,
         notes
       } = req.body;
-      
+
       const updateData: any = {
         status: "interpreter_approved",
         interpreterReviewedBy: interpreterId,
         interpreterReviewedAt: new Date(),
         interpreterNotes: notes || null,
       };
-      
+
       // Apply any edits the interpreter made
       if (simplifiedDiagnosis !== undefined) updateData.simplifiedDiagnosis = simplifiedDiagnosis;
       if (simplifiedInstructions !== undefined) updateData.simplifiedInstructions = simplifiedInstructions;
       if (simplifiedWarnings !== undefined) updateData.simplifiedWarnings = simplifiedWarnings;
+      if (simplifiedMedications !== undefined) updateData.simplifiedMedications = simplifiedMedications;
+      if (simplifiedAppointments !== undefined) updateData.simplifiedAppointments = simplifiedAppointments;
       if (translatedDiagnosis !== undefined) updateData.translatedDiagnosis = translatedDiagnosis;
       if (translatedInstructions !== undefined) updateData.translatedInstructions = translatedInstructions;
       if (translatedWarnings !== undefined) updateData.translatedWarnings = translatedWarnings;
+      if (translatedMedications !== undefined) updateData.translatedMedications = translatedMedications;
+      if (translatedAppointments !== undefined) updateData.translatedAppointments = translatedAppointments;
       
       const updated = await storage.updateCarePlan(id as string, updateData);
       
@@ -2253,7 +2274,7 @@ export async function registerRoutes(
         carePlanId: id as string,
         userId: interpreterId,
         action: "interpreter_approved",
-        details: { notes: notes || null, hasEdits: !!(simplifiedDiagnosis || translatedDiagnosis) },
+        details: { notes: notes || null, hasEdits: !!(simplifiedDiagnosis || translatedDiagnosis || simplifiedMedications || translatedMedications) },
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });
@@ -2333,14 +2354,18 @@ export async function registerRoutes(
 
         try {
           await sendCheckInEmail(patient.email, patient.name, accessLink, checkIn.attemptNumber);
+          // Send SMS check-in if patient has a phone number
+          if (patient.phone) {
+            await sendCheckInSms(patient.phone, patient.name, accessLink);
+          }
           await storage.updateCheckIn(checkIn.id, { sentAt: new Date() });
-          
+
           await storage.createAuditLog({
             carePlanId: carePlan.id,
             action: "check_in_sent",
             details: { attemptNumber: checkIn.attemptNumber },
           });
-          
+
           sentCount++;
         } catch (emailError) {
           console.error("Failed to send check-in email:", emailError);
