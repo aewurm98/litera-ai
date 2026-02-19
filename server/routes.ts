@@ -119,6 +119,10 @@ function validateDemoToken(demoToken: string, accessToken: string): boolean {
   return true;
 }
 
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>/g, "");
+}
+
 // [M1.2] Constant-time string comparison to prevent timing attacks
 function timingSafeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -820,7 +824,11 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Check if interpreter review is needed (non-English translations in tenants with review mode)
+      const approvableStatuses = ["pending_review", "interpreter_approved", "draft"];
+      if (!approvableStatuses.includes(carePlan.status)) {
+        return res.status(400).json({ error: `Care plan cannot be approved — current status is "${carePlan.status}".` });
+      }
+
       let newStatus = "approved";
       const isNonEnglish = carePlan.translatedLanguage && carePlan.translatedLanguage !== "en";
       const skipInterpreterReview = req.body?.skipInterpreterReview === true;
@@ -1487,6 +1495,13 @@ export async function registerRoutes(
       if (!question || !carePlanContext) {
         return res.status(400).json({ error: "Question and care plan context are required" });
       }
+      if (typeof question === "string" && question.length > 2000) {
+        return res.status(400).json({ error: "Question is too long (max 2000 characters)" });
+      }
+      const ctx = carePlanContext;
+      if (!ctx.diagnosis && !ctx.instructions && !ctx.warnings && !ctx.medications?.length && !ctx.appointments?.length) {
+        return res.status(400).json({ error: "Care plan context must include at least one field (diagnosis, instructions, warnings, medications, or appointments)" });
+      }
 
       const OpenAI = (await import("openai")).default;
       const openai = new OpenAI({
@@ -1777,6 +1792,15 @@ ${contextText}`
       if (!name || !email || !yearOfBirth) {
         return res.status(400).json({ error: "Name, email, and year of birth are required" });
       }
+      if (typeof name !== "string" || name.length > 500) {
+        return res.status(400).json({ error: "Name must be 500 characters or fewer" });
+      }
+      if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: "A valid email address is required" });
+      }
+      if (typeof yearOfBirth !== "number" || yearOfBirth < 1900 || yearOfBirth > 2100) {
+        return res.status(400).json({ error: "Year of birth must be between 1900 and 2100" });
+      }
       
       const existing = await storage.getPatientByEmail(email, tenantId);
       if (existing) {
@@ -1790,12 +1814,13 @@ ${contextText}`
         });
       }
       
-      const lastName = name.trim().split(/\s+/).pop() || name;
+      const sanitizedName = stripHtml(name);
+      const lastName = sanitizedName.trim().split(/\s+/).pop() || sanitizedName;
       const pin = Math.floor(1000 + Math.random() * 9000).toString();
       const hashedPin = await bcrypt.hash(pin, 10);
       
       const patient = await storage.createPatient({
-        name,
+        name: sanitizedName,
         lastName,
         email,
         phone: phone || null,
@@ -1838,7 +1863,17 @@ ${contextText}`
       }
       
       const { name, email, phone, yearOfBirth, preferredLanguage } = req.body;
-      
+
+      if (name !== undefined && (typeof name !== "string" || name.length > 500)) {
+        return res.status(400).json({ error: "Name must be 500 characters or fewer" });
+      }
+      if (email !== undefined && (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+        return res.status(400).json({ error: "A valid email address is required" });
+      }
+      if (yearOfBirth !== undefined && (typeof yearOfBirth !== "number" || yearOfBirth < 1900 || yearOfBirth > 2100)) {
+        return res.status(400).json({ error: "Year of birth must be between 1900 and 2100" });
+      }
+
       if (email && email !== patient.email) {
         const existing = await storage.getPatientByEmail(email, tenantId);
         if (existing && existing.id !== id) {
@@ -1848,8 +1883,9 @@ ${contextText}`
       
       const updateData: Partial<typeof patient> = {};
       if (name !== undefined) {
-        updateData.name = name;
-        updateData.lastName = name.trim().split(/\s+/).pop() || name;
+        const sanitizedName = stripHtml(name);
+        updateData.name = sanitizedName;
+        updateData.lastName = sanitizedName.trim().split(/\s+/).pop() || sanitizedName;
       }
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
@@ -2290,20 +2326,20 @@ ${contextText}`
         status: "interpreter_approved",
         interpreterReviewedBy: interpreterId,
         interpreterReviewedAt: new Date(),
-        interpreterNotes: notes || null,
+        interpreterNotes: notes ? stripHtml(notes) : null,
       };
 
       // Apply any edits the interpreter made
-      if (simplifiedDiagnosis !== undefined) updateData.simplifiedDiagnosis = simplifiedDiagnosis;
-      if (simplifiedInstructions !== undefined) updateData.simplifiedInstructions = simplifiedInstructions;
-      if (simplifiedWarnings !== undefined) updateData.simplifiedWarnings = simplifiedWarnings;
-      if (simplifiedMedications !== undefined) updateData.simplifiedMedications = simplifiedMedications;
-      if (simplifiedAppointments !== undefined) updateData.simplifiedAppointments = simplifiedAppointments;
-      if (translatedDiagnosis !== undefined) updateData.translatedDiagnosis = translatedDiagnosis;
-      if (translatedInstructions !== undefined) updateData.translatedInstructions = translatedInstructions;
-      if (translatedWarnings !== undefined) updateData.translatedWarnings = translatedWarnings;
-      if (translatedMedications !== undefined) updateData.translatedMedications = translatedMedications;
-      if (translatedAppointments !== undefined) updateData.translatedAppointments = translatedAppointments;
+      if (simplifiedDiagnosis !== undefined) updateData.simplifiedDiagnosis = stripHtml(simplifiedDiagnosis);
+      if (simplifiedInstructions !== undefined) updateData.simplifiedInstructions = stripHtml(simplifiedInstructions);
+      if (simplifiedWarnings !== undefined) updateData.simplifiedWarnings = stripHtml(simplifiedWarnings);
+      if (simplifiedMedications !== undefined) updateData.simplifiedMedications = stripHtml(simplifiedMedications);
+      if (simplifiedAppointments !== undefined) updateData.simplifiedAppointments = stripHtml(simplifiedAppointments);
+      if (translatedDiagnosis !== undefined) updateData.translatedDiagnosis = stripHtml(translatedDiagnosis);
+      if (translatedInstructions !== undefined) updateData.translatedInstructions = stripHtml(translatedInstructions);
+      if (translatedWarnings !== undefined) updateData.translatedWarnings = stripHtml(translatedWarnings);
+      if (translatedMedications !== undefined) updateData.translatedMedications = stripHtml(translatedMedications);
+      if (translatedAppointments !== undefined) updateData.translatedAppointments = stripHtml(translatedAppointments);
       
       const updated = await storage.updateCarePlan(id as string, updateData);
       
