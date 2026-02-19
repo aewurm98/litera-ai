@@ -301,7 +301,7 @@ export async function registerRoutes(
   // Route to serve PDF files from attached_assets/mock_pdfs
   app.get("/api/documents/:filename", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
-      const { filename } = req.params;
+      const filename = req.params.filename as string;
       const path = await import("path");
       const fs = await import("fs");
       
@@ -329,7 +329,7 @@ export async function registerRoutes(
   // Authorization: requires either clinician session OR valid patient access token
   app.get("/api/care-plans/:id/document", async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { token } = req.query; // Patient access token from query param
       
       const carePlan = await storage.getCarePlan(id);
@@ -392,7 +392,7 @@ export async function registerRoutes(
   // Serve sample documents for upload dialog
   app.get("/sample-docs/:filename", async (req: Request, res: Response) => {
     try {
-      const { filename } = req.params;
+      const filename = req.params.filename as string;
       const path = await import("path");
       const fs = await import("fs");
       
@@ -757,8 +757,9 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Simplify content
+      // Simplify content — include extractedPatientName so the AI has patient context
       const simplified = await simplifyContent({
+        patientName: carePlan.extractedPatientName || "",
         diagnosis: carePlan.diagnosis || "",
         medications: carePlan.medications || [],
         appointments: carePlan.appointments || [],
@@ -932,6 +933,11 @@ export async function registerRoutes(
         patient = await storage.updatePatient(patient.id, {
           lastName,
         });
+      }
+
+      // Guard: storage operations above should always return a patient record
+      if (!patient) {
+        return res.status(500).json({ error: "Failed to create or retrieve patient record" });
       }
 
       // Generate access token
@@ -1615,7 +1621,7 @@ export async function registerRoutes(
   });
   app.patch("/api/admin/users/:id", requireAdminAuth, validateBody(updateUserSchema), async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { name, role, tenantId } = req.body;
       const isSuperAdmin = req.session.userRole === "super_admin";
       
@@ -1654,7 +1660,7 @@ export async function registerRoutes(
   // Delete user (admin only)
   app.delete("/api/admin/users/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const isSuperAdmin = req.session.userRole === "super_admin";
       
       // Prevent deleting yourself
@@ -1774,7 +1780,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/patients/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const tenantId = req.session.tenantId;
       
       const patient = await storage.getPatient(id);
@@ -1827,7 +1833,7 @@ export async function registerRoutes(
 
   app.delete("/api/admin/patients/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const tenantId = req.session.tenantId;
       
       const patient = await storage.getPatient(id);
@@ -1865,7 +1871,7 @@ export async function registerRoutes(
 
   app.get("/api/admin/patients/:id/care-plans", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const tenantId = req.session.tenantId;
       
       const patient = await storage.getPatient(id);
@@ -2088,8 +2094,8 @@ export async function registerRoutes(
       if (!isSuperAdmin) {
         return res.status(403).json({ error: "Only super admins can update tenants" });
       }
-      
-      const { id } = req.params;
+
+      const id = req.params.id as string;
       const { name, isDemo, interpreterReviewMode } = req.body;
       
       const updateData: any = {};
