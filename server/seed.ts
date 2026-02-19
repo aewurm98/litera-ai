@@ -102,6 +102,7 @@ export async function resetDemoTenant() {
 
 async function seedDemoData() {
   const hashedPassword = await hashPassword("password123");
+  const hashedPin = await hashPassword("1234");
 
   // === TENANT 1: Riverside Community Health ===
   const [tenant1] = await db.insert(tenants).values({
@@ -193,45 +194,45 @@ async function seedDemoData() {
   // === Riverside Patients ===
   const [patient1] = await db.insert(patients).values({
     name: "Rosa Martinez", email: "rosa.martinez@example.com", phone: "+1-555-0101",
-    yearOfBirth: 1956, preferredLanguage: "es", lastName: "Martinez", pin: "1234", tenantId: tenant1.id,
+    yearOfBirth: 1956, preferredLanguage: "es", lastName: "Martinez", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
   const [patient2] = await db.insert(patients).values({
     name: "Nguyen Thi Lan", email: "nguyen.lan@example.com", phone: "+1-555-0102",
-    yearOfBirth: 1968, preferredLanguage: "vi", lastName: "Lan", pin: "1234", tenantId: tenant1.id,
+    yearOfBirth: 1968, preferredLanguage: "vi", lastName: "Lan", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
   const [patient3] = await db.insert(patients).values({
     name: "Wei Zhang", email: "wei.zhang@example.com", phone: "+1-555-0103",
-    yearOfBirth: 1975, preferredLanguage: "zh", lastName: "Zhang", pin: "1234", tenantId: tenant1.id,
+    yearOfBirth: 1975, preferredLanguage: "zh", lastName: "Zhang", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
   const [patient6] = await db.insert(patients).values({
     name: "Amadou Diallo", email: "amadou.diallo@example.com", phone: "+1-555-0106",
-    yearOfBirth: 1985, preferredLanguage: "fr", lastName: "Diallo", pin: "1234", tenantId: tenant1.id,
+    yearOfBirth: 1985, preferredLanguage: "fr", lastName: "Diallo", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
   const [patient8] = await db.insert(patients).values({
     name: "Olga Petrov", email: "olga.petrov@example.com", phone: "+1-555-0108",
-    yearOfBirth: 1948, preferredLanguage: "ru", lastName: "Petrov", pin: "1234", tenantId: tenant1.id,
+    yearOfBirth: 1948, preferredLanguage: "ru", lastName: "Petrov", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
 
   // === Lakeside Patients ===
   const [patient4] = await db.insert(patients).values({
     name: "Fatima Al-Hassan", email: "fatima.alhassan@example.com", phone: "+1-555-0104",
-    yearOfBirth: 1990, preferredLanguage: "ar", lastName: "Al-Hassan", pin: "1234", tenantId: tenant2.id,
+    yearOfBirth: 1990, preferredLanguage: "ar", lastName: "Al-Hassan", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
   const [patient5] = await db.insert(patients).values({
     name: "Aisha Rahman", email: "aisha.rahman@example.com", phone: "+1-555-0105",
-    yearOfBirth: 1978, preferredLanguage: "ar", lastName: "Rahman", pin: "1234", tenantId: tenant2.id,
+    yearOfBirth: 1978, preferredLanguage: "ar", lastName: "Rahman", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
   const [patient7] = await db.insert(patients).values({
     name: "Arjun Sharma", email: "arjun.sharma@example.com", phone: "+1-555-0107",
-    yearOfBirth: 2020, preferredLanguage: "hi", lastName: "Sharma", pin: "1234", tenantId: tenant2.id,
+    yearOfBirth: 2020, preferredLanguage: "hi", lastName: "Sharma", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
   const [patient9] = await db.insert(patients).values({
     name: "Pedro Gutierrez", email: "pedro.gutierrez@example.com", phone: "+1-555-0109",
-    yearOfBirth: 1975, preferredLanguage: "es", lastName: "Gutierrez", pin: "1234", tenantId: tenant2.id,
+    yearOfBirth: 1975, preferredLanguage: "es", lastName: "Gutierrez", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
   const [patient10] = await db.insert(patients).values({
     name: "Tran Van Duc", email: "tran.duc@example.com", phone: "+1-555-0110",
-    yearOfBirth: 1960, preferredLanguage: "vi", lastName: "Duc", pin: "1234", tenantId: tenant2.id,
+    yearOfBirth: 1960, preferredLanguage: "vi", lastName: "Duc", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
 
   console.log("Created demo patients");
@@ -392,12 +393,50 @@ async function seedDemoData() {
     createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
   }).returning();
 
-  // 5. Olga Petrov — DRAFT (COPD)
+  // 5. Olga Petrov — INTERPRETER_REVIEW (COPD, Russian translation)
   const [carePlan8] = await db.insert(carePlans).values({
-    patientId: patient8.id, clinicianId: clinician1.id, tenantId: tenant1.id, status: "draft",
+    patientId: patient8.id, clinicianId: clinician1.id, tenantId: tenant1.id, status: "interpreter_review",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Olga Petrov\nDiagnosis: COPD Exacerbation\n\nMEDICATIONS:\n1. Tiotropium 18mcg - Once daily\n2. Prednisone 40mg - Taper over 5 days\n3. Azithromycin 250mg - Once daily for 5 days\n\nWARNINGS:\n- Call if shortness of breath worsens or oxygen levels drop below 90%",
     originalFileName: "discharge_olga_petrov_copd.pdf", extractedPatientName: "Olga Petrov", diagnosis: "COPD Exacerbation",
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    medications: [
+      { name: "Tiotropium", dose: "18mcg", frequency: "Once daily", instructions: "Inhale once every morning" },
+      { name: "Prednisone", dose: "40mg", frequency: "Taper over 5 days", instructions: "Take with food, follow taper schedule" },
+      { name: "Azithromycin", dose: "250mg", frequency: "Once daily", instructions: "Take for 5 days to treat infection" }
+    ],
+    appointments: [
+      { date: "February 14, 2026", time: "10:00 AM", provider: "Dr. Park", location: "Pulmonology Clinic", purpose: "COPD follow-up" }
+    ],
+    instructions: "Use your inhalers as prescribed. Continue oxygen therapy if prescribed. Avoid cold air and smoke. Do breathing exercises daily.",
+    warnings: "Call 911 or go to the ER if shortness of breath worsens, oxygen levels drop below 90%, or you develop a high fever.",
+    simplifiedDiagnosis: "Your lung disease (COPD) got worse. You were treated in the hospital and are now going home to continue getting better.",
+    simplifiedMedications: [
+      { name: "Tiotropium (inhaler)", dose: "18mcg", frequency: "Once a day", instructions: "Breathe in the medicine every morning" },
+      { name: "Prednisone", dose: "40mg", frequency: "Less each day for 5 days", instructions: "Take with food. Take less each day as the doctor told you." },
+      { name: "Azithromycin", dose: "250mg", frequency: "Once a day", instructions: "Take for 5 days to fight the infection" }
+    ],
+    simplifiedAppointments: [
+      { date: "February 14, 2026", time: "10:00 AM", provider: "Dr. Park", location: "Pulmonology Clinic", purpose: "Check how your lungs are doing" }
+    ],
+    simplifiedInstructions: "Use your inhalers every day. If you have an oxygen machine, use it as the doctor said. Stay away from cold air and smoke. Do the breathing exercises the doctor showed you.",
+    simplifiedWarnings: "Call 911 or go to the hospital right away if: you can't breathe well, your oxygen level is below 90%, or you get a high fever.",
+    translatedLanguage: "ru",
+    translatedDiagnosis: "\u0412\u0430\u0448\u0435 \u0437\u0430\u0431\u043e\u043b\u0435\u0432\u0430\u043d\u0438\u0435 \u043b\u0435\u0433\u043a\u0438\u0445 (\u0425\u041e\u0411\u041b) \u043e\u0431\u043e\u0441\u0442\u0440\u0438\u043b\u043e\u0441\u044c. \u0412\u0430\u0441 \u043b\u0435\u0447\u0438\u043b\u0438 \u0432 \u0431\u043e\u043b\u044c\u043d\u0438\u0446\u0435, \u0438 \u0442\u0435\u043f\u0435\u0440\u044c \u0432\u044b \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442\u0435\u0441\u044c \u0434\u043e\u043c\u043e\u0439 \u0434\u043b\u044f \u0432\u044b\u0437\u0434\u043e\u0440\u043e\u0432\u043b\u0435\u043d\u0438\u044f.",
+    translatedMedications: [
+      { name: "\u0422\u0438\u043e\u0442\u0440\u043e\u043f\u0438\u0443\u043c (\u0438\u043d\u0433\u0430\u043b\u044f\u0442\u043e\u0440)", dose: "18 \u043c\u043a\u0433", frequency: "\u041e\u0434\u0438\u043d \u0440\u0430\u0437 \u0432 \u0434\u0435\u043d\u044c", instructions: "\u0412\u0434\u044b\u0445\u0430\u0439\u0442\u0435 \u043b\u0435\u043a\u0430\u0440\u0441\u0442\u0432\u043e \u043a\u0430\u0436\u0434\u043e\u0435 \u0443\u0442\u0440\u043e" },
+      { name: "\u041f\u0440\u0435\u0434\u043d\u0438\u0437\u043e\u043d", dose: "40 \u043c\u0433", frequency: "\u041c\u0435\u043d\u044c\u0448\u0435 \u043a\u0430\u0436\u0434\u044b\u0439 \u0434\u0435\u043d\u044c \u0432 \u0442\u0435\u0447\u0435\u043d\u0438\u0435 5 \u0434\u043d\u0435\u0439", instructions: "\u041f\u0440\u0438\u043d\u0438\u043c\u0430\u0439\u0442\u0435 \u0441 \u0435\u0434\u043e\u0439. \u0423\u043c\u0435\u043d\u044c\u0448\u0430\u0439\u0442\u0435 \u0434\u043e\u0437\u0443 \u043a\u0430\u0436\u0434\u044b\u0439 \u0434\u0435\u043d\u044c \u043a\u0430\u043a \u0441\u043a\u0430\u0437\u0430\u043b \u0432\u0440\u0430\u0447." },
+      { name: "\u0410\u0437\u0438\u0442\u0440\u043e\u043c\u0438\u0446\u0438\u043d", dose: "250 \u043c\u0433", frequency: "\u041e\u0434\u0438\u043d \u0440\u0430\u0437 \u0432 \u0434\u0435\u043d\u044c", instructions: "\u041f\u0440\u0438\u043d\u0438\u043c\u0430\u0439\u0442\u0435 5 \u0434\u043d\u0435\u0439 \u0434\u043b\u044f \u0431\u043e\u0440\u044c\u0431\u044b \u0441 \u0438\u043d\u0444\u0435\u043a\u0446\u0438\u0435\u0439" }
+    ],
+    translatedAppointments: [
+      { date: "14 \u0444\u0435\u0432\u0440\u0430\u043b\u044f 2026", time: "10:00 \u0443\u0442\u0440\u0430", provider: "\u0414\u043e\u043a\u0442\u043e\u0440 \u041f\u0430\u0440\u043a", location: "\u041f\u0443\u043b\u044c\u043c\u043e\u043d\u043e\u043b\u043e\u0433\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u043a\u043b\u0438\u043d\u0438\u043a\u0430", purpose: "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u0441\u043e\u0441\u0442\u043e\u044f\u043d\u0438\u0435 \u0432\u0430\u0448\u0438\u0445 \u043b\u0435\u0433\u043a\u0438\u0445" }
+    ],
+    translatedInstructions: "\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439\u0442\u0435 \u0438\u043d\u0433\u0430\u043b\u044f\u0442\u043e\u0440\u044b \u043a\u0430\u0436\u0434\u044b\u0439 \u0434\u0435\u043d\u044c. \u0415\u0441\u043b\u0438 \u0443 \u0432\u0430\u0441 \u0435\u0441\u0442\u044c \u043a\u0438\u0441\u043b\u043e\u0440\u043e\u0434\u043d\u044b\u0439 \u0430\u043f\u043f\u0430\u0440\u0430\u0442, \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439\u0442\u0435 \u0435\u0433\u043e \u043a\u0430\u043a \u0441\u043a\u0430\u0437\u0430\u043b \u0432\u0440\u0430\u0447. \u0418\u0437\u0431\u0435\u0433\u0430\u0439\u0442\u0435 \u0445\u043e\u043b\u043e\u0434\u043d\u043e\u0433\u043e \u0432\u043e\u0437\u0434\u0443\u0445\u0430 \u0438 \u0434\u044b\u043c\u0430. \u0412\u044b\u043f\u043e\u043b\u043d\u044f\u0439\u0442\u0435 \u0434\u044b\u0445\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u0435 \u0443\u043f\u0440\u0430\u0436\u043d\u0435\u043d\u0438\u044f, \u043a\u043e\u0442\u043e\u0440\u044b\u0435 \u043f\u043e\u043a\u0430\u0437\u0430\u043b \u0432\u0440\u0430\u0447.",
+    translatedWarnings: "\u0412\u044b\u0437\u043e\u0432\u0438\u0442\u0435 \u0441\u043a\u043e\u0440\u0443\u044e \u043f\u043e\u043c\u043e\u0449\u044c \u0438\u043b\u0438 \u043f\u043e\u0435\u0437\u0436\u0430\u0439\u0442\u0435 \u0432 \u0431\u043e\u043b\u044c\u043d\u0438\u0446\u0443 \u0435\u0441\u043b\u0438: \u0432\u0430\u043c \u0442\u0440\u0443\u0434\u043d\u043e \u0434\u044b\u0448\u0430\u0442\u044c, \u0443\u0440\u043e\u0432\u0435\u043d\u044c \u043a\u0438\u0441\u043b\u043e\u0440\u043e\u0434\u0430 \u043d\u0438\u0436\u0435 90%, \u0438\u043b\u0438 \u0443 \u0432\u0430\u0441 \u0432\u044b\u0441\u043e\u043a\u0430\u044f \u0442\u0435\u043c\u043f\u0435\u0440\u0430\u0442\u0443\u0440\u0430.",
+    backTranslatedDiagnosis: "Your lung disease (COPD) has worsened. You were treated in the hospital and are now returning home to recover.",
+    backTranslatedInstructions: "Use your inhalers every day. If you have an oxygen machine, use it as the doctor said. Avoid cold air and smoke. Do the breathing exercises the doctor showed you.",
+    backTranslatedWarnings: "Call an ambulance or go to the hospital if: you have difficulty breathing, oxygen level is below 90%, or you have a high fever.",
+    interpreterNotes: "Reviewed COPD terminology. Russian medical terms verified for accuracy. Patient is elderly and may need family assistance with inhaler technique.",
+    dischargeDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
   }).returning();
 
   // ========================================
@@ -499,21 +538,108 @@ async function seedDemoData() {
     dischargeDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
   }).returning();
 
-  // 3. Fatima Al-Hassan — DRAFT (gestational diabetes)
+  // 3. Fatima Al-Hassan — INTERPRETER_APPROVED (gestational diabetes, Arabic translation)
+  const tokenFatima = generateToken();
   const [carePlan4] = await db.insert(carePlans).values({
-    patientId: patient4.id, clinicianId: clinician2.id, tenantId: tenant2.id, status: "draft",
+    patientId: patient4.id, clinicianId: clinician2.id, tenantId: tenant2.id, status: "interpreter_approved",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Fatima Al-Hassan\nDiagnosis: Gestational diabetes\n\nMEDICATIONS:\n1. Insulin (as directed)\n2. Prenatal vitamins - Take daily\n\nMONITORING:\n- Check blood sugar 4 times daily\n- Keep food diary\n\nFOLLOW-UP:\n- OB-GYN: Dr. Martinez, February 3, 2026",
     originalFileName: "discharge_fatima_al_hassan_gestational_diabetes.pdf",
     diagnosis: "Gestational diabetes",
+    medications: [
+      { name: "Insulin", dose: "As directed", frequency: "As directed by doctor", instructions: "Inject as your doctor showed you. Keep insulin in the refrigerator." },
+      { name: "Prenatal Vitamins", dose: "1 tablet", frequency: "Once daily", instructions: "Take with food" }
+    ],
+    appointments: [
+      { date: "February 3, 2026", time: "9:00 AM", provider: "Dr. Martinez", location: "OB-GYN Clinic", purpose: "Gestational diabetes follow-up" },
+      { date: "February 17, 2026", time: "2:00 PM", provider: "Dr. Patel", location: "Endocrinology Dept", purpose: "Blood sugar management review" }
+    ],
+    instructions: "Check blood sugar 4 times daily (before meals and at bedtime). Keep a food diary. Follow the meal plan given by the dietitian. Walk for 30 minutes after meals.",
+    warnings: "Call your doctor immediately if your blood sugar is over 200 mg/dL, you feel dizzy or faint, or you have blurred vision.",
+    simplifiedDiagnosis: "You have high blood sugar during your pregnancy. This is called gestational diabetes. It needs to be managed carefully for you and your baby.",
+    simplifiedMedications: [
+      { name: "Insulin (injection)", dose: "As your doctor told you", frequency: "As your doctor told you", instructions: "Give yourself the shot like the doctor showed you. Keep the insulin cold in the fridge." },
+      { name: "Prenatal Vitamins", dose: "1 pill", frequency: "Once a day", instructions: "Take with food" }
+    ],
+    simplifiedAppointments: [
+      { date: "February 3, 2026", time: "9:00 AM", provider: "Dr. Martinez", location: "OB-GYN Clinic", purpose: "Check on your diabetes during pregnancy" },
+      { date: "February 17, 2026", time: "2:00 PM", provider: "Dr. Patel", location: "Endocrinology Dept", purpose: "Check how your blood sugar is being managed" }
+    ],
+    simplifiedInstructions: "Check your blood sugar 4 times a day: before breakfast, before lunch, before dinner, and before bed. Write down everything you eat. Follow the meal plan from the dietitian. Walk for 30 minutes after you eat.",
+    simplifiedWarnings: "Call your doctor right away if: your blood sugar is over 200, you feel dizzy or like you might faint, or things look blurry.",
+    translatedLanguage: "ar",
+    translatedDiagnosis: "\u0644\u062f\u064a\u0643 \u0627\u0631\u062a\u0641\u0627\u0639 \u0641\u064a \u0633\u0643\u0631 \u0627\u0644\u062f\u0645 \u0623\u062b\u0646\u0627\u0621 \u0627\u0644\u062d\u0645\u0644. \u0647\u0630\u0627 \u064a\u0633\u0645\u0649 \u0633\u0643\u0631\u064a \u0627\u0644\u062d\u0645\u0644. \u064a\u062c\u0628 \u0625\u062f\u0627\u0631\u062a\u0647 \u0628\u0639\u0646\u0627\u064a\u0629 \u0645\u0646 \u0623\u062c\u0644\u0643 \u0648\u0645\u0646 \u0623\u062c\u0644 \u0637\u0641\u0644\u0643.",
+    translatedMedications: [
+      { name: "\u0627\u0644\u0623\u0646\u0633\u0648\u0644\u064a\u0646 (\u062d\u0642\u0646\u0629)", dose: "\u0643\u0645\u0627 \u0623\u062e\u0628\u0631\u0643 \u0627\u0644\u0637\u0628\u064a\u0628", frequency: "\u0643\u0645\u0627 \u0623\u062e\u0628\u0631\u0643 \u0627\u0644\u0637\u0628\u064a\u0628", instructions: "\u0627\u062d\u0642\u0646\u064a \u0646\u0641\u0633\u0643 \u0643\u0645\u0627 \u0623\u0631\u0627\u0643 \u0627\u0644\u0637\u0628\u064a\u0628. \u0627\u062d\u0641\u0638\u064a \u0627\u0644\u0623\u0646\u0633\u0648\u0644\u064a\u0646 \u0641\u064a \u0627\u0644\u062b\u0644\u0627\u062c\u0629." },
+      { name: "\u0641\u064a\u062a\u0627\u0645\u064a\u0646\u0627\u062a \u0645\u0627 \u0642\u0628\u0644 \u0627\u0644\u0648\u0644\u0627\u062f\u0629", dose: "\u062d\u0628\u0629 \u0648\u0627\u062d\u062f\u0629", frequency: "\u0645\u0631\u0629 \u0648\u0627\u062d\u062f\u0629 \u0641\u064a \u0627\u0644\u064a\u0648\u0645", instructions: "\u062a\u0646\u0627\u0648\u0644\u064a\u0647\u0627 \u0645\u0639 \u0627\u0644\u0637\u0639\u0627\u0645" }
+    ],
+    translatedAppointments: [
+      { date: "3 \u0641\u0628\u0631\u0627\u064a\u0631 2026", time: "9:00 \u0635\u0628\u0627\u062d\u0627\u064b", provider: "\u062f. \u0645\u0627\u0631\u062a\u064a\u0646\u064a\u0632", location: "\u0639\u064a\u0627\u062f\u0629 \u0627\u0644\u0646\u0633\u0627\u0621 \u0648\u0627\u0644\u062a\u0648\u0644\u064a\u062f", purpose: "\u0641\u062d\u0635 \u0633\u0643\u0631\u064a \u0627\u0644\u062d\u0645\u0644" },
+      { date: "17 \u0641\u0628\u0631\u0627\u064a\u0631 2026", time: "2:00 \u0645\u0633\u0627\u0621\u064b", provider: "\u062f. \u0628\u0627\u062a\u064a\u0644", location: "\u0642\u0633\u0645 \u0627\u0644\u063a\u062f\u062f \u0627\u0644\u0635\u0645\u0627\u0621", purpose: "\u0645\u0631\u0627\u062c\u0639\u0629 \u0625\u062f\u0627\u0631\u0629 \u0633\u0643\u0631 \u0627\u0644\u062f\u0645" }
+    ],
+    translatedInstructions: "\u0627\u0641\u062d\u0635\u064a \u0633\u0643\u0631 \u0627\u0644\u062f\u0645 4 \u0645\u0631\u0627\u062a \u0641\u064a \u0627\u0644\u064a\u0648\u0645: \u0642\u0628\u0644 \u0627\u0644\u0625\u0641\u0637\u0627\u0631\u060c \u0642\u0628\u0644 \u0627\u0644\u063a\u062f\u0627\u0621\u060c \u0642\u0628\u0644 \u0627\u0644\u0639\u0634\u0627\u0621\u060c \u0648\u0642\u0628\u0644 \u0627\u0644\u0646\u0648\u0645. \u0627\u0643\u062a\u0628\u064a \u0643\u0644 \u0645\u0627 \u062a\u0623\u0643\u0644\u064a\u0646. \u0627\u062a\u0628\u0639\u064a \u062e\u0637\u0629 \u0627\u0644\u0648\u062c\u0628\u0627\u062a \u0645\u0646 \u0623\u062e\u0635\u0627\u0626\u064a\u0629 \u0627\u0644\u062a\u063a\u0630\u064a\u0629. \u0627\u0645\u0634\u064a 30 \u062f\u0642\u064a\u0642\u0629 \u0628\u0639\u062f \u0627\u0644\u0623\u0643\u0644.",
+    translatedWarnings: "\u0627\u062a\u0635\u0644\u064a \u0628\u0637\u0628\u064a\u0628\u0643 \u0641\u0648\u0631\u0627\u064b \u0625\u0630\u0627: \u0643\u0627\u0646 \u0633\u0643\u0631 \u0627\u0644\u062f\u0645 \u0623\u0643\u062b\u0631 \u0645\u0646 200\u060c \u0634\u0639\u0631\u062a\u064a \u0628\u0627\u0644\u062f\u0648\u0627\u0631 \u0623\u0648 \u0643\u0623\u0646\u0643 \u0633\u062a\u063a\u0645\u064a\u0646 \u0639\u0644\u064a\u0643\u060c \u0623\u0648 \u0631\u0623\u064a\u062a\u064a \u0627\u0644\u0623\u0634\u064a\u0627\u0621 \u0636\u0628\u0627\u0628\u064a\u0629.",
+    backTranslatedDiagnosis: "You have high blood sugar during pregnancy. This is called gestational diabetes. It must be managed carefully for you and your baby.",
+    backTranslatedInstructions: "Check your blood sugar 4 times a day: before breakfast, before lunch, before dinner, and before bed. Write down everything you eat. Follow the meal plan from the nutrition specialist. Walk 30 minutes after eating.",
+    backTranslatedWarnings: "Call your doctor immediately if: blood sugar is over 200, you feel dizzy or like you might faint, or you see things blurry.",
+    interpreterNotes: "Reviewed gestational diabetes terminology in Arabic. Medical terms verified. Insulin injection instructions clarified for cultural sensitivity.",
+    accessToken: tokenFatima,
+    accessTokenExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    approvedBy: clinician2.id,
+    approvedAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
+    interpreterReviewedBy: interpreter2.id,
+    interpreterReviewedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
     dischargeDate: new Date(),
   }).returning();
 
-  // 4. Arjun Sharma — DRAFT (asthma)
+  // 4. Arjun Sharma — COMPLETED (asthma, Hindi translation)
+  const tokenArjun = generateToken();
   const [carePlan7] = await db.insert(carePlans).values({
-    patientId: patient7.id, clinicianId: clinician2.id, tenantId: tenant2.id, status: "draft",
+    patientId: patient7.id, clinicianId: clinician2.id, tenantId: tenant2.id, status: "completed",
     originalContent: "DISCHARGE SUMMARY\n\nPatient: Arjun Sharma (Pediatric)\nDiagnosis: Acute Asthma Exacerbation\n\nMEDICATIONS:\n1. Albuterol inhaler - Every 4-6 hours as needed\n2. Prednisolone 15mg - Once daily for 5 days\n\nWARNINGS:\n- Return if breathing worsens or lips turn blue",
     originalFileName: "discharge_arjun_sharma_asthma.pdf", extractedPatientName: "Arjun Sharma", diagnosis: "Acute Asthma Exacerbation",
-    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000), updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+    medications: [
+      { name: "Albuterol Inhaler", dose: "2 puffs", frequency: "Every 4-6 hours", instructions: "Use as needed for wheezing or shortness of breath" },
+      { name: "Prednisolone", dose: "15mg", frequency: "Once daily", instructions: "Take for 5 days with food" }
+    ],
+    appointments: [
+      { date: "February 7, 2026", time: "10:00 AM", provider: "Dr. Gupta", location: "Pediatric Clinic", purpose: "Asthma follow-up" },
+      { date: "February 21, 2026", time: "3:00 PM", provider: "Dr. Singh", location: "Pulmonology Dept", purpose: "Lung function test" }
+    ],
+    instructions: "Use the inhaler before physical activity. Avoid known triggers (dust, pollen, cold air). Keep rescue inhaler accessible at all times. Monitor breathing with peak flow meter.",
+    warnings: "Call 911 or go to the ER immediately if: breathing gets much worse, lips or fingernails turn blue, the inhaler is not helping, or the child cannot speak in full sentences.",
+    simplifiedDiagnosis: "Your child had a bad asthma attack. His lungs got very tight and it was hard for him to breathe. He was treated in the hospital and is now better.",
+    simplifiedMedications: [
+      { name: "Albuterol Inhaler (rescue inhaler)", dose: "2 puffs", frequency: "Every 4-6 hours", instructions: "Use when your child is wheezing or having trouble breathing" },
+      { name: "Prednisolone (liquid medicine)", dose: "15mg", frequency: "Once a day", instructions: "Give with food for 5 days to reduce swelling in the lungs" }
+    ],
+    simplifiedAppointments: [
+      { date: "February 7, 2026", time: "10:00 AM", provider: "Dr. Gupta", location: "Pediatric Clinic", purpose: "Check on your child's asthma" },
+      { date: "February 21, 2026", time: "3:00 PM", provider: "Dr. Singh", location: "Pulmonology Dept", purpose: "Test how well your child's lungs are working" }
+    ],
+    simplifiedInstructions: "Use the inhaler before your child plays or runs. Keep your child away from dust, pollen, and cold air. Always keep the rescue inhaler nearby. Use the breathing meter to check how well your child is breathing.",
+    simplifiedWarnings: "Call 911 or go to the hospital right away if: your child can't breathe well, lips or fingernails turn blue, the inhaler doesn't help, or your child can't talk in full sentences.",
+    translatedLanguage: "hi",
+    translatedDiagnosis: "\u0906\u092a\u0915\u0947 \u092c\u091a\u094d\u091a\u0947 \u0915\u094b \u0905\u0938\u094d\u0925\u092e\u0627 \u0915\u0627 \u0924\u0940\u0935\u094d\u0930 \u0926\u094c\u0930\u0627 \u092a\u0921\u093c\u0927\u0930. \u0909\u0938\u0915\u0947 \u092b\u0947\u092b\u0921\u093c\u0947 \u092c\u0939\u0941\u0924 \u0924\u0902\u0917 \u0939\u094b \u0917\u090f \u0925\u0947 \u0914\u0930 \u0909\u0938\u0947 \u0938\u0901\u0938 \u0932\u0947\u0928\u0947 \u092e\u0947\u0902 \u092e\u0941\u0936\u094d\u0915\u093f\u0932 \u0939\u094b \u0930\u0939\u0940 \u0925\u0940\u0964 \u0905\u0938\u094d\u092a\u0924\u0627\u0932 \u092e\u0947\u0902 \u0907\u0932\u0627\u091c \u0939\u0941\u0906 \u0914\u0930 \u0905\u092c \u0935\u0939 \u0920\u0940\u0915 \u0939\u0948\u0964",
+    translatedMedications: [
+      { name: "\u0905\u0932\u094d\u092c\u094d\u092f\u0942\u091f\u0930\u094b\u0932 \u0907\u0928\u0939\u0947\u0932\u0930 (\u0930\u0947\u0938\u094d\u0915\u094d\u092f\u0942 \u0907\u0928\u0939\u0947\u0932\u0930)", dose: "2 \u092a\u092b\u094d\u092b\u094d\u0938", frequency: "\u0939\u0930 4-6 \u0918\u0902\u091f\u0947", instructions: "\u091c\u092c \u092c\u091a\u094d\u091a\u0947 \u0915\u094b \u0938\u0901\u0938 \u0932\u0947\u0928\u0947 \u092e\u0947\u0902 \u0924\u0915\u0932\u0940\u092b \u0939\u094b \u0924\u092c \u0907\u0938\u094d\u0924\u0947\u092e\u0627\u0932 \u0915\u0930\u0947\u0902" },
+      { name: "\u092a\u094d\u0930\u0947\u0921\u0928\u093f\u0938\u094b\u0932\u094b\u0928 (\u0924\u0930\u0932 \u0926\u0935\u0627\u0908)", dose: "15 \u092e\u093f\u0932\u0940\u0917\u094d\u0930\u0927\u092e", frequency: "\u0926\u093f\u0928 \u092e\u0947\u0902 \u090f\u0915 \u092c\u0927\u0930", instructions: "\u092b\u0947\u092b\u0921\u093c\u094b\u0902 \u0915\u0940 \u0938\u0942\u091c\u0928 \u0915\u092e \u0915\u0930\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f 5 \u0926\u093f\u0928 \u0924\u0915 \u0916\u0427\u0928\u0947 \u0915\u0947 \u0938\u0627\u0925 \u0926\u0947\u0902" }
+    ],
+    translatedAppointments: [
+      { date: "7 \u092b\u0930\u0935\u0930\u0940 2026", time: "\u0938\u0941\u092c\u0939 10:00", provider: "\u0921\u0949. \u0917\u0941\u092a\u094d\u0924\u0427", location: "\u092c\u0427\u0932 \u0930\u094b\u0917 \u0915\u094d\u0932\u093f\u0928\u093f\u0915", purpose: "\u092c\u091a\u094d\u091a\u0947 \u0915\u0947 \u0905\u0938\u094d\u0925\u092e\u0927 \u0915\u0940 \u091c\u0427\u0901\u091a" },
+      { date: "21 \u092b\u0930\u0935\u0930\u0940 2026", time: "\u0926\u094b\u092a\u0939\u0930 3:00", provider: "\u0921\u0949. \u0938\u093f\u0902\u0939", location: "\u092a\u0932\u094d\u092e\u094b\u0928\u094b\u0932\u0949\u091c\u0940 \u0935\u093f\u092d\u0427\u0917", purpose: "\u092c\u091a\u094d\u091a\u0947 \u0915\u0947 \u092b\u0947\u092b\u0921\u093c\u094b\u0902 \u0915\u0940 \u091c\u0427\u0901\u091a" }
+    ],
+    translatedInstructions: "\u0916\u0947\u0932\u0928\u0947 \u092f\u0427 \u0926\u094c\u0921\u093c\u0928\u0947 \u0938\u0947 \u092a\u0939\u0932\u0947 \u0907\u0928\u0939\u0947\u0932\u0930 \u0915\u0427 \u0907\u0938\u094d\u0924\u0947\u092e\u0427\u0932 \u0915\u0930\u0947\u0902\u0964 \u092c\u091a\u094d\u091a\u0947 \u0915\u094b \u0927\u0942\u0932, \u092a\u0930\u0427\u0917\u0915\u0923, \u0914\u0930 \u0920\u0902\u0921\u0940 \u0939\u0935\u0427 \u0938\u0947 \u0926\u0942\u0930 \u0930\u0916\u0947\u0902\u0964 \u0930\u0947\u0938\u094d\u0915\u094d\u092f\u0942 \u0907\u0928\u0939\u0947\u0932\u0930 \u0939\u092e\u0947\u0936\u0427 \u092a\u0427\u0938 \u0930\u0916\u0947\u0902\u0964 \u092c\u094d\u0930\u0940\u0926\u093f\u0902\u0917 \u092e\u0940\u091f\u0930 \u0938\u0947 \u0938\u0427\u0901\u0938 \u0915\u0940 \u091c\u0427\u0901\u091a \u0915\u0930\u0947\u0902\u0964",
+    translatedWarnings: "911 \u092a\u0930 \u0915\u0949\u0932 \u0915\u0930\u0947\u0902 \u092f\u0427 \u0924\u0941\u0930\u0902\u0924 \u0905\u0938\u094d\u092a\u0924\u0427\u0932 \u091c\u0427\u090f\u0902 \u092f\u0926\u093f: \u092c\u091a\u094d\u091a\u0947 \u0915\u094b \u0938\u0427\u0901\u0938 \u0932\u0947\u0928\u0947 \u092e\u0947\u0902 \u092c\u0939\u0941\u0924 \u0924\u0915\u0932\u0940\u092b \u0939\u094b, \u0939\u094b\u0902\u0920 \u092f\u0427 \u0928\u0427\u0916\u0942\u0928 \u0928\u0940\u0932\u0947 \u092a\u0921\u093c \u091c\u0427\u090f\u0902, \u0907\u0928\u0939\u0947\u0932\u0930 \u0938\u0947 \u0930\u0427\u0939\u0924 \u0928 \u092e\u093f\u0932\u0947, \u092f\u0427 \u092c\u091a\u094d\u091a\u0427 \u092a\u0942\u0930\u0947 \u0935\u0427\u0915\u094d\u092f \u0928\u0939\u0940\u0902 \u092c\u094b\u0932 \u092a\u0427 \u0930\u0939\u0427\u0964",
+    backTranslatedDiagnosis: "Your child had a severe asthma attack. His lungs became very tight and he had difficulty breathing. He was treated in the hospital and is now better.",
+    backTranslatedInstructions: "Use the inhaler before playing or running. Keep the child away from dust, pollen, and cold air. Always keep the rescue inhaler nearby. Check breathing with the breathing meter.",
+    backTranslatedWarnings: "Call 911 or go to the hospital immediately if: the child has great difficulty breathing, lips or fingernails turn blue, the inhaler doesn't help, or the child cannot speak in full sentences.",
+    interpreterNotes: "Hindi medical terms verified. Pediatric asthma terminology reviewed. Instructions adapted for parent/guardian comprehension.",
+    accessToken: tokenArjun,
+    accessTokenExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    approvedBy: clinician2.id,
+    approvedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+    dischargeDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000),
+    createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
   }).returning();
 
   // 5. Tran Van Duc — DRAFT (stroke)
@@ -554,6 +680,25 @@ async function seedDemoData() {
     responseNotes: "I have a question about my medication timing", alertCreated: true,
   });
 
+  // Lakeside: Green check-in for Arjun (completed care plan)
+  await db.insert(checkIns).values({
+    carePlanId: carePlan7.id, patientId: patient7.id,
+    scheduledFor: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+    sentAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+    attemptNumber: 1, response: "green",
+    respondedAt: new Date(Date.now() - 7.5 * 24 * 60 * 60 * 1000), responseNotes: null,
+  });
+
+  // Lakeside: Red check-in for Arjun (alert created)
+  await db.insert(checkIns).values({
+    carePlanId: carePlan7.id, patientId: patient7.id,
+    scheduledFor: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    sentAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+    attemptNumber: 2, response: "red",
+    respondedAt: new Date(Date.now() - 4.5 * 24 * 60 * 60 * 1000),
+    responseNotes: "Child is wheezing again and inhaler not helping much", alertCreated: true,
+  });
+
   // ========================================
   // AUDIT LOGS — RIVERSIDE (clinician1)
   // ========================================
@@ -592,9 +737,12 @@ async function seedDemoData() {
     { carePlanId: carePlan6.id, userId: clinician1.id, action: "created", details: { fileName: "discharge_amadou_diallo_sickle_cell.pdf" }, createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
   ]);
 
-  // CarePlan 8 (Olga - DRAFT) - only created
+  // CarePlan 8 (Olga - INTERPRETER_REVIEW) - trail up to translation
   await db.insert(auditLogs).values([
     { carePlanId: carePlan8.id, userId: clinician1.id, action: "created", details: { fileName: "discharge_olga_petrov_copd.pdf" }, createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan8.id, userId: clinician1.id, action: "processed", details: { extractedSections: ["diagnosis", "medications", "appointments", "instructions", "warnings"] }, createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 60000) },
+    { carePlanId: carePlan8.id, userId: clinician1.id, action: "simplified", details: { language: "en", readingLevel: "5th grade" }, createdAt: new Date(Date.now() - 4.5 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan8.id, userId: clinician1.id, action: "translated", details: { targetLanguage: "ru", languageName: "Russian" }, createdAt: new Date(Date.now() - 4.5 * 24 * 60 * 60 * 1000 + 60000) },
   ]);
 
   // ========================================
@@ -622,14 +770,26 @@ async function seedDemoData() {
     { carePlanId: carePlan9.id, userId: clinician2.id, action: "approved", details: { approverName: clinician2.name }, createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) },
   ]);
 
-  // CarePlan 4 (Fatima - DRAFT) - only created
+  // CarePlan 4 (Fatima - INTERPRETER_APPROVED) - trail up to interpreter approval
   await db.insert(auditLogs).values([
     { carePlanId: carePlan4.id, userId: clinician2.id, action: "created", details: { fileName: "discharge_fatima_al_hassan_gestational_diabetes.pdf" }, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000) },
+    { carePlanId: carePlan4.id, userId: clinician2.id, action: "processed", details: { extractedSections: ["diagnosis", "medications", "appointments", "instructions", "warnings"] }, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000 + 60000) },
+    { carePlanId: carePlan4.id, userId: clinician2.id, action: "simplified", details: { language: "en", readingLevel: "5th grade" }, createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000) },
+    { carePlanId: carePlan4.id, userId: clinician2.id, action: "translated", details: { targetLanguage: "ar", languageName: "Arabic" }, createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000 + 60000) },
+    { carePlanId: carePlan4.id, userId: interpreter2.id, action: "interpreter_approved", details: { interpreterName: interpreter2.name, language: "Arabic" }, createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000) },
   ]);
 
-  // CarePlan 7 (Arjun - DRAFT) - only created
+  // CarePlan 7 (Arjun - COMPLETED) - full trail
   await db.insert(auditLogs).values([
-    { carePlanId: carePlan7.id, userId: clinician2.id, action: "created", details: { fileName: "discharge_arjun_sharma_asthma.pdf" }, createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan7.id, userId: clinician2.id, action: "created", details: { fileName: "discharge_arjun_sharma_asthma.pdf" }, createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan7.id, userId: clinician2.id, action: "processed", details: { extractedSections: ["diagnosis", "medications", "appointments", "instructions", "warnings"] }, createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000 + 60000) },
+    { carePlanId: carePlan7.id, userId: clinician2.id, action: "simplified", details: { language: "en", readingLevel: "5th grade" }, createdAt: new Date(Date.now() - 13 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan7.id, userId: clinician2.id, action: "translated", details: { targetLanguage: "hi", languageName: "Hindi" }, createdAt: new Date(Date.now() - 13 * 24 * 60 * 60 * 1000 + 60000) },
+    { carePlanId: carePlan7.id, userId: clinician2.id, action: "approved", details: { approverName: clinician2.name }, createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan7.id, userId: clinician2.id, action: "sent", details: { email: patient7.email, patientName: patient7.name }, createdAt: new Date(Date.now() - 9.5 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan7.id, userId: null, action: "viewed", details: { patientAccess: true, patientName: patient7.name }, createdAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan7.id, userId: null, action: "check_in_responded", details: { response: "green", responseText: "Child is doing well, using inhaler as directed" }, createdAt: new Date(Date.now() - 7.5 * 24 * 60 * 60 * 1000) },
+    { carePlanId: carePlan7.id, userId: null, action: "check_in_responded", details: { response: "red", responseText: "Child is wheezing again and inhaler not helping much", alertCreated: true }, createdAt: new Date(Date.now() - 4.5 * 24 * 60 * 60 * 1000) },
   ]);
 
   // CarePlan 10 (Tran - DRAFT) - only created
@@ -650,7 +810,7 @@ async function seedDemoData() {
   console.log("  2. Nguyen Thi Lan - APPROVED (Vietnamese, ready to send)");
   console.log("  3. Wei Zhang - PENDING_REVIEW (Chinese)");
   console.log("  4. Amadou Diallo - DRAFT (French, just uploaded)");
-  console.log("  5. Olga Petrov - DRAFT (Russian, just uploaded)");
+  console.log("  5. Olga Petrov - INTERPRETER_REVIEW (Russian, awaiting interpreter review)");
   console.log("PATIENT PORTAL:");
   console.log(`  Rosa Martinez: /p/${token1} (YOB: 1956)`);
   console.log(`  Nguyen Thi Lan: /p/${token2} (YOB: 1968)`);
@@ -663,12 +823,13 @@ async function seedDemoData() {
   console.log("CARE PLANS:");
   console.log("  1. Aisha Rahman - SENT (Arabic, yellow alert check-in)");
   console.log("  2. Pedro Gutierrez - APPROVED (Spanish, ready to send)");
-  console.log("  3. Fatima Al-Hassan - DRAFT (Arabic, just uploaded)");
-  console.log("  4. Arjun Sharma - DRAFT (Hindi, just uploaded)");
+  console.log("  3. Fatima Al-Hassan - INTERPRETER_APPROVED (Arabic, interpreter verified)");
+  console.log("  4. Arjun Sharma - COMPLETED (Hindi, green + red check-ins)");
   console.log("  5. Tran Van Duc - DRAFT (Vietnamese, just uploaded)");
   console.log("PATIENT PORTAL:");
   console.log(`  Aisha Rahman: /p/${token5} (YOB: 1978)`);
   console.log(`  Pedro Gutierrez: /p/${tokenPedro} (YOB: 1975)`);
+  console.log(`  Arjun Sharma: /p/${tokenArjun} (YOB: 2020)`);
 
   console.log("\n--- PLATFORM ADMIN ---");
   console.log("  Super Admin: admin / password123 (Angela Torres)");

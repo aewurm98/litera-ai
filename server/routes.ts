@@ -585,6 +585,39 @@ export async function registerRoutes(
     });
   });
   
+  // ============= Tenant Settings API =============
+
+  app.patch("/api/tenant/settings", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.session.tenantId;
+      if (!tenantId) {
+        return res.status(400).json({ error: "No tenant associated with your account" });
+      }
+
+      const schema = z.object({
+        interpreterReviewMode: z.enum(["disabled", "optional", "required"]),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Validation failed", details: parsed.error.errors });
+      }
+
+      const updated = await storage.updateTenant(tenantId, {
+        interpreterReviewMode: parsed.data.interpreterReviewMode,
+      });
+
+      if (!updated) {
+        return res.status(404).json({ error: "Tenant not found" });
+      }
+
+      res.json({ success: true, interpreterReviewMode: updated.interpreterReviewMode });
+    } catch (error) {
+      console.error("Error updating tenant settings:", error);
+      res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
   // ============= Care Plans API (Clinician) =============
   
   // Get all care plans (for clinician dashboard)
@@ -1697,6 +1730,7 @@ export async function registerRoutes(
       
       const lastName = name.trim().split(/\s+/).pop() || name;
       const pin = Math.floor(1000 + Math.random() * 9000).toString();
+      const hashedPin = await bcrypt.hash(pin, 10);
       
       const patient = await storage.createPatient({
         name,
@@ -1704,7 +1738,7 @@ export async function registerRoutes(
         email,
         phone: phone || null,
         yearOfBirth,
-        pin,
+        pin: hashedPin,
         preferredLanguage: preferredLanguage || "en",
         tenantId,
       });
@@ -1950,6 +1984,7 @@ export async function registerRoutes(
         
         const lastName = name.trim().split(/\s+/).pop() || name;
         const pin = Math.floor(1000 + Math.random() * 9000).toString();
+        const hashedPin = await bcrypt.hash(pin, 10);
         
         await storage.createPatient({
           name,
@@ -1957,7 +1992,7 @@ export async function registerRoutes(
           email,
           phone: phone || null,
           yearOfBirth,
-          pin,
+          pin: hashedPin,
           preferredLanguage: lang || "en",
           tenantId,
         });
@@ -2261,6 +2296,144 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error requesting changes:", error);
       res.status(500).json({ error: "Failed to request changes" });
+    }
+  });
+
+  // ============= Analytics API =============
+  app.get("/api/analytics", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userRole = req.session.userRole;
+      const tenantId = req.session.tenantId;
+
+      const { db } = await import("./db");
+      const { carePlans, checkIns } = await import("@shared/schema");
+      const { eq, sql, isNotNull, inArray } = await import("drizzle-orm");
+
+      const tenantFilter = userRole === "super_admin" || !tenantId
+        ? undefined
+        : eq(carePlans.tenantId, tenantId);
+
+      const allPlans = tenantFilter
+        ? await db.select().from(carePlans).where(tenantFilter)
+        : await db.select().from(carePlans);
+
+      const statusCounts: Record<string, number> = {};
+      for (const status of ["draft", "pending_review", "interpreter_review", "interpreter_approved", "approved", "sent", "completed"]) {
+        statusCounts[status] = 0;
+      }
+      let simplified = 0;
+      let translated = 0;
+      let sentToPatient = 0;
+
+      const sentOrCompletedPlanIds: string[] = [];
+      const allPlanIds: string[] = [];
+
+      for (const plan of allPlans) {
+        statusCounts[plan.status] = (statusCounts[plan.status] || 0) + 1;
+        if (plan.simplifiedDiagnosis) simplified++;
+        if (plan.translatedLanguage) translated++;
+        if (plan.status === "sent" || plan.status === "completed") {
+          sentToPatient++;
+          sentOrCompletedPlanIds.push(plan.id);
+        }
+        allPlanIds.push(plan.id);
+      }
+
+      let allCheckIns: Array<{
+        id: string;
+        carePlanId: string;
+        patientId: string;
+        response: string | null;
+        respondedAt: Date | null;
+        scheduledFor: Date;
+      }> = [];
+
+      if (allPlanIds.length > 0) {
+        allCheckIns = await db.select({
+          id: checkIns.id,
+          carePlanId: checkIns.carePlanId,
+          patientId: checkIns.patientId,
+          response: checkIns.response,
+          respondedAt: checkIns.respondedAt,
+          scheduledFor: checkIns.scheduledFor,
+        }).from(checkIns).where(inArray(checkIns.carePlanId, allPlanIds));
+      }
+
+      const totalCheckIns = allCheckIns.length;
+      const respondedCheckIns = allCheckIns.filter(c => c.respondedAt !== null);
+      const responded = respondedCheckIns.length;
+      const responseRate = totalCheckIns > 0 ? Math.round((responded / totalCheckIns) * 100) : 0;
+      const green = respondedCheckIns.filter(c => c.response === "green").length;
+      const yellow = respondedCheckIns.filter(c => c.response === "yellow").length;
+      const red = respondedCheckIns.filter(c => c.response === "red").length;
+
+      const sentPlans = allPlans.filter(p => p.status === "sent" || p.status === "completed");
+      const uniquePatientsSent = new Set(sentPlans.map(p => p.patientId).filter(Boolean));
+      const totalPatientsSent = uniquePatientsSent.size;
+
+      const checkInsByPatient = new Map<string, typeof allCheckIns>();
+      for (const ci of allCheckIns) {
+        if (!ci.patientId) continue;
+        if (!checkInsByPatient.has(ci.patientId)) {
+          checkInsByPatient.set(ci.patientId, []);
+        }
+        checkInsByPatient.get(ci.patientId)!.push(ci);
+      }
+
+      let eligible99495 = 0;
+      let eligible99496 = 0;
+
+      const planMap = new Map(allPlans.map(p => [p.id, p]));
+
+      for (const patientId of uniquePatientsSent) {
+        const patientCheckIns = checkInsByPatient.get(patientId!) || [];
+        const respondedCIs = patientCheckIns.filter(c => c.respondedAt !== null);
+
+        if (respondedCIs.length >= 2) {
+          eligible99495++;
+        }
+
+        const patientSentPlans = sentPlans.filter(p => p.patientId === patientId);
+        for (const plan of patientSentPlans) {
+          if (!plan.dischargeDate) continue;
+          const dischargeTime = new Date(plan.dischargeDate).getTime();
+          const within48h = respondedCIs.some(ci => {
+            if (ci.carePlanId !== plan.id) return false;
+            const respondedTime = new Date(ci.respondedAt!).getTime();
+            return respondedTime - dischargeTime <= 48 * 60 * 60 * 1000 && respondedTime >= dischargeTime;
+          });
+          if (within48h) {
+            eligible99496++;
+            break;
+          }
+        }
+      }
+
+      res.json({
+        statusCounts,
+        pipeline: {
+          uploaded: allPlans.length,
+          simplified,
+          translated,
+          sentToPatient,
+        },
+        checkIns: {
+          total: totalCheckIns,
+          responded,
+          responseRate,
+          green,
+          yellow,
+          red,
+        },
+        tcm: {
+          totalPatientsSent,
+          eligible99495,
+          eligible99496,
+        },
+      });
+    } catch (error) {
+      console.error("Analytics error:", error);
+      res.status(500).json({ error: "Failed to compute analytics" });
     }
   });
 
