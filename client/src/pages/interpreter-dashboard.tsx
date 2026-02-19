@@ -31,8 +31,10 @@ import {
   ArrowLeft,
   Eye,
   AlertTriangle,
+  User,
 } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
+import { format } from "date-fns";
 
 interface CarePlan {
   id: string;
@@ -158,8 +160,14 @@ function ReviewPanel({ carePlan, onBack }: { carePlan: CarePlan; onBack: () => v
         <div>
           <h2 className="text-xl font-semibold">Review Care Plan</h2>
           <p className="text-sm text-muted-foreground">
-            {carePlan.extractedPatientName || carePlan.patient?.name || "Unknown Patient"} - {getLanguageName(carePlan.translatedLanguage || "en")}
+            {carePlan.extractedPatientName || carePlan.patient?.name || "Unknown Patient"} — {getLanguageName(carePlan.translatedLanguage || "en")}
           </p>
+          <div className="flex items-center gap-2 mt-1">
+            <User className="h-3 w-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
+              Created by {carePlan.clinician?.name || "Unknown Clinician"} · {format(new Date(carePlan.createdAt), "MMM d, yyyy")}
+            </span>
+          </div>
         </div>
         <Badge variant="outline" className="ml-auto">{carePlan.originalFileName}</Badge>
       </div>
@@ -540,7 +548,7 @@ export default function InterpreterDashboard() {
                     <Badge variant="secondary">{getLanguageName(cp.translatedLanguage || "en")}</Badge>
                     <Badge variant="outline">{cp.clinician?.name || "Unknown Clinician"}</Badge>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(cp.updatedAt).toLocaleDateString()}
+                      {format(new Date(cp.updatedAt), "MMM d, yyyy")}
                     </p>
                   </div>
                 </div>
@@ -570,7 +578,7 @@ export default function InterpreterDashboard() {
                       {cp.status === "interpreter_approved" ? "Approved" : cp.status}
                     </Badge>
                     <p className="text-xs text-muted-foreground">
-                      {cp.interpreterReviewedAt ? new Date(cp.interpreterReviewedAt).toLocaleDateString() : ""}
+                      {cp.interpreterReviewedAt ? format(new Date(cp.interpreterReviewedAt), "MMM d, yyyy") : ""}
                     </p>
                   </div>
                 </div>

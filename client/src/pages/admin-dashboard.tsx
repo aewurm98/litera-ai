@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -185,14 +185,7 @@ export default function AdminDashboard() {
   const [editUserForm, setEditUserForm] = useState<{ id: string; name: string; role: string; tenantId: string }>({ id: "", name: "", role: "", tenantId: "" });
   const [editTenantForm, setEditTenantForm] = useState<{ id: string; name: string; isDemo: boolean }>({ id: "", name: "", isDemo: false });
 
-  const [patientView, setPatientView] = useState<"table" | "kanban">(() => {
-    const saved = localStorage.getItem("litera-patient-view");
-    return saved === "kanban" ? "kanban" : "table";
-  });
-  const handlePatientViewChange = (view: "table" | "kanban") => {
-    setPatientView(view);
-    localStorage.setItem("litera-patient-view", view);
-  };
+  const [patientView, setPatientView] = useState<"table" | "kanban">("table");
 
   const [isCreatePatientDialogOpen, setIsCreatePatientDialogOpen] = useState(false);
   const [isEditPatientDialogOpen, setIsEditPatientDialogOpen] = useState(false);
@@ -215,6 +208,23 @@ export default function AdminDashboard() {
     queryKey: ["/api/auth/me"],
   });
   const isSuperAdmin = currentUser?.role === "super_admin";
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      const key = `litera-patient-view-${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved === "kanban" || saved === "table") {
+        setPatientView(saved);
+      }
+    }
+  }, [currentUser?.id]);
+
+  const handlePatientViewChange = (view: "table" | "kanban") => {
+    setPatientView(view);
+    if (currentUser?.id) {
+      localStorage.setItem(`litera-patient-view-${currentUser.id}`, view);
+    }
+  };
 
   // Fetch all care plans
   const { data: carePlans = [], isLoading } = useQuery<CarePlanWithDetails[]>({
