@@ -10,6 +10,12 @@ Litera.ai is a healthcare companion platform designed to assist clinicians in ge
 
 ## Recent Changes
 
+- **2026-02-19 — Experiments Sandbox**:
+  - Created `/experiments` hub page with three isolated experiment environments.
+  - Comprehension Evaluation (`/experiments/comprehension`): Hardcoded patient portal with English/Spanish toggle, TTS, and AI chatbot (OpenAI-powered Q&A about the care plan content). No login, no tenant, no check-in.
+  - Embeddable Login Demo (`/experiments/login-demo`): Unified login with role tabs (clinician/admin/interpreter/patient), quick-access credential buttons, iframe-friendly.
+  - Interpreter Sandbox (`/experiments/interpreter`): 3-column review interface with editable translations (diagnosis, instructions, warnings, medications, appointments). All changes stored in React state only — never persisted. Name-only entry, mock approve/request-changes flow.
+  - Backend: Added `POST /api/experiments/chat` endpoint (no auth) for care plan Q&A chatbot.
 - **2026-02-19 — Product Improvements Sprint**: 
   - Fixed patient login: PINs now properly hashed with bcrypt in seed data (was plaintext causing verification failures). Error toast shows actual server message.
   - Admin patient detail redesigned: clinical summary (care plan count, latest status, last check-in) replaces auth-centric fields. Demographics collapsed by default.

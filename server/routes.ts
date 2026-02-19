@@ -1468,6 +1468,68 @@ export async function registerRoutes(
 
   // ============= Environment Info Endpoint =============
   // Returns environment info for frontend feature flags
+  // ============= Experiments API (Sandbox - no auth required) =============
+  const experimentChatLimiter = new Map<string, { count: number; resetAt: number }>();
+  app.post("/api/experiments/chat", async (req: Request, res: Response) => {
+    const ip = req.ip || "unknown";
+    const now = Date.now();
+    const entry = experimentChatLimiter.get(ip);
+    if (entry && entry.resetAt > now) {
+      if (entry.count >= 20) {
+        return res.status(429).json({ answer: "You've reached the question limit. Please try again later." });
+      }
+      entry.count++;
+    } else {
+      experimentChatLimiter.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    }
+    try {
+      const { question, language, carePlanContext } = req.body;
+      if (!question || !carePlanContext) {
+        return res.status(400).json({ error: "Question and care plan context are required" });
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const contextText = `
+Diagnosis: ${carePlanContext.diagnosis || ""}
+Instructions: ${carePlanContext.instructions || ""}
+Warnings: ${carePlanContext.warnings || ""}
+Medications: ${JSON.stringify(carePlanContext.medications || [])}
+Appointments: ${JSON.stringify(carePlanContext.appointments || [])}
+`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are a helpful healthcare assistant that answers patient questions about their discharge care plan. 
+Respond in ${language || "English"} at a 5th-grade reading level. 
+Be warm, clear, and reassuring. Only answer questions based on the care plan information provided below. 
+If the patient asks about something not covered in their care plan, kindly suggest they contact their care team.
+Do NOT provide medical advice beyond what is in the care plan.
+Keep responses concise (2-4 sentences).
+
+Care Plan Information:
+${contextText}`
+          },
+          { role: "user", content: question },
+        ],
+        max_tokens: 300,
+      });
+
+      const answer = response.choices[0]?.message?.content || "I'm sorry, I couldn't answer that question.";
+      res.json({ answer });
+    } catch (error: any) {
+      console.error("Experiment chat error:", error);
+      res.status(500).json({ answer: "Sorry, I had trouble answering. Please try again." });
+    }
+  });
+
   app.get("/api/env-info", (req: Request, res: Response) => {
     res.json({ 
       isDemoMode,
