@@ -63,6 +63,7 @@ import {
   ChevronsUpDown,
   RotateCcw,
   X,
+  PenLine,
 } from "lucide-react";
 import type {
   CarePlan,
@@ -293,6 +294,26 @@ export default function ClinicianDashboard() {
   ]);
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
+  const [clinicianEdits, setClinicianEdits] = useState<Record<string, string>>({});
+  const isEditable = selectedCarePlan?.status === "pending_review" || selectedCarePlan?.status === "interpreter_approved";
+  const hasEdits = Object.keys(clinicianEdits).length > 0;
+
+  const getEditValue = (field: string, original: string | null | undefined) => {
+    if (field in clinicianEdits) return clinicianEdits[field];
+    return original || "";
+  };
+
+  const handleEditField = (field: string, value: string) => {
+    const originalValue = (selectedCarePlan as any)?.[field] || "";
+    if (value === originalValue) {
+      const next = { ...clinicianEdits };
+      delete next[field];
+      setClinicianEdits(next);
+    } else {
+      setClinicianEdits({ ...clinicianEdits, [field]: value });
+    }
+  };
+
   // Patient form state
   const [patientName, setPatientName] = useState("");
   const [patientEmail, setPatientEmail] = useState("");
@@ -332,6 +353,10 @@ export default function ClinicianDashboard() {
   const scrollAreaRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Check if all content is visible without scrolling
+  useEffect(() => {
+    setClinicianEdits({});
+  }, [selectedCarePlan?.id]);
+
   useEffect(() => {
     if (selectedCarePlan?.status === "pending_review") {
       setColumnsScrolled([false, false, false]);
@@ -467,16 +492,18 @@ export default function ClinicianDashboard() {
 
   // Approve mutation
   const approveMutation = useMutation({
-    mutationFn: async ({ id, skipInterpreterReview, overrideJustification }: { id: string; skipInterpreterReview?: boolean; overrideJustification?: string }) => {
+    mutationFn: async ({ id, skipInterpreterReview, overrideJustification, clinicianEdits }: { id: string; skipInterpreterReview?: boolean; overrideJustification?: string; clinicianEdits?: Record<string, string> }) => {
       const res = await apiRequest("POST", `/api/care-plans/${id}/approve`, {
         skipInterpreterReview,
         overrideJustification,
+        clinicianEdits,
       });
       return res.json() as Promise<CarePlanWithPatient>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
       setSelectedCarePlan(data);
+      setClinicianEdits({});
       if (data.status === "interpreter_review") {
         toast({
           title: "Sent for interpreter review",
@@ -485,7 +512,7 @@ export default function ClinicianDashboard() {
       } else {
         toast({
           title: "Care plan approved",
-          description: "Ready to send to patient",
+          description: hasEdits ? "Your edits have been saved and the care plan is approved." : "Ready to send to patient",
         });
       }
     },
@@ -946,11 +973,11 @@ export default function ClinicianDashboard() {
                   <Button
                     onClick={() => {
                       if (selectedCarePlan.status === "interpreter_approved") {
-                        approveMutation.mutate({ id: selectedCarePlan.id });
+                        approveMutation.mutate({ id: selectedCarePlan.id, clinicianEdits: hasEdits ? clinicianEdits : undefined });
                       } else if (interpreterReviewMode === "optional" && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en") {
                         setIsOverrideDialogOpen(true);
                       } else {
-                        approveMutation.mutate({ id: selectedCarePlan.id });
+                        approveMutation.mutate({ id: selectedCarePlan.id, clinicianEdits: hasEdits ? clinicianEdits : undefined });
                       }
                     }}
                     disabled={approveMutation.isPending || (!hasScrolledAll && selectedCarePlan.status === "pending_review")}
@@ -961,7 +988,9 @@ export default function ClinicianDashboard() {
                     ) : (
                       <Check className="h-4 w-4 mr-2" />
                     )}
-                    {selectedCarePlan.status === "interpreter_approved" ? "Final Approve" : "Verify & Approve"}
+                    {selectedCarePlan.status === "interpreter_approved" 
+                      ? (hasEdits ? "Save Edits & Final Approve" : "Final Approve") 
+                      : (hasEdits ? "Save Edits & Approve" : "Verify & Approve")}
                   </Button>
                 )}
                 {selectedCarePlan.status === "interpreter_review" && (
@@ -1235,8 +1264,28 @@ export default function ClinicianDashboard() {
                       <CardTitle className="text-sm flex items-center gap-2">
                         <ClipboardList className="h-4 w-4" />
                         Simplified English
+                        {isEditable && (
+                          <Badge variant="outline" className="text-xs ml-auto">
+                            <PenLine className="h-3 w-3 mr-1" />
+                            Editable
+                          </Badge>
+                        )}
                       </CardTitle>
-                      <CardDescription>5th grade reading level</CardDescription>
+                      <CardDescription className="flex items-center gap-2 flex-wrap">
+                        {isEditable ? "Review and edit if needed" : "5th grade reading level"}
+                        {hasEdits && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 px-1 text-[10px]"
+                            onClick={() => setClinicianEdits({})}
+                            data-testid="button-reset-edits"
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            Reset edits
+                          </Button>
+                        )}
+                      </CardDescription>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-hidden p-0">
                       <div
@@ -1252,11 +1301,15 @@ export default function ClinicianDashboard() {
                               <Label className="text-xs text-primary uppercase tracking-wide flex items-center gap-1">
                                 <Stethoscope className="h-3 w-3" />
                                 What's Wrong
+                                {"simplifiedDiagnosis" in clinicianEdits && (
+                                  <Badge variant="secondary" className="ml-auto text-[10px]">edited</Badge>
+                                )}
                               </Label>
                               <Textarea
-                                className="mt-2 min-h-[60px] resize-none bg-background"
-                                value={selectedCarePlan.simplifiedDiagnosis}
-                                readOnly
+                                className={`mt-2 min-h-[60px] resize-none bg-background ${isEditable ? "border-primary/40" : ""}`}
+                                value={getEditValue("simplifiedDiagnosis", selectedCarePlan.simplifiedDiagnosis)}
+                                readOnly={!isEditable}
+                                onChange={(e) => handleEditField("simplifiedDiagnosis", e.target.value)}
                                 data-testid="textarea-simplified-diagnosis"
                               />
                             </div>
@@ -1278,11 +1331,15 @@ export default function ClinicianDashboard() {
                               <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
                                 <ClipboardList className="h-3 w-3" />
                                 What to Do
+                                {"simplifiedInstructions" in clinicianEdits && (
+                                  <Badge variant="secondary" className="ml-auto text-[10px]">edited</Badge>
+                                )}
                               </Label>
                               <Textarea
-                                className="mt-2 min-h-[100px] resize-none bg-background"
-                                value={formatContent(selectedCarePlan.simplifiedInstructions)}
-                                readOnly
+                                className={`mt-2 min-h-[100px] resize-none bg-background ${isEditable ? "border-primary/40" : ""}`}
+                                value={getEditValue("simplifiedInstructions", formatContent(selectedCarePlan.simplifiedInstructions))}
+                                readOnly={!isEditable}
+                                onChange={(e) => handleEditField("simplifiedInstructions", e.target.value)}
                                 data-testid="textarea-simplified-instructions"
                               />
                             </div>
@@ -1292,11 +1349,15 @@ export default function ClinicianDashboard() {
                               <Label className="text-xs text-destructive uppercase tracking-wide flex items-center gap-1">
                                 <AlertTriangle className="h-3 w-3" />
                                 Warning Signs
+                                {"simplifiedWarnings" in clinicianEdits && (
+                                  <Badge variant="secondary" className="ml-auto text-[10px]">edited</Badge>
+                                )}
                               </Label>
                               <Textarea
-                                className="mt-2 min-h-[60px] resize-none bg-background border-destructive/50"
-                                value={formatContent(selectedCarePlan.simplifiedWarnings)}
-                                readOnly
+                                className={`mt-2 min-h-[60px] resize-none bg-background ${isEditable ? "border-destructive/50 border-primary/40" : "border-destructive/50"}`}
+                                value={getEditValue("simplifiedWarnings", formatContent(selectedCarePlan.simplifiedWarnings))}
+                                readOnly={!isEditable}
+                                onChange={(e) => handleEditField("simplifiedWarnings", e.target.value)}
                                 data-testid="textarea-simplified-warnings"
                               />
                             </div>
@@ -1837,7 +1898,7 @@ export default function ClinicianDashboard() {
               className="w-full"
               onClick={() => {
                 if (selectedCarePlan) {
-                  approveMutation.mutate({ id: selectedCarePlan.id });
+                  approveMutation.mutate({ id: selectedCarePlan.id, clinicianEdits: hasEdits ? clinicianEdits : undefined });
                   setIsOverrideDialogOpen(false);
                 }
               }}
@@ -1873,6 +1934,7 @@ export default function ClinicianDashboard() {
                       id: selectedCarePlan.id,
                       skipInterpreterReview: true,
                       overrideJustification: overrideJustification.trim(),
+                      clinicianEdits: hasEdits ? clinicianEdits : undefined,
                     });
                     setIsOverrideDialogOpen(false);
                     setOverrideJustification("");
