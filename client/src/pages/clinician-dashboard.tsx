@@ -356,6 +356,11 @@ export default function ClinicianDashboard() {
     queryKey: ["/api/care-plans"],
   });
 
+  type SimplePatient = { id: string; name: string; lastName: string | null; email: string; phone: string | null; yearOfBirth: number; preferredLanguage: string };
+  const { data: existingPatients = [] } = useQuery<SimplePatient[]>({
+    queryKey: ["/api/patients"],
+  });
+
   // Sort and filter care plans
   const carePlans = carePlansRaw
     .filter((plan) => filterStatus === "all" || plan.status === filterStatus)
@@ -1616,10 +1621,40 @@ export default function ClinicianDashboard() {
             <DialogDescription>
               {selectedCarePlan?.patient
                 ? "Confirm patient information and send their care instructions via email."
-                : "Enter the patient's contact information to send them their care instructions."}
+                : "Select an existing patient or enter new patient information."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {!selectedCarePlan?.patient && existingPatients.length > 0 && (
+              <div className="space-y-2">
+                <Label>Select Existing Patient</Label>
+                <Select
+                  value=""
+                  onValueChange={(patientId) => {
+                    const p = existingPatients.find(pt => pt.id === patientId);
+                    if (p) {
+                      setPatientName(p.name);
+                      setPatientEmail(p.email);
+                      setPatientPhone(p.phone || "");
+                      setPatientYearOfBirth(p.yearOfBirth.toString());
+                      setPatientLanguage(p.preferredLanguage || "en");
+                      setFormTouched({ name: true, email: true, yearOfBirth: true });
+                    }
+                  }}
+                >
+                  <SelectTrigger data-testid="select-existing-patient">
+                    <SelectValue placeholder="Choose a patient or enter details below..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {existingPatients.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({p.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="patient-name" className={formErrors.name ? "text-destructive" : ""}>
                 Patient Name {formErrors.name && <span className="text-xs font-normal">*</span>}

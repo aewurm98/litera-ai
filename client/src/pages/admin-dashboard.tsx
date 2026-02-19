@@ -33,7 +33,8 @@ import {
   UserPlus,
   Plus,
   Trash2,
-  Pencil
+  Pencil,
+  Upload
 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
@@ -75,6 +76,93 @@ type UserWithTenant = {
   tenant: Tenant | null;
 };
 
+type EnrichedPatient = {
+  id: string;
+  name: string;
+  lastName: string | null;
+  email: string;
+  phone: string | null;
+  yearOfBirth: number;
+  preferredLanguage: string;
+  tenantId: string | null;
+  createdAt: string;
+  carePlanCount: number;
+  lastCarePlanStatus: string | null;
+  lastCarePlanDate: string | null;
+};
+
+function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPatient; getStatusBadge: (status: string) => JSX.Element }) {
+  const { data: patientCarePlans = [], isLoading: carePlansLoading } = useQuery<CarePlanWithDetails[]>({
+    queryKey: ["/api/admin/patients", patient.id, "care-plans"],
+    enabled: true,
+  });
+
+  return (
+    <ScrollArea className="flex-1 pr-4">
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase">Name</Label>
+            <p className="font-medium" data-testid="text-patient-detail-name">{patient.name}{patient.lastName ? ` ${patient.lastName}` : ""}</p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase">Email</Label>
+            <p data-testid="text-patient-detail-email">{patient.email}</p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase">Phone</Label>
+            <p data-testid="text-patient-detail-phone">{patient.phone || "\u2014"}</p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase">Language</Label>
+            <p data-testid="text-patient-detail-language">{SUPPORTED_LANGUAGES.find(l => l.code === patient.preferredLanguage)?.name || patient.preferredLanguage}</p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase">Year of Birth</Label>
+            <p data-testid="text-patient-detail-yob">{patient.yearOfBirth}</p>
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-xs text-muted-foreground uppercase mb-3 block">Care Plan History</Label>
+          {carePlansLoading ? (
+            <div className="text-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+            </div>
+          ) : patientCarePlans.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No care plans found</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Clinician</TableHead>
+                  <TableHead>Language</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {patientCarePlans.map((cp) => (
+                  <TableRow key={cp.id} data-testid={`row-care-plan-${cp.id}`}>
+                    <TableCell>
+                      {cp.createdAt ? format(new Date(cp.createdAt), "MMM d, yyyy") : "\u2014"}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(cp.status)}</TableCell>
+                    <TableCell>{cp.clinician?.name || "\u2014"}</TableCell>
+                    <TableCell>
+                      {SUPPORTED_LANGUAGES.find(l => l.code === cp.translatedLanguage)?.name || "\u2014"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </div>
+    </ScrollArea>
+  );
+}
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -92,6 +180,16 @@ export default function AdminDashboard() {
   const [newTenantForm, setNewTenantForm] = useState({ name: "", slug: "", isDemo: false });
   const [editUserForm, setEditUserForm] = useState<{ id: string; name: string; role: string; tenantId: string }>({ id: "", name: "", role: "", tenantId: "" });
   const [editTenantForm, setEditTenantForm] = useState<{ id: string; name: string; isDemo: boolean }>({ id: "", name: "", isDemo: false });
+
+  const [isCreatePatientDialogOpen, setIsCreatePatientDialogOpen] = useState(false);
+  const [isEditPatientDialogOpen, setIsEditPatientDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isPatientDetailDialogOpen, setIsPatientDetailDialogOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<EnrichedPatient | null>(null);
+  const [patientSearchQuery, setPatientSearchQuery] = useState("");
+  const [newPatientForm, setNewPatientForm] = useState({ name: "", email: "", phone: "", yearOfBirth: "", preferredLanguage: "en" });
+  const [editPatientForm, setEditPatientForm] = useState<{ id: string; name: string; email: string; phone: string; yearOfBirth: string; preferredLanguage: string }>({ id: "", name: "", email: "", phone: "", yearOfBirth: "", preferredLanguage: "en" });
+  const [importFile, setImportFile] = useState<File | null>(null);
 
   // Fetch environment info to determine if we're in demo mode
   const { data: envInfo } = useQuery<{ isDemoMode: boolean; isProduction: boolean }>({
@@ -123,6 +221,11 @@ export default function AdminDashboard() {
   // Fetch tenants (admin only)
   const { data: allTenants = [] } = useQuery<Tenant[]>({
     queryKey: ["/api/admin/tenants"],
+  });
+
+  // Fetch all patients
+  const { data: allPatients = [], isLoading: patientsLoading } = useQuery<EnrichedPatient[]>({
+    queryKey: ["/api/admin/patients"],
   });
 
   // Create user mutation
@@ -267,6 +370,93 @@ export default function AdminDashboard() {
     },
   });
 
+  // Create patient mutation
+  const createPatientMutation = useMutation({
+    mutationFn: async (data: typeof newPatientForm) => {
+      return apiRequest("POST", "/api/admin/patients", {
+        name: data.name,
+        email: data.email,
+        phone: data.phone || null,
+        yearOfBirth: parseInt(data.yearOfBirth),
+        preferredLanguage: data.preferredLanguage,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Patient created successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/patients"] });
+      setIsCreatePatientDialogOpen(false);
+      setNewPatientForm({ name: "", email: "", phone: "", yearOfBirth: "", preferredLanguage: "en" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Update patient mutation
+  const updatePatientMutation = useMutation({
+    mutationFn: async (data: typeof editPatientForm) => {
+      return apiRequest("PATCH", `/api/admin/patients/${data.id}`, {
+        name: data.name,
+        email: data.email,
+        phone: data.phone || null,
+        yearOfBirth: parseInt(data.yearOfBirth),
+        preferredLanguage: data.preferredLanguage,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Patient updated successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/patients"] });
+      setIsEditPatientDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Delete patient mutation
+  const deletePatientMutation = useMutation({
+    mutationFn: async (patientId: string) => {
+      return apiRequest("DELETE", `/api/admin/patients/${patientId}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Patient deleted successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/patients"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Import patients mutation
+  const importPatientsMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/admin/patients/import", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Import failed");
+      }
+      return response.json();
+    },
+    onSuccess: (data: { created: number; skipped: number; updated: number }) => {
+      toast({
+        title: "Import complete",
+        description: `Created: ${data.created}, Updated: ${data.updated}, Skipped: ${data.skipped}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/patients"] });
+      setIsImportDialogOpen(false);
+      setImportFile(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Import failed", description: error.message, variant: "destructive" });
+    },
+  });
+
   const filteredCarePlans = carePlans.filter((plan) => {
     const matchesStatus = statusFilter === "all" || plan.status === statusFilter;
     const matchesSearch = 
@@ -274,6 +464,16 @@ export default function AdminDashboard() {
       plan.patient?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       plan.diagnosis?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
+  });
+
+  const filteredPatients = allPatients.filter((patient) => {
+    if (!patientSearchQuery) return true;
+    const q = patientSearchQuery.toLowerCase();
+    return (
+      patient.name.toLowerCase().includes(q) ||
+      patient.email.toLowerCase().includes(q) ||
+      (patient.phone && patient.phone.includes(q))
+    );
   });
 
   const getStatusBadge = (status: string) => {
@@ -479,7 +679,6 @@ export default function AdminDashboard() {
 
         {/* Patients Tab */}
         <TabsContent value="patients" className="space-y-4">
-          {/* Filters */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex flex-wrap gap-4">
@@ -487,106 +686,120 @@ export default function AdminDashboard() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search patients..."
+                      placeholder="Search patients by name, email, or phone..."
                       className="pl-9"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      data-testid="input-search"
+                      value={patientSearchQuery}
+                      onChange={(e) => setPatientSearchQuery(e.target.value)}
+                      data-testid="input-patient-search"
                     />
                   </div>
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
-                    <Filter className="h-4 w-4 mr-2" />
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="pending_review">Pending Review</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} data-testid="button-import-csv">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import CSV
+                </Button>
+                <Button onClick={() => setIsCreatePatientDialogOpen(true)} data-testid="button-add-patient">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Patient
+                </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Patient Table */}
           <Card>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Patient</TableHead>
-                    <TableHead>Clinician</TableHead>
-                    <TableHead>Discharge Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Check-in</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
                     <TableHead>Language</TableHead>
+                    <TableHead>Care Plans</TableHead>
+                    <TableHead>Last Activity</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
+                  {patientsLoading ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                       </TableCell>
                     </TableRow>
-                  ) : filteredCarePlans.length === 0 ? (
+                  ) : filteredPatients.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No patients found
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredCarePlans.map((plan) => (
-                      <TableRow key={plan.id} data-testid={`row-patient-${plan.id}`}>
+                    filteredPatients.map((patient) => (
+                      <TableRow key={patient.id} data-testid={`row-patient-${patient.id}`}>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div>
-                              <p className="font-medium">{plan.patient?.name || plan.extractedPatientName || "Unknown"}</p>
-                              <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                                {plan.diagnosis?.slice(0, 40)}...
-                              </p>
-                            </div>
-                            {getVisitCount(plan) > 1 && (
-                              <Badge variant="secondary" className="text-xs" data-testid={`badge-visits-${plan.id}`}>
-                                {getVisitCount(plan)} visits
-                              </Badge>
-                            )}
+                          <div>
+                            <p className="font-medium">{patient.name}{patient.lastName ? ` ${patient.lastName}` : ""}</p>
+                            <p className="text-sm text-muted-foreground">Born {patient.yearOfBirth}</p>
                           </div>
                         </TableCell>
+                        <TableCell>{patient.email}</TableCell>
+                        <TableCell>{patient.phone || "\u2014"}</TableCell>
                         <TableCell>
-                          <span className="text-sm">{plan.clinician?.name || "-"}</span>
+                          <Badge variant="secondary">
+                            {SUPPORTED_LANGUAGES.find(l => l.code === patient.preferredLanguage)?.name || patient.preferredLanguage}
+                          </Badge>
                         </TableCell>
+                        <TableCell>{patient.carePlanCount}</TableCell>
                         <TableCell>
-                          {plan.dischargeDate 
-                            ? format(new Date(plan.dischargeDate), "MMM d, yyyy")
-                            : "-"
-                          }
-                        </TableCell>
-                        <TableCell>{getStatusBadge(plan.status)}</TableCell>
-                        <TableCell>{getCheckInBadge(plan.checkIns)}</TableCell>
-                        <TableCell>
-                          {SUPPORTED_LANGUAGES.find(l => l.code === plan.translatedLanguage)?.name || "-"}
+                          {patient.lastCarePlanDate
+                            ? format(new Date(patient.lastCarePlanDate), "MMM d, yyyy")
+                            : "No activity"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedCarePlan(plan);
-                              setDetailTab("current");
-                              setIsDetailDialogOpen(true);
-                            }}
-                            data-testid={`button-view-${plan.id}`}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedPatient(patient);
+                                setIsPatientDetailDialogOpen(true);
+                              }}
+                              data-testid={`button-view-patient-${patient.id}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditPatientForm({
+                                  id: patient.id,
+                                  name: patient.name,
+                                  email: patient.email,
+                                  phone: patient.phone || "",
+                                  yearOfBirth: String(patient.yearOfBirth),
+                                  preferredLanguage: patient.preferredLanguage,
+                                });
+                                setIsEditPatientDialogOpen(true);
+                              }}
+                              data-testid={`button-edit-patient-${patient.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this patient?")) {
+                                  deletePatientMutation.mutate(patient.id);
+                                }
+                              }}
+                              disabled={deletePatientMutation.isPending}
+                              data-testid={`button-delete-patient-${patient.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -1098,6 +1311,245 @@ export default function AdminDashboard() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Patient Dialog */}
+      <Dialog open={isCreatePatientDialogOpen} onOpenChange={setIsCreatePatientDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Patient</DialogTitle>
+            <DialogDescription>Create a new patient record.</DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createPatientMutation.mutate(newPatientForm);
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="patient-name">Name</Label>
+              <Input
+                id="patient-name"
+                value={newPatientForm.name}
+                onChange={(e) => setNewPatientForm({ ...newPatientForm, name: e.target.value })}
+                required
+                data-testid="input-patient-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="patient-email">Email</Label>
+              <Input
+                id="patient-email"
+                type="email"
+                value={newPatientForm.email}
+                onChange={(e) => setNewPatientForm({ ...newPatientForm, email: e.target.value })}
+                required
+                data-testid="input-patient-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="patient-phone">Phone</Label>
+              <Input
+                id="patient-phone"
+                value={newPatientForm.phone}
+                onChange={(e) => setNewPatientForm({ ...newPatientForm, phone: e.target.value })}
+                data-testid="input-patient-phone"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="patient-yob">Year of Birth</Label>
+              <Input
+                id="patient-yob"
+                type="number"
+                value={newPatientForm.yearOfBirth}
+                onChange={(e) => setNewPatientForm({ ...newPatientForm, yearOfBirth: e.target.value })}
+                required
+                data-testid="input-patient-yob"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="patient-language">Preferred Language</Label>
+              <Select
+                value={newPatientForm.preferredLanguage}
+                onValueChange={(v) => setNewPatientForm({ ...newPatientForm, preferredLanguage: v })}
+              >
+                <SelectTrigger data-testid="select-patient-language">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreatePatientDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createPatientMutation.isPending} data-testid="button-submit-patient">
+                {createPatientMutation.isPending ? "Creating..." : "Add Patient"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Patient Dialog */}
+      <Dialog open={isEditPatientDialogOpen} onOpenChange={setIsEditPatientDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Patient</DialogTitle>
+            <DialogDescription>Update patient details.</DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              updatePatientMutation.mutate(editPatientForm);
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="edit-patient-name">Name</Label>
+              <Input
+                id="edit-patient-name"
+                value={editPatientForm.name}
+                onChange={(e) => setEditPatientForm({ ...editPatientForm, name: e.target.value })}
+                required
+                data-testid="input-edit-patient-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-patient-email">Email</Label>
+              <Input
+                id="edit-patient-email"
+                type="email"
+                value={editPatientForm.email}
+                onChange={(e) => setEditPatientForm({ ...editPatientForm, email: e.target.value })}
+                required
+                data-testid="input-edit-patient-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-patient-phone">Phone</Label>
+              <Input
+                id="edit-patient-phone"
+                value={editPatientForm.phone}
+                onChange={(e) => setEditPatientForm({ ...editPatientForm, phone: e.target.value })}
+                data-testid="input-edit-patient-phone"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-patient-yob">Year of Birth</Label>
+              <Input
+                id="edit-patient-yob"
+                type="number"
+                value={editPatientForm.yearOfBirth}
+                onChange={(e) => setEditPatientForm({ ...editPatientForm, yearOfBirth: e.target.value })}
+                required
+                data-testid="input-edit-patient-yob"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-patient-language">Preferred Language</Label>
+              <Select
+                value={editPatientForm.preferredLanguage}
+                onValueChange={(v) => setEditPatientForm({ ...editPatientForm, preferredLanguage: v })}
+              >
+                <SelectTrigger data-testid="select-edit-patient-language">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditPatientDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updatePatientMutation.isPending} data-testid="button-update-patient">
+                {updatePatientMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import CSV Dialog */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Patients from CSV</DialogTitle>
+            <DialogDescription>
+              Upload a CSV file with columns: name, email, phone, yearOfBirth, preferredLanguage
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="import-file">CSV File</Label>
+              <Input
+                id="import-file"
+                type="file"
+                accept=".csv"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                data-testid="input-import-file"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              The CSV should include headers: name, email, phone, yearOfBirth, preferredLanguage. 
+              Existing patients (matched by email) will be updated.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setIsImportDialogOpen(false); setImportFile(null); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (importFile) {
+                  importPatientsMutation.mutate(importFile);
+                }
+              }}
+              disabled={!importFile || importPatientsMutation.isPending}
+              data-testid="button-upload-csv"
+            >
+              {importPatientsMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Patient Detail Dialog */}
+      <Dialog open={isPatientDetailDialogOpen} onOpenChange={setIsPatientDetailDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Patient Details</DialogTitle>
+            <DialogDescription>
+              {selectedPatient?.name}{selectedPatient?.lastName ? ` ${selectedPatient.lastName}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPatient && (
+            <PatientDetailContent patient={selectedPatient} getStatusBadge={getStatusBadge} />
+          )}
         </DialogContent>
       </Dialog>
 

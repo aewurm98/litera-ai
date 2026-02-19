@@ -220,6 +220,18 @@ const upload = multer({
   },
 });
 
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === "text/csv" || file.originalname.endsWith(".csv")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Please upload a CSV file."));
+    }
+  },
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -1532,6 +1544,355 @@ export async function registerRoutes(
     }
   });
   
+  // ============= Patient CRUD Endpoints =============
+
+  app.get("/api/admin/patients", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.session.tenantId;
+      const allPatients = await storage.getAllPatients(tenantId);
+      
+      const enrichedPatients = await Promise.all(
+        allPatients.map(async (patient) => {
+          const patientCarePlans = await storage.getCarePlansByPatientId(patient.id);
+          const lastCarePlan = patientCarePlans.length > 0 ? patientCarePlans[0] : null;
+          return {
+            id: patient.id,
+            name: patient.name,
+            lastName: patient.lastName,
+            email: patient.email,
+            phone: patient.phone,
+            yearOfBirth: patient.yearOfBirth,
+            preferredLanguage: patient.preferredLanguage,
+            tenantId: patient.tenantId,
+            createdAt: patient.createdAt,
+            carePlanCount: patientCarePlans.length,
+            lastCarePlanStatus: lastCarePlan?.status || null,
+            lastCarePlanDate: lastCarePlan?.createdAt || null,
+          };
+        })
+      );
+      
+      res.json(enrichedPatients);
+    } catch (error) {
+      console.error("Error fetching patients:", error);
+      res.status(500).json({ error: "Failed to fetch patients" });
+    }
+  });
+
+  app.post("/api/admin/patients", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.session.tenantId;
+      const { name, email, phone, yearOfBirth, preferredLanguage } = req.body;
+      
+      if (!name || !email || !yearOfBirth) {
+        return res.status(400).json({ error: "Name, email, and year of birth are required" });
+      }
+      
+      const existing = await storage.getPatientByEmail(email, tenantId);
+      if (existing) {
+        return res.status(409).json({ 
+          error: "A patient with this email already exists in your clinic",
+          existingPatient: {
+            id: existing.id,
+            name: existing.name,
+            email: existing.email,
+          }
+        });
+      }
+      
+      const lastName = name.trim().split(/\s+/).pop() || name;
+      const pin = Math.floor(1000 + Math.random() * 9000).toString();
+      
+      const patient = await storage.createPatient({
+        name,
+        lastName,
+        email,
+        phone: phone || null,
+        yearOfBirth,
+        pin,
+        preferredLanguage: preferredLanguage || "en",
+        tenantId,
+      });
+      
+      await storage.createAuditLog({
+        userId: req.session.userId,
+        action: "patient_created",
+        details: { patientId: patient.id, patientName: patient.name, patientEmail: patient.email },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+      
+      res.json(patient);
+    } catch (error: any) {
+      console.error("Error creating patient:", error);
+      if (error?.code === "23505") {
+        return res.status(409).json({ error: "A patient with this email already exists in your clinic" });
+      }
+      res.status(500).json({ error: "Failed to create patient" });
+    }
+  });
+
+  app.patch("/api/admin/patients/:id", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.session.tenantId;
+      
+      const patient = await storage.getPatient(id);
+      if (!patient) {
+        return res.status(404).json({ error: "Patient not found" });
+      }
+      
+      if (tenantId && patient.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const { name, email, phone, yearOfBirth, preferredLanguage } = req.body;
+      
+      if (email && email !== patient.email) {
+        const existing = await storage.getPatientByEmail(email, tenantId);
+        if (existing && existing.id !== id) {
+          return res.status(409).json({ error: "Another patient with this email already exists" });
+        }
+      }
+      
+      const updateData: Partial<typeof patient> = {};
+      if (name !== undefined) {
+        updateData.name = name;
+        updateData.lastName = name.trim().split(/\s+/).pop() || name;
+      }
+      if (email !== undefined) updateData.email = email;
+      if (phone !== undefined) updateData.phone = phone;
+      if (yearOfBirth !== undefined) updateData.yearOfBirth = yearOfBirth;
+      if (preferredLanguage !== undefined) updateData.preferredLanguage = preferredLanguage;
+      
+      const updated = await storage.updatePatient(id, updateData);
+      
+      await storage.createAuditLog({
+        userId: req.session.userId,
+        action: "patient_updated",
+        details: { patientId: id, changes: Object.keys(updateData) },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+      
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating patient:", error);
+      if (error?.code === "23505") {
+        return res.status(409).json({ error: "Another patient with this email already exists" });
+      }
+      res.status(500).json({ error: "Failed to update patient" });
+    }
+  });
+
+  app.delete("/api/admin/patients/:id", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.session.tenantId;
+      
+      const patient = await storage.getPatient(id);
+      if (!patient) {
+        return res.status(404).json({ error: "Patient not found" });
+      }
+      
+      if (tenantId && patient.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const linkedCarePlans = await storage.getCarePlansByPatientId(id);
+      if (linkedCarePlans.length > 0) {
+        return res.status(409).json({ 
+          error: `Cannot delete patient with ${linkedCarePlans.length} linked care plan(s). Remove or reassign care plans first.` 
+        });
+      }
+      
+      await storage.deletePatient(id);
+      
+      await storage.createAuditLog({
+        userId: req.session.userId,
+        action: "patient_deleted",
+        details: { patientId: id, patientName: patient.name },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting patient:", error);
+      res.status(500).json({ error: "Failed to delete patient" });
+    }
+  });
+
+  app.get("/api/admin/patients/:id/care-plans", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const tenantId = req.session.tenantId;
+      
+      const patient = await storage.getPatient(id);
+      if (!patient) {
+        return res.status(404).json({ error: "Patient not found" });
+      }
+      
+      if (tenantId && patient.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const patientCarePlans = await storage.getCarePlansByPatientId(id);
+      
+      const enriched = await Promise.all(
+        patientCarePlans.map(async (plan) => {
+          const clinician = plan.clinicianId ? await storage.getUser(plan.clinicianId) : undefined;
+          const checkIns = await storage.getCheckInsByCarePlanId(plan.id);
+          return {
+            ...plan,
+            clinician: clinician ? { id: clinician.id, name: clinician.name } : undefined,
+            checkIns,
+          };
+        })
+      );
+      
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching patient care plans:", error);
+      res.status(500).json({ error: "Failed to fetch patient care plans" });
+    }
+  });
+
+  // Also expose patient list for clinicians (for patient selector dropdown)
+  app.get("/api/patients", requireClinicianAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.session.tenantId;
+      const allPatients = await storage.getAllPatients(tenantId);
+      
+      const safePatients = allPatients.map(p => ({
+        id: p.id,
+        name: p.name,
+        lastName: p.lastName,
+        email: p.email,
+        phone: p.phone,
+        yearOfBirth: p.yearOfBirth,
+        preferredLanguage: p.preferredLanguage,
+        tenantId: p.tenantId,
+      }));
+      
+      res.json(safePatients);
+    } catch (error) {
+      console.error("Error fetching patients:", error);
+      res.status(500).json({ error: "Failed to fetch patients" });
+    }
+  });
+
+  // Bulk patient import (CSV)
+  app.post("/api/admin/patients/import", requireAdminAuth, csvUpload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.session.tenantId;
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const csvContent = req.file.buffer.toString("utf-8");
+      const lines = csvContent.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+      
+      if (lines.length < 2) {
+        return res.status(400).json({ error: "CSV file must have a header row and at least one data row" });
+      }
+      
+      const header = lines[0].toLowerCase().split(",").map(h => h.trim().replace(/"/g, ""));
+      const nameIdx = header.findIndex(h => h === "name" || h === "patient name" || h === "full name");
+      const emailIdx = header.findIndex(h => h === "email" || h === "patient email" || h === "email address");
+      const phoneIdx = header.findIndex(h => h === "phone" || h === "phone number");
+      const yobIdx = header.findIndex(h => h === "yearofbirth" || h === "year of birth" || h === "yob" || h === "birth year" || h === "year_of_birth");
+      const langIdx = header.findIndex(h => h === "preferredlanguage" || h === "preferred language" || h === "language" || h === "preferred_language" || h === "lang");
+      
+      if (nameIdx === -1 || emailIdx === -1) {
+        return res.status(400).json({ error: "CSV must have 'name' and 'email' columns" });
+      }
+      
+      let created = 0;
+      let skipped = 0;
+      let updated = 0;
+      const errors: string[] = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+        const name = values[nameIdx]?.trim();
+        const email = values[emailIdx]?.trim();
+        const phone = phoneIdx !== -1 ? values[phoneIdx]?.trim() : null;
+        const yobStr = yobIdx !== -1 ? values[yobIdx]?.trim() : null;
+        const lang = langIdx !== -1 ? values[langIdx]?.trim() : "en";
+        
+        if (!name || !email) {
+          errors.push(`Row ${i + 1}: Missing name or email`);
+          continue;
+        }
+        
+        const yearOfBirth = yobStr ? parseInt(yobStr) : 1970;
+        if (isNaN(yearOfBirth) || yearOfBirth < 1900 || yearOfBirth > new Date().getFullYear()) {
+          errors.push(`Row ${i + 1}: Invalid year of birth '${yobStr}'`);
+          continue;
+        }
+        
+        const existing = await storage.getPatientByEmail(email, tenantId);
+        if (existing) {
+          const needsUpdate = (phone && phone !== existing.phone) || 
+                             (lang && lang !== existing.preferredLanguage) ||
+                             (name !== existing.name);
+          if (needsUpdate) {
+            const updateData: any = {};
+            if (name !== existing.name) {
+              updateData.name = name;
+              updateData.lastName = name.trim().split(/\s+/).pop() || name;
+            }
+            if (phone && phone !== existing.phone) updateData.phone = phone;
+            if (lang && lang !== existing.preferredLanguage) updateData.preferredLanguage = lang;
+            await storage.updatePatient(existing.id, updateData);
+            updated++;
+          } else {
+            skipped++;
+          }
+          continue;
+        }
+        
+        const lastName = name.trim().split(/\s+/).pop() || name;
+        const pin = Math.floor(1000 + Math.random() * 9000).toString();
+        
+        await storage.createPatient({
+          name,
+          lastName,
+          email,
+          phone: phone || null,
+          yearOfBirth,
+          pin,
+          preferredLanguage: lang || "en",
+          tenantId,
+        });
+        created++;
+      }
+      
+      await storage.createAuditLog({
+        userId: req.session.userId,
+        action: "patients_imported",
+        details: { created, skipped, updated, errorCount: errors.length },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+      
+      res.json({ 
+        success: true, 
+        created, 
+        skipped, 
+        updated,
+        errors: errors.length > 0 ? errors.slice(0, 20) : undefined,
+        totalProcessed: lines.length - 1,
+      });
+    } catch (error) {
+      console.error("Error importing patients:", error);
+      res.status(500).json({ error: "Failed to import patients" });
+    }
+  });
+
+  // ============= Tenant Endpoints =============
+
   // Get all tenants (super admin only)
   app.get("/api/admin/tenants", requireAdminAuth, async (req: Request, res: Response) => {
     try {
