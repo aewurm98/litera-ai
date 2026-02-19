@@ -2,14 +2,10 @@ import { db } from "./db";
 import { users, patients, carePlans, checkIns, auditLogs, tenants, chatMessages } from "@shared/schema";
 import { eq, inArray, and, isNotNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
-import bcrypt from "bcrypt";
+import { hashPassword } from "./auth";
 
 function generateToken(): string {
   return randomBytes(32).toString("hex");
-}
-
-async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 10);
 }
 
 export async function seedDatabase(force: boolean = false) {
