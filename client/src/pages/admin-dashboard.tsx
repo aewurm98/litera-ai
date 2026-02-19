@@ -34,7 +34,11 @@ import {
   Plus,
   Trash2,
   Pencil,
-  Upload
+  Upload,
+  LayoutGrid,
+  List,
+  Mail,
+  CircleDot
 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
@@ -180,6 +184,15 @@ export default function AdminDashboard() {
   const [newTenantForm, setNewTenantForm] = useState({ name: "", slug: "", isDemo: false });
   const [editUserForm, setEditUserForm] = useState<{ id: string; name: string; role: string; tenantId: string }>({ id: "", name: "", role: "", tenantId: "" });
   const [editTenantForm, setEditTenantForm] = useState<{ id: string; name: string; isDemo: boolean }>({ id: "", name: "", isDemo: false });
+
+  const [patientView, setPatientView] = useState<"table" | "kanban">(() => {
+    const saved = localStorage.getItem("litera-patient-view");
+    return saved === "kanban" ? "kanban" : "table";
+  });
+  const handlePatientViewChange = (view: "table" | "kanban") => {
+    setPatientView(view);
+    localStorage.setItem("litera-patient-view", view);
+  };
 
   const [isCreatePatientDialogOpen, setIsCreatePatientDialogOpen] = useState(false);
   const [isEditPatientDialogOpen, setIsEditPatientDialogOpen] = useState(false);
@@ -694,6 +707,24 @@ export default function AdminDashboard() {
                     />
                   </div>
                 </div>
+                <div className="flex border rounded-md">
+                  <Button
+                    variant={patientView === "table" ? "secondary" : "ghost"}
+                    size="icon"
+                    onClick={() => handlePatientViewChange("table")}
+                    data-testid="button-view-table"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={patientView === "kanban" ? "secondary" : "ghost"}
+                    size="icon"
+                    onClick={() => handlePatientViewChange("kanban")}
+                    data-testid="button-view-kanban"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                </div>
                 <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} data-testid="button-import-csv">
                   <Upload className="h-4 w-4 mr-2" />
                   Import CSV
@@ -706,6 +737,7 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
 
+          {patientView === "table" ? (
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -738,7 +770,7 @@ export default function AdminDashboard() {
                       <TableRow key={patient.id} data-testid={`row-patient-${patient.id}`}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{patient.name}{patient.lastName ? ` ${patient.lastName}` : ""}</p>
+                            <p className="font-medium" data-testid={`text-patient-name-${patient.id}`}>{patient.name}</p>
                             <p className="text-sm text-muted-foreground">Born {patient.yearOfBirth}</p>
                           </div>
                         </TableCell>
@@ -808,6 +840,128 @@ export default function AdminDashboard() {
               </Table>
             </CardContent>
           </Card>
+          ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4" data-testid="kanban-board">
+            {(() => {
+              const columns: { key: string; label: string; color: string; icon: JSX.Element; patients: EnrichedPatient[] }[] = [
+                { key: "registered", label: "Registered", color: "border-t-muted-foreground", icon: <UserPlus className="h-4 w-4" />, patients: [] },
+                { key: "plan_sent", label: "Care Plan Sent", color: "border-t-blue-500", icon: <Mail className="h-4 w-4" />, patients: [] },
+                { key: "checked_in", label: "Checked In", color: "border-t-green-500", icon: <CheckCircle className="h-4 w-4" />, patients: [] },
+                { key: "needs_attention", label: "Needs Attention", color: "border-t-amber-500", icon: <AlertTriangle className="h-4 w-4" />, patients: [] },
+                { key: "completed", label: "Completed", color: "border-t-purple-500", icon: <Check className="h-4 w-4" />, patients: [] },
+              ];
+
+              const alertPatientNames = new Set(
+                alerts.filter(a => !a.resolved).map(a => a.patientName.toLowerCase().trim())
+              );
+
+              filteredPatients.forEach((patient) => {
+                const fullName = patient.name.toLowerCase().trim();
+                const hasUnresolvedAlert = alertPatientNames.has(fullName);
+                const status = patient.lastCarePlanStatus;
+
+                if (patient.carePlanCount === 0) {
+                  columns[0].patients.push(patient);
+                } else if (hasUnresolvedAlert) {
+                  columns[3].patients.push(patient);
+                } else if (status === "completed") {
+                  columns[4].patients.push(patient);
+                } else if (status === "sent" || status === "approved") {
+                  columns[2].patients.push(patient);
+                } else if (status === "draft" || status === "pending_review" || !status) {
+                  columns[1].patients.push(patient);
+                } else {
+                  columns[1].patients.push(patient);
+                }
+              });
+
+              return columns.map((col) => (
+                <div key={col.key} className={`flex flex-col border-t-4 ${col.color} rounded-md`} data-testid={`kanban-column-${col.key}`}>
+                  <div className="flex items-center gap-2 px-3 py-3 border-b bg-muted/30 rounded-t-md">
+                    {col.icon}
+                    <span className="text-sm font-medium" data-testid={`kanban-label-${col.key}`}>{col.label}</span>
+                    <Badge variant="outline" className="ml-auto" data-testid={`kanban-count-${col.key}`}>{col.patients.length}</Badge>
+                  </div>
+                  <ScrollArea className="flex-1 max-h-[60vh]">
+                    <div className="p-2 space-y-2">
+                      {col.patients.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-6" data-testid={`kanban-empty-${col.key}`}>No patients</p>
+                      ) : (
+                        col.patients.map((patient) => (
+                          <Card
+                            key={patient.id}
+                            className="cursor-pointer hover-elevate"
+                            onClick={() => {
+                              setSelectedPatient(patient);
+                              setIsPatientDetailDialogOpen(true);
+                            }}
+                            data-testid={`kanban-card-${patient.id}`}
+                          >
+                            <CardContent className="p-3 space-y-2">
+                              <div className="flex items-start justify-between gap-1">
+                                <p className="font-medium text-sm leading-tight" data-testid={`kanban-name-${patient.id}`}>{patient.name}</p>
+                                <Badge variant="secondary" className="text-[10px] shrink-0">
+                                  {SUPPORTED_LANGUAGES.find(l => l.code === patient.preferredLanguage)?.name || patient.preferredLanguage}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate" data-testid={`kanban-email-${patient.id}`}>{patient.email}</p>
+                              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1" data-testid={`kanban-plans-${patient.id}`}>
+                                  <FileText className="h-3 w-3" />
+                                  {patient.carePlanCount} plan{patient.carePlanCount !== 1 ? "s" : ""}
+                                </span>
+                                <span data-testid={`kanban-activity-${patient.id}`}>
+                                  {patient.lastCarePlanDate
+                                    ? format(new Date(patient.lastCarePlanDate), "MMM d")
+                                    : "New"}
+                                </span>
+                              </div>
+                              <div className="flex justify-end gap-1 pt-1 border-t">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditPatientForm({
+                                      id: patient.id,
+                                      name: patient.name,
+                                      email: patient.email,
+                                      phone: patient.phone || "",
+                                      yearOfBirth: String(patient.yearOfBirth),
+                                      preferredLanguage: patient.preferredLanguage,
+                                    });
+                                    setIsEditPatientDialogOpen(true);
+                                  }}
+                                  data-testid={`kanban-edit-${patient.id}`}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm("Are you sure you want to delete this patient?")) {
+                                      deletePatientMutation.mutate(patient.id);
+                                    }
+                                  }}
+                                  disabled={deletePatientMutation.isPending}
+                                  data-testid={`kanban-delete-${patient.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              ));
+            })()}
+          </div>
+          )}
         </TabsContent>
 
         {/* Alerts Tab */}
