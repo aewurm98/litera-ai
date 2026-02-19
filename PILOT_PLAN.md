@@ -226,6 +226,11 @@ Frontend and backend changes. Test each step in the browser after implementation
 
 Refactoring only — no behavior changes. Run `npm run check` after each step.
 
+#### Step 4.0 — Delete unused `server/replit_integrations/` directory
+- **Change:** Remove the four orphaned Replit scaffold modules (`audio`, `batch`, `chat`, `image`). None are imported or registered in the active application. All four contained pre-existing TypeScript errors polluting `npm run check` output.
+- **Product fit assessment:** Audio TTS is already served by browser `speechSynthesis`; batch processing and chat would need purpose-built implementations aligned to the clinical workflow; image generation has no relevance at any product phase.
+- **Validation:** `npm run check` passes with zero errors.
+
 #### Step 4.1 — Consolidate `hashPassword` duplication
 - **Files:** `server/seed.ts`, `server/auth.ts`
 - **Change:** Remove the local `hashPassword` function from `seed.ts`; import it from `./auth` instead.
