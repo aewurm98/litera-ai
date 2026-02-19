@@ -228,7 +228,7 @@ type UserWithTenant = {
   name: string;
   role: string;
   tenantId?: string | null;
-  tenant?: { id: string; name: string; slug: string; isDemo: boolean } | null;
+  tenant?: { id: string; name: string; slug: string; isDemo: boolean; interpreterReviewMode?: string } | null;
 };
 
 export default function ClinicianDashboard() {
@@ -248,6 +248,7 @@ export default function ClinicianDashboard() {
   });
   const isTenantDemo = currentUser?.tenant?.isDemo ?? false;
   const tenantSlug = currentUser?.tenant?.slug ?? "";
+  const interpreterReviewMode = currentUser?.tenant?.interpreterReviewMode ?? "disabled";
 
   const sampleDocsByTenant: Record<string, Array<{ file: string; label: string }>> = {
     riverside: [
@@ -280,6 +281,8 @@ export default function ClinicianDashboard() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isOverrideDialogOpen, setIsOverrideDialogOpen] = useState(false);
+  const [overrideJustification, setOverrideJustification] = useState("");
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -464,17 +467,27 @@ export default function ClinicianDashboard() {
 
   // Approve mutation
   const approveMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiRequest("POST", `/api/care-plans/${id}/approve`);
+    mutationFn: async ({ id, skipInterpreterReview, overrideJustification }: { id: string; skipInterpreterReview?: boolean; overrideJustification?: string }) => {
+      const res = await apiRequest("POST", `/api/care-plans/${id}/approve`, {
+        skipInterpreterReview,
+        overrideJustification,
+      });
       return res.json() as Promise<CarePlanWithPatient>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
       setSelectedCarePlan(data);
-      toast({
-        title: "Care plan approved",
-        description: "Ready to send to patient",
-      });
+      if (data.status === "interpreter_review") {
+        toast({
+          title: "Sent for interpreter review",
+          description: "A medical interpreter will review the translation before it can be sent to the patient.",
+        });
+      } else {
+        toast({
+          title: "Care plan approved",
+          description: "Ready to send to patient",
+        });
+      }
     },
     onError: () => {
       toast({ title: "Approval failed", variant: "destructive" });
@@ -641,6 +654,8 @@ export default function ClinicianDashboard() {
     > = {
       draft: { variant: "outline", label: "Draft" },
       pending_review: { variant: "secondary", label: "Pending Review" },
+      interpreter_review: { variant: "secondary", label: "Interpreter Review" },
+      interpreter_approved: { variant: "default", label: "Interpreter Approved" },
       approved: { variant: "default", label: "Approved" },
       sent: { variant: "default", label: "Sent" },
       completed: { variant: "default", label: "Completed" },
@@ -925,10 +940,18 @@ export default function ClinicianDashboard() {
                     {patientLanguage === "en" ? "Simplify" : "Process & Translate"}
                   </Button>
                 )}
-                {selectedCarePlan.status === "pending_review" && (
+                {(selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
                   <Button
-                    onClick={() => approveMutation.mutate(selectedCarePlan.id)}
-                    disabled={approveMutation.isPending || !hasScrolledAll}
+                    onClick={() => {
+                      if (selectedCarePlan.status === "interpreter_approved") {
+                        approveMutation.mutate({ id: selectedCarePlan.id });
+                      } else if (interpreterReviewMode === "optional" && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en") {
+                        setIsOverrideDialogOpen(true);
+                      } else {
+                        approveMutation.mutate({ id: selectedCarePlan.id });
+                      }
+                    }}
+                    disabled={approveMutation.isPending || (!hasScrolledAll && selectedCarePlan.status === "pending_review")}
                     data-testid="button-approve"
                   >
                     {approveMutation.isPending ? (
@@ -936,8 +959,14 @@ export default function ClinicianDashboard() {
                     ) : (
                       <Check className="h-4 w-4 mr-2" />
                     )}
-                    Verify & Approve
+                    {selectedCarePlan.status === "interpreter_approved" ? "Final Approve" : "Verify & Approve"}
                   </Button>
+                )}
+                {selectedCarePlan.status === "interpreter_review" && (
+                  <Badge variant="secondary" className="py-2 px-3">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Awaiting Interpreter Review
+                  </Badge>
                 )}
                 {selectedCarePlan.status === "approved" && (
                   <Button
@@ -984,7 +1013,9 @@ export default function ClinicianDashboard() {
                   )}
                 {(selectedCarePlan.status === "draft" ||
                   selectedCarePlan.status === "pending_review" ||
-                  selectedCarePlan.status === "approved") && (
+                  selectedCarePlan.status === "approved" ||
+                  selectedCarePlan.status === "interpreter_review" ||
+                  selectedCarePlan.status === "interpreter_approved") && (
                   <Button
                     variant="outline"
                     size="icon"
@@ -998,9 +1029,21 @@ export default function ClinicianDashboard() {
               </div>
             </div>
 
+            {selectedCarePlan.interpreterNotes && (selectedCarePlan.status === "interpreter_approved" || selectedCarePlan.status === "pending_review") && (
+              <div className="mx-4 mt-4 p-3 border rounded-md bg-amber-50 dark:bg-amber-950/30">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Languages className="h-4 w-4" />
+                  Interpreter Notes
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">{selectedCarePlan.interpreterNotes}</p>
+              </div>
+            )}
+
             {/* Content Tabs - Horizontally Scrollable Container */}
             {selectedCarePlan.status === "pending_review" ||
             selectedCarePlan.status === "approved" ||
+            selectedCarePlan.status === "interpreter_review" ||
+            selectedCarePlan.status === "interpreter_approved" ||
             selectedCarePlan.status === "sent" ||
             selectedCarePlan.status === "completed" ? (
               <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 relative">
@@ -1767,6 +1810,70 @@ export default function ClinicianDashboard() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
+      <Dialog open={isOverrideDialogOpen} onOpenChange={(open) => { setIsOverrideDialogOpen(open); if (!open) setOverrideJustification(""); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Interpreter Review Available</DialogTitle>
+            <DialogDescription>
+              This care plan has a non-English translation. Would you like to send it for interpreter review, or approve it directly?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <Button
+              className="w-full"
+              onClick={() => {
+                if (selectedCarePlan) {
+                  approveMutation.mutate({ id: selectedCarePlan.id });
+                  setIsOverrideDialogOpen(false);
+                }
+              }}
+              disabled={approveMutation.isPending}
+              data-testid="button-send-to-interpreter"
+            >
+              <Languages className="h-4 w-4 mr-2" />
+              Send for Interpreter Review
+            </Button>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">or skip review</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="override-justification" className="text-sm">Justification for skipping interpreter review</Label>
+              <Textarea
+                id="override-justification"
+                placeholder="e.g., Verified translation with bilingual staff member..."
+                value={overrideJustification}
+                onChange={(e) => setOverrideJustification(e.target.value)}
+                data-testid="textarea-override-justification"
+              />
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  if (selectedCarePlan && overrideJustification.trim()) {
+                    approveMutation.mutate({
+                      id: selectedCarePlan.id,
+                      skipInterpreterReview: true,
+                      overrideJustification: overrideJustification.trim(),
+                    });
+                    setIsOverrideDialogOpen(false);
+                    setOverrideJustification("");
+                  }
+                }}
+                disabled={approveMutation.isPending || !overrideJustification.trim()}
+                data-testid="button-skip-interpreter-review"
+              >
+                Approve Without Interpreter Review
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

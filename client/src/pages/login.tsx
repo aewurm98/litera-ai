@@ -51,8 +51,10 @@ export default function Login() {
     onSuccess: (user) => {
       queryClient.setQueryData(["/api/auth/me"], user);
       toast({ title: `Welcome, ${user.name}!` });
-      if (user.role === "admin") {
+      if (user.role === "admin" || user.role === "super_admin") {
         navigate("/admin");
+      } else if (user.role === "interpreter") {
+        navigate("/interpreter");
       } else {
         navigate("/");
       }
@@ -128,10 +130,18 @@ export default function Login() {
                   <p className="font-medium text-foreground">Clinician (Maria Chen, RN):</p>
                   <p className="font-mono text-xs">nurse / password123</p>
                 </div>
+                <div className="p-2 bg-background rounded border">
+                  <p className="font-medium text-foreground">Interpreter (Luis Reyes, CMI):</p>
+                  <p className="font-mono text-xs">riverside_interpreter / password123</p>
+                </div>
                 <p className="text-xs font-medium text-foreground mt-2">Lakeside Family Medicine</p>
                 <div className="p-2 bg-background rounded border">
                   <p className="font-medium text-foreground">Clinician (Sarah Kim, NP):</p>
                   <p className="font-mono text-xs">lakeside_nurse / password123</p>
+                </div>
+                <div className="p-2 bg-background rounded border">
+                  <p className="font-medium text-foreground">Interpreter (Nadia Hassan, CMI):</p>
+                  <p className="font-mono text-xs">lakeside_interpreter / password123</p>
                 </div>
                 <div className="p-2 bg-background rounded border">
                   <p className="font-medium text-foreground">Super Admin (Angela Torres):</p>

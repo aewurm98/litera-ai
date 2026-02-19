@@ -185,6 +185,18 @@ function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function requireInterpreterAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  if (req.session.userRole !== "interpreter") {
+    return res.status(403).json({ error: "Access denied. Interpreter role required." });
+  }
+  (req as any).interpreterId = req.session.userId;
+  (req as any).tenantId = req.session.tenantId;
+  next();
+}
+
 // Helper to safely get first value from query param
 function getQueryString(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -449,7 +461,7 @@ export async function registerRoutes(
       name: req.session.userName,
       role: req.session.userRole,
       tenantId: req.session.tenantId,
-      tenant: tenant ? { id: tenant.id, name: tenant.name, slug: tenant.slug, isDemo: tenant.isDemo } : null,
+      tenant: tenant ? { id: tenant.id, name: tenant.name, slug: tenant.slug, isDemo: tenant.isDemo, interpreterReviewMode: tenant.interpreterReviewMode } : null,
     });
   });
   
@@ -771,16 +783,38 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
 
+      // Check if interpreter review is needed (non-English translations in tenants with review mode)
+      let newStatus = "approved";
+      const isNonEnglish = carePlan.translatedLanguage && carePlan.translatedLanguage !== "en";
+      const skipInterpreterReview = req.body?.skipInterpreterReview === true;
+      const overrideJustification = req.body?.overrideJustification;
+      
+      if (isNonEnglish && carePlan.tenantId) {
+        const tenant = await storage.getTenant(carePlan.tenantId);
+        if (tenant?.interpreterReviewMode === "required") {
+          newStatus = "interpreter_review";
+        } else if (tenant?.interpreterReviewMode === "optional" && !skipInterpreterReview) {
+          newStatus = "interpreter_review";
+        }
+      }
+      
+      // If care plan was already interpreter_approved, go straight to approved
+      if (carePlan.status === "interpreter_approved") {
+        newStatus = "approved";
+      }
+
       const updated = await storage.updateCarePlan(id, {
-        status: "approved",
+        status: newStatus,
         approvedBy: clinicianId,
         approvedAt: new Date(),
       });
 
+      const action = newStatus === "interpreter_review" ? "sent_to_interpreter_review" : "approved";
       await storage.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
-        action: "approved",
+        action,
+        details: skipInterpreterReview ? { skipInterpreterReview: true, overrideJustification: overrideJustification || null } : undefined,
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });
@@ -1950,9 +1984,14 @@ export async function registerRoutes(
       }
       
       const { id } = req.params;
-      const { name, isDemo } = req.body;
+      const { name, isDemo, interpreterReviewMode } = req.body;
       
-      const tenant = await storage.updateTenant(id, { name, isDemo });
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (isDemo !== undefined) updateData.isDemo = isDemo;
+      if (interpreterReviewMode !== undefined) updateData.interpreterReviewMode = interpreterReviewMode;
+      
+      const tenant = await storage.updateTenant(id, updateData);
       if (!tenant) {
         return res.status(404).json({ error: "Tenant not found" });
       }
@@ -1961,6 +2000,192 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating tenant:", error);
       res.status(500).json({ error: "Failed to update tenant" });
+    }
+  });
+
+  // Update own tenant settings (admin)
+  app.patch("/api/admin/my-tenant", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantId;
+      if (!tenantId) return res.status(400).json({ error: "No tenant assigned" });
+      
+      const { interpreterReviewMode } = req.body;
+      const updateData: any = {};
+      if (interpreterReviewMode !== undefined) {
+        if (!["disabled", "optional", "required"].includes(interpreterReviewMode)) {
+          return res.status(400).json({ error: "Invalid interpreter review mode" });
+        }
+        updateData.interpreterReviewMode = interpreterReviewMode;
+      }
+      
+      const tenant = await storage.updateTenant(tenantId, updateData);
+      if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+      
+      await storage.createAuditLog({
+        userId: (req as any).adminId,
+        action: "tenant_settings_updated",
+        details: updateData,
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+      
+      res.json(tenant);
+    } catch (error) {
+      console.error("Error updating tenant settings:", error);
+      res.status(500).json({ error: "Failed to update tenant settings" });
+    }
+  });
+
+  // ============= Interpreter Routes =============
+  
+  // Get interpreter review queue (care plans in interpreter_review status for this interpreter's tenant + languages)
+  app.get("/api/interpreter/queue", requireInterpreterAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantId;
+      const interpreterId = (req as any).interpreterId;
+      const interpreter = await storage.getUser(interpreterId);
+      
+      const allPlans = await storage.getAllCarePlans(tenantId);
+      const queue = allPlans.filter(cp => cp.status === "interpreter_review");
+      
+      // Optionally filter by interpreter's languages
+      const filteredQueue = interpreter?.languages?.length
+        ? queue.filter(cp => cp.translatedLanguage && interpreter.languages!.includes(cp.translatedLanguage))
+        : queue;
+      
+      // Enrich with patient and clinician info
+      const enriched = await Promise.all(filteredQueue.map(async (cp) => {
+        const patient = cp.patientId ? await storage.getPatient(cp.patientId) : null;
+        const clinician = cp.clinicianId ? await storage.getUser(cp.clinicianId) : null;
+        return {
+          ...cp,
+          patient: patient ? { name: patient.name, email: patient.email, preferredLanguage: patient.preferredLanguage } : null,
+          clinician: clinician ? { name: clinician.name } : null,
+        };
+      }));
+      
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching interpreter queue:", error);
+      res.status(500).json({ error: "Failed to fetch queue" });
+    }
+  });
+  
+  // Get recently reviewed care plans
+  app.get("/api/interpreter/reviewed", requireInterpreterAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantId;
+      const interpreterId = (req as any).interpreterId;
+      
+      const allPlans = await storage.getAllCarePlans(tenantId);
+      const reviewed = allPlans.filter(cp => 
+        cp.interpreterReviewedBy === interpreterId && 
+        (cp.status === "interpreter_approved" || cp.status === "approved" || cp.status === "sent" || cp.status === "completed")
+      );
+      
+      const enriched = await Promise.all(reviewed.slice(0, 20).map(async (cp) => {
+        const patient = cp.patientId ? await storage.getPatient(cp.patientId) : null;
+        return {
+          ...cp,
+          patient: patient ? { name: patient.name, email: patient.email, preferredLanguage: patient.preferredLanguage } : null,
+        };
+      }));
+      
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching reviewed plans:", error);
+      res.status(500).json({ error: "Failed to fetch reviewed plans" });
+    }
+  });
+  
+  // Interpreter approves a care plan (with optional edits)
+  app.post("/api/interpreter/care-plans/:id/approve", requireInterpreterAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const interpreterId = (req as any).interpreterId;
+      const tenantId = (req as any).tenantId;
+      
+      const carePlan = await storage.getCarePlan(id as string);
+      if (!carePlan) return res.status(404).json({ error: "Care plan not found" });
+      if (tenantId && carePlan.tenantId !== tenantId) return res.status(403).json({ error: "Access denied" });
+      if (carePlan.status !== "interpreter_review") {
+        return res.status(400).json({ error: "Care plan is not in interpreter review status" });
+      }
+      
+      const {
+        simplifiedDiagnosis, simplifiedInstructions, simplifiedWarnings,
+        translatedDiagnosis, translatedInstructions, translatedWarnings,
+        notes
+      } = req.body;
+      
+      const updateData: any = {
+        status: "interpreter_approved",
+        interpreterReviewedBy: interpreterId,
+        interpreterReviewedAt: new Date(),
+        interpreterNotes: notes || null,
+      };
+      
+      // Apply any edits the interpreter made
+      if (simplifiedDiagnosis !== undefined) updateData.simplifiedDiagnosis = simplifiedDiagnosis;
+      if (simplifiedInstructions !== undefined) updateData.simplifiedInstructions = simplifiedInstructions;
+      if (simplifiedWarnings !== undefined) updateData.simplifiedWarnings = simplifiedWarnings;
+      if (translatedDiagnosis !== undefined) updateData.translatedDiagnosis = translatedDiagnosis;
+      if (translatedInstructions !== undefined) updateData.translatedInstructions = translatedInstructions;
+      if (translatedWarnings !== undefined) updateData.translatedWarnings = translatedWarnings;
+      
+      const updated = await storage.updateCarePlan(id as string, updateData);
+      
+      await storage.createAuditLog({
+        carePlanId: id as string,
+        userId: interpreterId,
+        action: "interpreter_approved",
+        details: { notes: notes || null, hasEdits: !!(simplifiedDiagnosis || translatedDiagnosis) },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error approving care plan:", error);
+      res.status(500).json({ error: "Failed to approve care plan" });
+    }
+  });
+  
+  // Interpreter requests changes (sends back to clinician)
+  app.post("/api/interpreter/care-plans/:id/request-changes", requireInterpreterAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const interpreterId = (req as any).interpreterId;
+      const tenantId = (req as any).tenantId;
+      
+      const carePlan = await storage.getCarePlan(id as string);
+      if (!carePlan) return res.status(404).json({ error: "Care plan not found" });
+      if (tenantId && carePlan.tenantId !== tenantId) return res.status(403).json({ error: "Access denied" });
+      if (carePlan.status !== "interpreter_review") {
+        return res.status(400).json({ error: "Care plan is not in interpreter review status" });
+      }
+      
+      const { reason } = req.body;
+      if (!reason?.trim()) return res.status(400).json({ error: "Reason is required" });
+      
+      const updated = await storage.updateCarePlan(id as string, {
+        status: "pending_review",
+        interpreterNotes: reason,
+      });
+      
+      await storage.createAuditLog({
+        carePlanId: id as string,
+        userId: interpreterId,
+        action: "interpreter_changes_requested",
+        details: { reason },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error requesting changes:", error);
+      res.status(500).json({ error: "Failed to request changes" });
     }
   });
 

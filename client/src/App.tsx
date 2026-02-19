@@ -46,11 +46,13 @@ import {
   Video,
   Building2,
   Key,
+  Languages,
 } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import ClinicianDashboard from "@/pages/clinician-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
+import InterpreterDashboard from "@/pages/interpreter-dashboard";
 import PatientPortal from "@/pages/patient-portal";
 
 interface User {
@@ -233,6 +235,12 @@ function AppSidebar({ user }: { user: User }) {
       href: "/admin",
       roles: ["admin", "super_admin"],
     },
+    {
+      title: "Interpreter Dashboard",
+      icon: Languages,
+      href: "/interpreter",
+      roles: ["interpreter"],
+    },
   ];
 
   const phase2Items = [
@@ -407,6 +415,8 @@ function AuthenticatedRoutes({ user }: { user: User }) {
       <Route path="/">
         {user.role === "admin" || user.role === "super_admin" ? (
           <Redirect to="/admin" />
+        ) : user.role === "interpreter" ? (
+          <Redirect to="/interpreter" />
         ) : (
           <MainLayout user={user}>
             <ClinicianDashboard />
@@ -417,6 +427,15 @@ function AuthenticatedRoutes({ user }: { user: User }) {
         {user.role === "admin" || user.role === "super_admin" ? (
           <MainLayout user={user}>
             <AdminDashboard />
+          </MainLayout>
+        ) : (
+          <Redirect to="/" />
+        )}
+      </Route>
+      <Route path="/interpreter">
+        {user.role === "interpreter" ? (
+          <MainLayout user={user}>
+            <InterpreterDashboard />
           </MainLayout>
         ) : (
           <Redirect to="/" />

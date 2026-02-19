@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, patients, carePlans, checkIns, auditLogs, tenants } from "@shared/schema";
+import { users, patients, carePlans, checkIns, auditLogs, tenants, chatMessages } from "@shared/schema";
 import { eq, inArray, and, isNotNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import bcrypt from "bcrypt";
@@ -33,6 +33,7 @@ export async function seedDatabase(force: boolean = false) {
 
   console.log("Seeding database...");
 
+  await db.delete(chatMessages);
   await db.delete(auditLogs);
   await db.delete(checkIns);
   await db.delete(carePlans);
@@ -75,6 +76,7 @@ export async function resetDemoTenant() {
     const demoCarePlanIds = demoCarePlanRows.map(cp => cp.id);
 
     if (demoCarePlanIds.length > 0) {
+      await db.delete(chatMessages).where(inArray(chatMessages.carePlanId, demoCarePlanIds));
       await db.delete(auditLogs).where(inArray(auditLogs.carePlanId, demoCarePlanIds));
       await db.delete(checkIns).where(inArray(checkIns.carePlanId, demoCarePlanIds));
       await db.delete(carePlans).where(inArray(carePlans.id, demoCarePlanIds));
@@ -170,7 +172,27 @@ async function seedDemoData() {
     tenantId: tenant2.id,
   }).returning();
 
-  console.log("Created staff:", riversideAdmin.name, clinician1.name, lakesideAdmin.name, clinician2.name);
+  // Riverside interpreter (Spanish, French, Russian)
+  const [interpreter1] = await db.insert(users).values({
+    username: "riverside_interpreter",
+    password: hashedPassword,
+    role: "interpreter",
+    name: "Luis Reyes, CMI",
+    languages: ["es", "fr", "ru"],
+    tenantId: tenant1.id,
+  }).returning();
+
+  // Lakeside interpreter (Arabic, Hindi, Vietnamese)
+  const [interpreter2] = await db.insert(users).values({
+    username: "lakeside_interpreter",
+    password: hashedPassword,
+    role: "interpreter",
+    name: "Nadia Hassan, CMI",
+    languages: ["ar", "hi", "vi"],
+    tenantId: tenant2.id,
+  }).returning();
+
+  console.log("Created staff:", riversideAdmin.name, clinician1.name, interpreter1.name, lakesideAdmin.name, clinician2.name, interpreter2.name);
 
   // === Riverside Patients ===
   const [patient1] = await db.insert(patients).values({
@@ -626,6 +648,7 @@ async function seedDemoData() {
   console.log("STAFF:");
   console.log(`  Clinic Admin: riverside_admin / password123 (${riversideAdmin.name})`);
   console.log(`  Clinician: nurse / password123 (${clinician1.name})`);
+  console.log(`  Interpreter: riverside_interpreter / password123 (${interpreter1.name})`);
   console.log("CARE PLANS:");
   console.log("  1. Rosa Martinez - SENT (Spanish, green check-in + pending 2nd)");
   console.log("  2. Nguyen Thi Lan - APPROVED (Vietnamese, ready to send)");
@@ -640,6 +663,7 @@ async function seedDemoData() {
   console.log("STAFF:");
   console.log(`  Clinic Admin: lakeside_admin / password123 (${lakesideAdmin.name})`);
   console.log(`  Clinician: lakeside_nurse / password123 (${clinician2.name})`);
+  console.log(`  Interpreter: lakeside_interpreter / password123 (${interpreter2.name})`);
   console.log("CARE PLANS:");
   console.log("  1. Aisha Rahman - SENT (Arabic, yellow alert check-in)");
   console.log("  2. Pedro Gutierrez - APPROVED (Spanish, ready to send)");

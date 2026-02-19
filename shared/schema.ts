@@ -14,8 +14,11 @@ export const sessions = pgTable("session", {
 export const tenants = pgTable("tenants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  slug: text("slug").notNull().unique(), // URL-friendly identifier (e.g., "mercy-hospital")
-  isDemo: boolean("is_demo").notNull().default(false), // Demo tenant flag for sample data
+  slug: text("slug").notNull().unique(),
+  isDemo: boolean("is_demo").notNull().default(false),
+  interpreterReviewMode: text("interpreter_review_mode").notNull().default("required"), // required | optional
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -27,14 +30,15 @@ export const insertTenantSchema = createInsertSchema(tenants).omit({
 export type InsertTenant = z.infer<typeof insertTenantSchema>;
 export type Tenant = typeof tenants.$inferSelect;
 
-// Users table (clinicians and admins)
+// Users table (clinicians, interpreters, admins)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").notNull().default("clinician"), // clinician, admin, super_admin
+  role: text("role").notNull().default("clinician"), // clinician, interpreter, admin, super_admin
   name: text("name").notNull(),
-  tenantId: varchar("tenant_id").references(() => tenants.id), // Null for super_admin (platform-level)
+  languages: text("languages").array(), // Language codes interpreter specializes in (e.g., ["es", "fr"])
+  tenantId: varchar("tenant_id").references(() => tenants.id),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -42,6 +46,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   role: true,
   name: true,
+  languages: true,
   tenantId: true,
 });
 
@@ -80,7 +85,8 @@ export const carePlans = pgTable("care_plans", {
   clinicianId: varchar("clinician_id").references(() => users.id),
   tenantId: varchar("tenant_id").references(() => tenants.id), // Tenant isolation
   
-  // Status workflow: draft -> pending_review -> approved -> sent -> completed
+  // Status workflow: draft -> pending_review -> [interpreter_review -> interpreter_approved ->] approved -> sent -> completed
+  // English care plans skip interpreter_review/interpreter_approved (no translation to verify)
   status: text("status").notNull().default("draft"),
   
   // Original content (from PDF/image upload)
@@ -119,6 +125,11 @@ export const carePlans = pgTable("care_plans", {
   // Magic link for patient access
   accessToken: varchar("access_token", { length: 64 }),
   accessTokenExpiry: timestamp("access_token_expiry"),
+  
+  // Interpreter review tracking
+  interpreterReviewedBy: varchar("interpreter_reviewed_by").references(() => users.id),
+  interpreterReviewedAt: timestamp("interpreter_reviewed_at"),
+  interpreterNotes: text("interpreter_notes"),
   
   // Approval tracking
   approvedBy: varchar("approved_by").references(() => users.id),
@@ -278,3 +289,22 @@ export const SUPPORTED_LANGUAGES = [
 ] as const;
 
 export type LanguageCode = typeof SUPPORTED_LANGUAGES[number]["code"];
+
+// Chat messages for patient portal AI assistant (RAG-based)
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  carePlanId: varchar("care_plan_id").references(() => carePlans.id).notNull(),
+  patientId: varchar("patient_id").references(() => patients.id).notNull(),
+  role: text("role").notNull(), // user | assistant
+  content: text("content").notNull(),
+  language: text("language").notNull().default("en"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
