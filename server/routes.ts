@@ -848,18 +848,44 @@ export async function registerRoutes(
         newStatus = "approved";
       }
 
-      const updated = await storage.updateCarePlan(id, {
+      const updateData: any = {
         status: newStatus,
         approvedBy: clinicianId,
         approvedAt: new Date(),
-      });
+      };
+
+      const clinicianEdits = req.body?.clinicianEdits;
+      const editedFields: Record<string, { before: string; after: string }> = {};
+      if (clinicianEdits && typeof clinicianEdits === "object") {
+        const allowedFields = [
+          "simplifiedDiagnosis", "simplifiedInstructions", "simplifiedWarnings",
+          "simplifiedMedications", "simplifiedAppointments",
+        ];
+        for (const field of allowedFields) {
+          if (clinicianEdits[field] !== undefined && clinicianEdits[field] !== (carePlan as any)[field]) {
+            const sanitized = stripHtml(String(clinicianEdits[field]));
+            editedFields[field] = { before: (carePlan as any)[field] || "", after: sanitized };
+            updateData[field] = sanitized;
+          }
+        }
+      }
+
+      const updated = await storage.updateCarePlan(id, updateData);
 
       const action = newStatus === "interpreter_review" ? "sent_to_interpreter_review" : "approved";
+      const auditDetails: any = {};
+      if (skipInterpreterReview) {
+        auditDetails.skipInterpreterReview = true;
+        auditDetails.overrideJustification = overrideJustification || null;
+      }
+      if (Object.keys(editedFields).length > 0) {
+        auditDetails.clinicianEdits = editedFields;
+      }
       await storage.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
         action,
-        details: skipInterpreterReview ? { skipInterpreterReview: true, overrideJustification: overrideJustification || null } : undefined,
+        details: Object.keys(auditDetails).length > 0 ? auditDetails : undefined,
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });
