@@ -1,6 +1,6 @@
 # Litera.ai — Pilot Readiness Plan (2-5 Clinics)
 
-**Last Updated:** February 18, 2026
+**Last Updated:** February 19, 2026
 
 ---
 
@@ -39,7 +39,7 @@ Take Litera.ai from a single-demo-clinic MVP to a platform that can onboard 2-5 
 
 ---
 
-### COMPLETED — This Session
+### COMPLETED — Feb 18
 
 | # | Feature | Details |
 |---|---------|---------|
@@ -49,6 +49,16 @@ Take Litera.ai from a single-demo-clinic MVP to a platform that can onboard 2-5 
 | 24 | **Email Delivery Error Handling** | Send endpoint returns `emailSent` flag. Frontend shows specific toast when email fails but care plan is saved successfully. |
 | 25 | **Patient Portal Error Handling** | Expired access tokens return 410 status. Frontend distinguishes "Link Expired" from "Not Found" with specific messaging. Improved check-in error messages. |
 | 26 | **Multer Config Alignment** | Multer fileFilter and limits aligned with route-level validation (20MB, same allowed file types). |
+
+### COMPLETED — Feb 19
+
+| # | Feature | Details |
+|---|---------|---------|
+| 27 | **Patient CRUD API** | Full REST endpoints (`GET/POST/PATCH/DELETE /api/admin/patients`) with email+tenantId deduplication at both application and database level. Deletion guard returns 409 if patient has linked care plans. Enriched patient list returns `carePlanCount`, `lastCarePlanStatus`, `lastCarePlanDate`. |
+| 28 | **CSV Bulk Patient Import** | `POST /api/admin/patients/import` with dedicated `csvUpload` multer instance (separate from medical document uploads). Flexible header matching (e.g., "name", "patient name", "full name"). Per-row create/update/skip logic with summary response. |
+| 29 | **Patient Management UI** | Admin dashboard Patients tab with search, add/edit/delete dialogs, patient detail view showing care plan history with clinician and language. Patient selector dropdown in clinician send dialog pre-fills form fields from existing patients while preserving manual entry. |
+| 30 | **Notion-Style View Toggle** | Table and Kanban views with `localStorage` persistence (key: `litera-patient-view`). Kanban groups patients into 5 lifecycle columns: Registered (0 care plans), Care Plan Sent (draft/pending_review), Checked In (sent/approved), Needs Attention (unresolved alerts), Completed. Unresolved alerts take priority over status for column assignment. |
+| 31 | **Usability Audit & Bug Fixes** | Fixed "Total Patients" stat card counting care plans instead of patients. Fixed patient detail view showing duplicated name ("Olga Petrov Petrov") because `patient.name` already contains the full name. Full data pipeline audit confirmed no hardcoded/mock data in production paths and no broken connections between user roles. |
 
 ### OUTSTANDING — Prioritized for Pilot
 
@@ -146,3 +156,6 @@ See `DEMO_CREDENTIALS.md` and `TESTING_CREDENTIALS.md` for full details includin
 - **Feb 18, 2026:** Completed items 1-4: Super admin reset access, per-tenant demo reset, tenant isolation audit, production sessions. Alert resolution now checks tenant ownership. Tenant management endpoints restricted to super admins only.
 - **Feb 18, 2026:** Implemented second demo tenant (Lakeside Family Medicine) to validate multi-tenant isolation. Split 10 patients 5/5 between Riverside and Lakeside. Each tenant has its own clinician, clinic admin, care plans at various statuses, check-ins, and audit logs. Sample docs dropdown is now tenant-scoped. Login page updated with both tenants' credentials.
 - **Feb 18, 2026:** Full end-to-end smoke test passed: patient portal verification + check-in for both tenants, admin dashboard isolation (care plans, team, alerts), demo reset reseeds both tenants correctly with fresh tokens.
+- **Feb 19, 2026:** Implemented patient-first management: CRUD with deduplication, CSV import, patient detail with care plan history, patient selector in clinician send dialog.
+- **Feb 19, 2026:** Added Notion-style view toggle (Table/Kanban) to Patients tab with localStorage persistence. Kanban board groups patients into 5 lifecycle columns using enriched patient data + alert status.
+- **Feb 19, 2026:** Usability audit completed. Found and fixed: (1) "Total Patients" stat card was counting care plans instead of patients, (2) patient detail view displayed duplicated last name. No hardcoded data, no broken data pipelines between user roles, no missing datapoints confirmed.
