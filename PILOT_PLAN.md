@@ -1,6 +1,6 @@
 # Litera.ai — Pilot Readiness Plan (2-5 Clinics)
 
-**Last Updated:** February 19, 2026
+**Last Updated:** February 19, 2026 (Milestone 4 complete)
 
 ---
 
@@ -67,6 +67,16 @@ Take Litera.ai from a single-demo-clinic MVP to a platform that can onboard 2-5 
 | 37 | **Interpreter Status Badges & Notes** | Clinician dashboard shows interpreter review status badges on care plans. Amber notification box displays interpreter notes when a care plan has been reviewed or returned by an interpreter. |
 | 38 | **Demo Interpreter Users** | Two interpreter users seeded: `riverside_interpreter` (Luis Reyes, CMI — Spanish/French/Russian) and `lakeside_interpreter` (Nadia Hassan, CMI — Arabic/Hindi/Vietnamese). Each scoped to their respective demo tenant. |
 | 39 | **Cross-Module Security Audit** | Added status guard on send endpoint (blocks sending care plans in `interpreter_review`). Created `server/auth.ts` module (fixes user creation crash). Added interpreter role to document access endpoint. Added shared secret guard on internal check-in scheduler endpoint. |
+
+### COMPLETED — Feb 19 (Milestone 4: Code Quality & Redundancy)
+
+| # | Feature | Details |
+|---|---------|---------|
+| 40 | **hashPassword Centralized** | Removed duplicate `hashPassword` function and `bcrypt` import from `seed.ts`. All password hashing now goes through `server/auth.ts` — the single authoritative implementation (`bcrypt.hash` with cost factor 10). |
+| 41 | **No Dynamic Imports at Call-Site** | Replaced `const { hashPassword } = await import("./auth")` inside the user-creation endpoint with a top-level static `import { hashPassword } from "./auth"` in `routes.ts`. No behavior change; eliminates deferred module loading. |
+| 42 | **Type Alias Deduplication** | `SimplifiedMedication` and `SimplifiedAppointment` in `shared/schema.ts` changed from duplicated interface declarations (identical fields to `Medication`/`Appointment`) to type aliases (`type SimplifiedMedication = Medication`). Single source of truth; no runtime or API change. |
+| 43 | **Upload Route Helper Extracted** | Three copy-pasted blocks in the upload route (PDF text, PDF AI fallback, image) — each doing patient name matching, care plan creation, audit logging, and response building — replaced with a single `createCarePlanFromExtracted()` helper. Eliminated ~80 lines of duplication across 3 call-sites. Identical API responses maintained for all upload paths. |
+| 44 | **getAlerts Query Optimized** | Replaced 2 separate yellow/red queries + per-alert N+1 loops (`O(n)` DB round-trips) with: (1) single `inArray(response, ["yellow","red"])` query, (2) one batched care plan fetch, (3) one batched patient fetch. Now issues exactly 3 DB round-trips regardless of alert count. Tenant filtering moved to in-memory; return shape unchanged. |
 
 ### OUTSTANDING — Prioritized for Pilot
 
@@ -148,11 +158,12 @@ See `DEMO_CREDENTIALS.md` and `TESTING_CREDENTIALS.md` for full details includin
 
 | File | Purpose |
 |------|---------|
-| `server/routes.ts` | All API endpoints, auth middleware, business logic |
-| `server/storage.ts` | Database storage interface and implementation |
+| `server/routes.ts` | All API endpoints, auth middleware, business logic. Upload route uses `createCarePlanFromExtracted()` helper for all three file-type paths. |
+| `server/storage.ts` | Database storage interface and implementation. `getAlerts` uses batched `inArray` queries (3 round-trips). |
+| `server/auth.ts` | Centralized auth utilities: `hashPassword` (bcrypt, cost 10) and `comparePassword`. Imported by `routes.ts` and `seed.ts`. |
 | `server/seed.ts` | Demo data seeding — creates both demo tenants with all staff, patients, care plans |
 | `server/index.ts` | Server entry point, `isDemoMode` flag |
-| `shared/schema.ts` | Drizzle ORM schema, Zod validation |
+| `shared/schema.ts` | Drizzle ORM schema, Zod validation. `SimplifiedMedication = Medication`, `SimplifiedAppointment = Appointment` (type aliases, not duplicate interfaces). |
 | `client/src/pages/admin-dashboard.tsx` | Admin UI — patients, alerts, team, tenants, audit log |
 | `client/src/pages/clinician-dashboard.tsx` | Clinician UI — document upload, AI processing, care plan review, tenant-scoped sample docs |
 | `client/src/pages/patient-portal.tsx` | Patient-facing care plan view, check-in |
@@ -165,7 +176,7 @@ See `DEMO_CREDENTIALS.md` and `TESTING_CREDENTIALS.md` for full details includin
 
 ## Remaining Implementation Plan
 
-> Last updated: February 19, 2026. Milestones 1 (Security Hardening) and 2 (Data Model Hardening) are complete. Steps below are the full remaining implementation plan in priority order.
+> Last updated: February 19, 2026. Milestones 1 (Security Hardening), 2 (Data Model Hardening), and 4 (Code Quality & Redundancy) are complete. Steps below are the remaining implementation plan in priority order.
 
 ---
 
@@ -222,40 +233,40 @@ Frontend and backend changes. Test each step in the browser after implementation
 
 ---
 
-### Milestone 4 — Code Quality and Redundancy
+### Milestone 4 — Code Quality and Redundancy ✓ COMPLETE
 
-Refactoring only — no behavior changes. Run `npm run check` after each step.
+All steps completed Feb 19, 2026. `npm run check` passes with zero errors. No behavior changes.
 
-#### Step 4.0 — Delete unused `server/replit_integrations/` directory
+#### Step 4.0 — Delete unused `server/replit_integrations/` directory ✓
 - **Change:** Remove the four orphaned Replit scaffold modules (`audio`, `batch`, `chat`, `image`). None are imported or registered in the active application. All four contained pre-existing TypeScript errors polluting `npm run check` output.
 - **Product fit assessment:** Audio TTS is already served by browser `speechSynthesis`; batch processing and chat would need purpose-built implementations aligned to the clinical workflow; image generation has no relevance at any product phase.
 - **Validation:** `npm run check` passes with zero errors.
 
-#### Step 4.1 — Consolidate `hashPassword` duplication
+#### Step 4.1 — Consolidate `hashPassword` duplication ✓
 - **Files:** `server/seed.ts`, `server/auth.ts`
 - **Change:** Remove the local `hashPassword` function from `seed.ts`; import it from `./auth` instead.
 - **Guardrail:** `auth.ts` already exports `hashPassword` — direct drop-in replacement.
 - **Validation:** `npm run check` passes; demo reset seeding still works.
 
-#### Step 4.2 — Consolidate bcrypt import in routes.ts
+#### Step 4.2 — Consolidate bcrypt import in routes.ts ✓
 - **File:** `server/routes.ts`
 - **Change:** Replace `const { hashPassword } = await import("./auth")` (line 1494) with the top-level bcrypt import already present at the top of the file.
 - **Guardrail:** Top-level bcrypt is already imported — no new dependency.
 - **Validation:** `npm run check` passes.
 
-#### Step 4.3 — Deduplicate type aliases in schema.ts
+#### Step 4.3 — Deduplicate type aliases in schema.ts ✓
 - **File:** `shared/schema.ts`
 - **Change:** Change `SimplifiedMedication` to `type SimplifiedMedication = Medication` and `SimplifiedAppointment` to `type SimplifiedAppointment = Appointment`.
 - **Guardrail:** TypeScript structural typing means these are already equivalent — cosmetic only.
 - **Validation:** `npm run check` passes; no runtime changes.
 
-#### Step 4.4 — Extract shared care plan creation helper in upload route
+#### Step 4.4 — Extract shared care plan creation helper in upload route ✓
 - **File:** `server/routes.ts` (lines 543–670)
 - **Change:** Extract `async function createCarePlanFromExtracted(clinicianId, tenantId, extracted, file, req)` covering: patient name matching, care plan creation, audit log, enriched response. Replace the three copy-pasted blocks (PDF text, PDF AI fallback, image) with calls to this helper.
 - **Guardrail:** Extract exact logic — do not add or change behavior; test all three upload paths.
 - **Validation:** All three file type uploads still work and produce identical API responses.
 
-#### Step 4.5 — Fix `getAlerts` N+1 query
+#### Step 4.5 — Fix `getAlerts` N+1 query ✓
 - **File:** `server/storage.ts` (~line 258)
 - **Change:** Replace the two separate yellow/red queries + per-alert patient/careplan lookups with a single `inArray(checkIns.response, ["yellow", "red"])` query followed by batch fetches using `inArray` for care plans and patients.
 - **Guardrail:** Same return shape — only the query pattern changes.
@@ -315,3 +326,4 @@ Documented as technical debt. Not addressed before the pilot due to high regress
 - **Feb 19, 2026:** Usability audit completed. Found and fixed: (1) "Total Patients" stat card was counting care plans instead of patients, (2) patient detail view displayed duplicated last name. No hardcoded data, no broken data pipelines between user roles, no missing datapoints confirmed.
 - **Feb 19, 2026:** Implemented medical interpreter human-in-the-loop review workflow. Added interpreter role with language specialties, tenant-level compliance modes (disabled/optional/required), interpreter dashboard with language-filtered queue and 3-column review panel, clinician override dialog with audit-logged justification, English bypass logic (no translation to review), and interpreter status badges + notes on clinician dashboard.
 - **Feb 19, 2026:** Cross-module security audit completed. Fixed: (1) Send endpoint now blocks care plans in `interpreter_review` status, (2) Created missing `server/auth.ts` module fixing user creation crash, (3) Added interpreter role to document access endpoint, (4) Added shared secret guard on internal check-in scheduler endpoint.
+- **Feb 19, 2026:** Milestone 4 (Code Quality & Redundancy) complete. All 5 steps done: (1) `hashPassword` consolidated to `server/auth.ts` — removed duplicate in `seed.ts`, (2) dynamic `await import("./auth")` in user-creation endpoint replaced with top-level static import, (3) `SimplifiedMedication`/`SimplifiedAppointment` converted to type aliases, (4) `createCarePlanFromExtracted()` helper extracted — eliminated ~80 lines of tripled upload logic, (5) `getAlerts` N+1 query replaced with 3 batched round-trips using `inArray`. `npm run check` passes with zero errors.
