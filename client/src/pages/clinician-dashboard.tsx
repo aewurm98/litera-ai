@@ -739,6 +739,8 @@ export default function ClinicianDashboard() {
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
                 <SelectItem value="pending_review">Pending Review</SelectItem>
+                <SelectItem value="interpreter_review">Interpreter Review</SelectItem>
+                <SelectItem value="interpreter_approved">Interpreter Approved</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
                 <SelectItem value="sent">Sent</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
@@ -1029,7 +1031,16 @@ export default function ClinicianDashboard() {
               </div>
             </div>
 
-            {selectedCarePlan.interpreterNotes && (selectedCarePlan.status === "interpreter_approved" || selectedCarePlan.status === "pending_review") && (
+            {selectedCarePlan.interpreterNotes && selectedCarePlan.status === "pending_review" && (
+              <div className="mx-4 mt-4 p-3 border border-red-300 rounded-md bg-red-50 dark:bg-red-950/30">
+                <p className="text-sm font-medium flex items-center gap-2 text-red-700 dark:text-red-400">
+                  <AlertTriangle className="h-4 w-4" />
+                  Changes Requested by Interpreter
+                </p>
+                <p className="text-sm text-red-600 dark:text-red-300 mt-1">{selectedCarePlan.interpreterNotes}</p>
+              </div>
+            )}
+            {selectedCarePlan.interpreterNotes && selectedCarePlan.status === "interpreter_approved" && (
               <div className="mx-4 mt-4 p-3 border rounded-md bg-amber-50 dark:bg-amber-950/30">
                 <p className="text-sm font-medium flex items-center gap-2">
                   <Languages className="h-4 w-4" />
@@ -1743,6 +1754,9 @@ export default function ClinicianDashboard() {
                 onChange={(e) => setPatientPhone(e.target.value)}
                 data-testid="input-patient-phone"
               />
+              {patientPhone && (
+                <p className="text-xs text-muted-foreground">SMS will be sent alongside the email.</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="patient-yob" className={formErrors.yearOfBirth ? "text-destructive" : ""}>

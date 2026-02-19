@@ -5,6 +5,7 @@ import { z } from "zod";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { storage, generateAccessToken } from "./storage";
+import { hashPassword } from "./auth";
 import { 
   extractDischargeContent, 
   extractFromImage, 
@@ -12,6 +13,7 @@ import {
   translateContent 
 } from "./services/openai";
 import { sendCarePlanEmail, sendCheckInEmail } from "./services/resend";
+import { sendCarePlanSms, sendCheckInSms } from "./services/twilio";
 import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
 import { isDemoMode } from "./index";
 
@@ -24,6 +26,63 @@ function generatePin(): string {
 function extractLastName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
   return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+}
+
+// Shared helper: patient-match + care plan create + audit log for all upload paths
+async function createCarePlanFromExtracted(
+  clinicianId: string,
+  tenantId: string | undefined,
+  extracted: Awaited<ReturnType<typeof extractDischargeContent>>,
+  originalContent: string,
+  fileData: string,
+  file: { originalname: string; mimetype: string },
+  req: Request,
+  auditMethod?: string,
+) {
+  let matchedPatientId: string | undefined = undefined;
+  if (extracted.patientName) {
+    const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
+    if (matchedPatient) {
+      matchedPatientId = matchedPatient.id;
+      console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
+    }
+  }
+
+  const carePlan = await storage.createCarePlan({
+    clinicianId,
+    patientId: matchedPatientId,
+    tenantId,
+    status: "draft",
+    originalContent,
+    originalFileName: file.originalname,
+    originalFileData: fileData,
+    extractedPatientName: extracted.patientName,
+    diagnosis: extracted.diagnosis,
+    medications: extracted.medications,
+    appointments: extracted.appointments,
+    instructions: extracted.instructions,
+    warnings: extracted.warnings,
+  });
+
+  const auditDetails: Record<string, unknown> = {
+    fileName: file.originalname,
+    fileType: file.mimetype,
+    patientName: extracted.patientName,
+    autoMatchedPatientId: matchedPatientId,
+  };
+  if (auditMethod) auditDetails.method = auditMethod;
+
+  await storage.createAuditLog({
+    carePlanId: carePlan.id,
+    userId: clinicianId,
+    action: "uploaded",
+    details: auditDetails,
+    ipAddress: req.ip || null,
+    userAgent: req.get("user-agent") || null,
+  });
+
+  const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
+  return { ...carePlan, patient: matchedPatient };
 }
 
 // Demo token store (in-memory, expires after 5 minutes)
@@ -598,137 +657,20 @@ export async function registerRoutes(
           }
         } catch (pdfError) {
           console.log("PDF parsing failed, falling back to AI extraction:", pdfError);
-          // Fall back to AI extraction - treat PDF as an image-like document
           const base64Doc = file.buffer.toString("base64");
           const extracted = await extractFromImage(base64Doc);
-          
-          // Auto-match patient by extracted name
-          let matchedPatientId: string | undefined = undefined;
-          if (extracted.patientName) {
-            const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
-            if (matchedPatient) {
-              matchedPatientId = matchedPatient.id;
-              console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
-            }
-          }
-          
-          const carePlan = await storage.createCarePlan({
-            clinicianId,
-            patientId: matchedPatientId,
-            tenantId,
-            status: "draft",
-            originalContent: JSON.stringify(extracted),
-            originalFileName: file.originalname,
-            originalFileData: file.buffer.toString("base64"),
-            extractedPatientName: extracted.patientName,
-            diagnosis: extracted.diagnosis,
-            medications: extracted.medications,
-            appointments: extracted.appointments,
-            instructions: extracted.instructions,
-            warnings: extracted.warnings,
-          });
-
-          await storage.createAuditLog({
-            carePlanId: carePlan.id,
-            userId: clinicianId,
-            action: "uploaded",
-            details: { fileName: file.originalname, fileType: file.mimetype, method: "ai-fallback", patientName: extracted.patientName, autoMatchedPatientId: matchedPatientId },
-            ipAddress: req.ip || null,
-            userAgent: req.get("user-agent") || null,
-          });
-
-          // Include matched patient in response for language pre-fill
-          const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
-          return res.json({ ...carePlan, patient: matchedPatient });
+          return res.json(await createCarePlanFromExtracted(clinicianId, tenantId, extracted, JSON.stringify(extracted), base64Doc, file, req, "ai-fallback"));
         }
       } else {
-        // For images, we'll use GPT-4o Vision
+        // For images, use GPT-4o Vision
         const base64Image = file.buffer.toString("base64");
         const extracted = await extractFromImage(base64Image);
-        
-        // Auto-match patient by extracted name
-        let matchedPatientId: string | undefined = undefined;
-        if (extracted.patientName) {
-          const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
-          if (matchedPatient) {
-            matchedPatientId = matchedPatient.id;
-            console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
-          }
-        }
-        
-        // Create care plan with extracted content
-        const carePlan = await storage.createCarePlan({
-          clinicianId,
-          patientId: matchedPatientId,
-          tenantId,
-          status: "draft",
-          originalContent: JSON.stringify(extracted),
-          originalFileName: file.originalname,
-          originalFileData: base64Image,
-          extractedPatientName: extracted.patientName,
-          diagnosis: extracted.diagnosis,
-          medications: extracted.medications,
-          appointments: extracted.appointments,
-          instructions: extracted.instructions,
-          warnings: extracted.warnings,
-        });
-
-        // Create audit log
-        await storage.createAuditLog({
-          carePlanId: carePlan.id,
-          userId: clinicianId,
-          action: "uploaded",
-          details: { fileName: file.originalname, fileType: file.mimetype, patientName: extracted.patientName, autoMatchedPatientId: matchedPatientId },
-          ipAddress: req.ip || null,
-          userAgent: req.get("user-agent") || null,
-        });
-
-        // Include matched patient in response for language pre-fill
-        const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
-        return res.json({ ...carePlan, patient: matchedPatient });
+        return res.json(await createCarePlanFromExtracted(clinicianId, tenantId, extracted, JSON.stringify(extracted), base64Image, file, req));
       }
 
-      // For PDFs, extract structured content
+      // PDF with extractable text
       const extracted = await extractDischargeContent(extractedText);
-      
-      // Auto-match patient by extracted name
-      let matchedPatientId: string | undefined = undefined;
-      if (extracted.patientName) {
-        const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
-        if (matchedPatient) {
-          matchedPatientId = matchedPatient.id;
-          console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
-        }
-      }
-      
-      const carePlan = await storage.createCarePlan({
-        clinicianId,
-        patientId: matchedPatientId,
-        tenantId,
-        status: "draft",
-        originalContent: extractedText,
-        originalFileName: file.originalname,
-        originalFileData: file.buffer.toString("base64"),
-        extractedPatientName: extracted.patientName,
-        diagnosis: extracted.diagnosis,
-        medications: extracted.medications,
-        appointments: extracted.appointments,
-        instructions: extracted.instructions,
-        warnings: extracted.warnings,
-      });
-
-      await storage.createAuditLog({
-        carePlanId: carePlan.id,
-        userId: clinicianId,
-        action: "uploaded",
-        details: { fileName: file.originalname, fileType: file.mimetype, patientName: extracted.patientName, autoMatchedPatientId: matchedPatientId },
-        ipAddress: req.ip || null,
-        userAgent: req.get("user-agent") || null,
-      });
-
-      // Include matched patient in response for language pre-fill
-      const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
-      res.json({ ...carePlan, patient: matchedPatient });
+      res.json(await createCarePlanFromExtracted(clinicianId, tenantId, extracted, extractedText, file.buffer.toString("base64"), file, req));
     } catch (error: any) {
       console.error("Error uploading file:", error);
       const message = error?.message?.includes("OpenAI") || error?.message?.includes("API")
@@ -982,6 +924,12 @@ export async function registerRoutes(
         // Continue even if email fails - care plan is still sent
       }
 
+      // Send SMS if patient has a phone number (gracefully skips if Twilio env vars not set)
+      let smsSent = false;
+      if (patient.phone) {
+        smsSent = await sendCarePlanSms(patient.phone, name, accessLink, patientPin);
+      }
+
       await storage.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
@@ -993,7 +941,7 @@ export async function registerRoutes(
 
       // Return enriched plan
       const checkIns = await storage.getCheckInsByCarePlanId(id);
-      res.json({ ...updated, patient, checkIns, emailSent });
+      res.json({ ...updated, patient, checkIns, emailSent, smsSent });
     } catch (error) {
       console.error("Error sending care plan:", error);
       res.status(500).json({ error: "Failed to send care plan" });
@@ -1594,7 +1542,6 @@ export async function registerRoutes(
         return res.status(409).json({ error: "Username already exists" });
       }
       
-      const { hashPassword } = await import("./auth");
       const hashedPassword = await hashPassword(password);
       
       // For non-super-admins, auto-assign to their tenant
@@ -2226,26 +2173,40 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Care plan is not in interpreter review status" });
       }
       
+      // M3.4: Enforce interpreter language match
+      const interpreter = await storage.getUser(interpreterId);
+      if (interpreter?.languages?.length && carePlan.translatedLanguage) {
+        if (!interpreter.languages.includes(carePlan.translatedLanguage)) {
+          return res.status(403).json({ error: "Language not in interpreter's specialties" });
+        }
+      }
+
       const {
         simplifiedDiagnosis, simplifiedInstructions, simplifiedWarnings,
+        simplifiedMedications, simplifiedAppointments,
         translatedDiagnosis, translatedInstructions, translatedWarnings,
+        translatedMedications, translatedAppointments,
         notes
       } = req.body;
-      
+
       const updateData: any = {
         status: "interpreter_approved",
         interpreterReviewedBy: interpreterId,
         interpreterReviewedAt: new Date(),
         interpreterNotes: notes || null,
       };
-      
+
       // Apply any edits the interpreter made
       if (simplifiedDiagnosis !== undefined) updateData.simplifiedDiagnosis = simplifiedDiagnosis;
       if (simplifiedInstructions !== undefined) updateData.simplifiedInstructions = simplifiedInstructions;
       if (simplifiedWarnings !== undefined) updateData.simplifiedWarnings = simplifiedWarnings;
+      if (simplifiedMedications !== undefined) updateData.simplifiedMedications = simplifiedMedications;
+      if (simplifiedAppointments !== undefined) updateData.simplifiedAppointments = simplifiedAppointments;
       if (translatedDiagnosis !== undefined) updateData.translatedDiagnosis = translatedDiagnosis;
       if (translatedInstructions !== undefined) updateData.translatedInstructions = translatedInstructions;
       if (translatedWarnings !== undefined) updateData.translatedWarnings = translatedWarnings;
+      if (translatedMedications !== undefined) updateData.translatedMedications = translatedMedications;
+      if (translatedAppointments !== undefined) updateData.translatedAppointments = translatedAppointments;
       
       const updated = await storage.updateCarePlan(id as string, updateData);
       
@@ -2253,7 +2214,7 @@ export async function registerRoutes(
         carePlanId: id as string,
         userId: interpreterId,
         action: "interpreter_approved",
-        details: { notes: notes || null, hasEdits: !!(simplifiedDiagnosis || translatedDiagnosis) },
+        details: { notes: notes || null, hasEdits: !!(simplifiedDiagnosis || translatedDiagnosis || simplifiedMedications || translatedMedications) },
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });
@@ -2333,14 +2294,18 @@ export async function registerRoutes(
 
         try {
           await sendCheckInEmail(patient.email, patient.name, accessLink, checkIn.attemptNumber);
+          // Send SMS check-in if patient has a phone number
+          if (patient.phone) {
+            await sendCheckInSms(patient.phone, patient.name, accessLink);
+          }
           await storage.updateCheckIn(checkIn.id, { sentAt: new Date() });
-          
+
           await storage.createAuditLog({
             carePlanId: carePlan.id,
             action: "check_in_sent",
             details: { attemptNumber: checkIn.attemptNumber },
           });
-          
+
           sentCount++;
         } catch (emailError) {
           console.error("Failed to send check-in email:", emailError);

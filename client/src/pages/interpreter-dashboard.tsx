@@ -76,10 +76,31 @@ function ReviewPanel({ carePlan, onBack }: { carePlan: CarePlan; onBack: () => v
   const [editedSimplifiedDiagnosis, setEditedSimplifiedDiagnosis] = useState(carePlan.simplifiedDiagnosis || "");
   const [editedSimplifiedInstructions, setEditedSimplifiedInstructions] = useState(carePlan.simplifiedInstructions || "");
   const [editedSimplifiedWarnings, setEditedSimplifiedWarnings] = useState(carePlan.simplifiedWarnings || "");
+  const [editedSimplifiedMedications, setEditedSimplifiedMedications] = useState(
+    carePlan.simplifiedMedications?.map(m => ({ ...m })) || []
+  );
+  const [editedSimplifiedAppointments, setEditedSimplifiedAppointments] = useState(
+    carePlan.simplifiedAppointments?.map(a => ({ ...a })) || []
+  );
   const [editedTranslatedDiagnosis, setEditedTranslatedDiagnosis] = useState(carePlan.translatedDiagnosis || "");
   const [editedTranslatedInstructions, setEditedTranslatedInstructions] = useState(carePlan.translatedInstructions || "");
   const [editedTranslatedWarnings, setEditedTranslatedWarnings] = useState(carePlan.translatedWarnings || "");
+  const [editedTranslatedMedications, setEditedTranslatedMedications] = useState(
+    carePlan.translatedMedications?.map(m => ({ ...m })) || []
+  );
+  const [editedTranslatedAppointments, setEditedTranslatedAppointments] = useState(
+    carePlan.translatedAppointments?.map(a => ({ ...a })) || []
+  );
   const [interpreterNotes, setInterpreterNotes] = useState("");
+
+  const updateSimplifiedMedication = (index: number, field: string, value: string) =>
+    setEditedSimplifiedMedications(prev => prev.map((m, i) => i === index ? { ...m, [field]: value } : m));
+  const updateSimplifiedAppointment = (index: number, field: string, value: string) =>
+    setEditedSimplifiedAppointments(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a));
+  const updateTranslatedMedication = (index: number, field: string, value: string) =>
+    setEditedTranslatedMedications(prev => prev.map((m, i) => i === index ? { ...m, [field]: value } : m));
+  const updateTranslatedAppointment = (index: number, field: string, value: string) =>
+    setEditedTranslatedAppointments(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a));
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -89,9 +110,13 @@ function ReviewPanel({ carePlan, onBack }: { carePlan: CarePlan; onBack: () => v
         simplifiedDiagnosis: editedSimplifiedDiagnosis,
         simplifiedInstructions: editedSimplifiedInstructions,
         simplifiedWarnings: editedSimplifiedWarnings,
+        simplifiedMedications: editedSimplifiedMedications.length > 0 ? editedSimplifiedMedications : undefined,
+        simplifiedAppointments: editedSimplifiedAppointments.length > 0 ? editedSimplifiedAppointments : undefined,
         translatedDiagnosis: editedTranslatedDiagnosis,
         translatedInstructions: editedTranslatedInstructions,
         translatedWarnings: editedTranslatedWarnings,
+        translatedMedications: editedTranslatedMedications.length > 0 ? editedTranslatedMedications : undefined,
+        translatedAppointments: editedTranslatedAppointments.length > 0 ? editedTranslatedAppointments : undefined,
         notes: interpreterNotes || undefined,
       });
       return res.json();
@@ -198,6 +223,37 @@ function ReviewPanel({ carePlan, onBack }: { carePlan: CarePlan; onBack: () => v
                 data-testid="textarea-simplified-warnings"
               />
             </div>
+            {editedSimplifiedMedications.length > 0 && (
+              <div>
+                <Label className="text-xs text-muted-foreground uppercase">Medications</Label>
+                <div className="space-y-2 mt-1">
+                  {editedSimplifiedMedications.map((med, i) => (
+                    <div key={i} className="border rounded p-2 space-y-1">
+                      <Textarea className="text-xs min-h-[36px]" value={med.name} onChange={e => updateSimplifiedMedication(i, "name", e.target.value)} placeholder="Name" data-testid={`textarea-simplified-med-name-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={med.dose} onChange={e => updateSimplifiedMedication(i, "dose", e.target.value)} placeholder="Dose" data-testid={`textarea-simplified-med-dose-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={med.frequency} onChange={e => updateSimplifiedMedication(i, "frequency", e.target.value)} placeholder="Frequency" data-testid={`textarea-simplified-med-frequency-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={med.instructions} onChange={e => updateSimplifiedMedication(i, "instructions", e.target.value)} placeholder="Instructions" data-testid={`textarea-simplified-med-instructions-${i}`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {editedSimplifiedAppointments.length > 0 && (
+              <div>
+                <Label className="text-xs text-muted-foreground uppercase">Appointments</Label>
+                <div className="space-y-2 mt-1">
+                  {editedSimplifiedAppointments.map((apt, i) => (
+                    <div key={i} className="border rounded p-2 space-y-1">
+                      <Textarea className="text-xs min-h-[36px]" value={apt.date} onChange={e => updateSimplifiedAppointment(i, "date", e.target.value)} placeholder="Date" data-testid={`textarea-simplified-apt-date-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={apt.time} onChange={e => updateSimplifiedAppointment(i, "time", e.target.value)} placeholder="Time" data-testid={`textarea-simplified-apt-time-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={apt.provider} onChange={e => updateSimplifiedAppointment(i, "provider", e.target.value)} placeholder="Provider" data-testid={`textarea-simplified-apt-provider-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={apt.location} onChange={e => updateSimplifiedAppointment(i, "location", e.target.value)} placeholder="Location" data-testid={`textarea-simplified-apt-location-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={apt.purpose} onChange={e => updateSimplifiedAppointment(i, "purpose", e.target.value)} placeholder="Purpose" data-testid={`textarea-simplified-apt-purpose-${i}`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -236,6 +292,37 @@ function ReviewPanel({ carePlan, onBack }: { carePlan: CarePlan; onBack: () => v
                 data-testid="textarea-translated-warnings"
               />
             </div>
+            {editedTranslatedMedications.length > 0 && (
+              <div>
+                <Label className="text-xs text-muted-foreground uppercase">Medications</Label>
+                <div className="space-y-2 mt-1">
+                  {editedTranslatedMedications.map((med, i) => (
+                    <div key={i} className="border rounded p-2 space-y-1">
+                      <Textarea className="text-xs min-h-[36px]" value={med.name} onChange={e => updateTranslatedMedication(i, "name", e.target.value)} placeholder="Name" data-testid={`textarea-translated-med-name-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={med.dose} onChange={e => updateTranslatedMedication(i, "dose", e.target.value)} placeholder="Dose" data-testid={`textarea-translated-med-dose-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={med.frequency} onChange={e => updateTranslatedMedication(i, "frequency", e.target.value)} placeholder="Frequency" data-testid={`textarea-translated-med-frequency-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={med.instructions} onChange={e => updateTranslatedMedication(i, "instructions", e.target.value)} placeholder="Instructions" data-testid={`textarea-translated-med-instructions-${i}`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {editedTranslatedAppointments.length > 0 && (
+              <div>
+                <Label className="text-xs text-muted-foreground uppercase">Appointments</Label>
+                <div className="space-y-2 mt-1">
+                  {editedTranslatedAppointments.map((apt, i) => (
+                    <div key={i} className="border rounded p-2 space-y-1">
+                      <Textarea className="text-xs min-h-[36px]" value={apt.date} onChange={e => updateTranslatedAppointment(i, "date", e.target.value)} placeholder="Date" data-testid={`textarea-translated-apt-date-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={apt.time} onChange={e => updateTranslatedAppointment(i, "time", e.target.value)} placeholder="Time" data-testid={`textarea-translated-apt-time-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={apt.provider} onChange={e => updateTranslatedAppointment(i, "provider", e.target.value)} placeholder="Provider" data-testid={`textarea-translated-apt-provider-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={apt.location} onChange={e => updateTranslatedAppointment(i, "location", e.target.value)} placeholder="Location" data-testid={`textarea-translated-apt-location-${i}`} />
+                      <Textarea className="text-xs min-h-[36px]" value={apt.purpose} onChange={e => updateTranslatedAppointment(i, "purpose", e.target.value)} placeholder="Purpose" data-testid={`textarea-translated-apt-purpose-${i}`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

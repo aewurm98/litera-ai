@@ -150,12 +150,7 @@ export interface Medication {
   instructions: string;
 }
 
-export interface SimplifiedMedication {
-  name: string;
-  dose: string;
-  frequency: string;
-  instructions: string;
-}
+export type SimplifiedMedication = Medication;
 
 // Appointment type
 export interface Appointment {
@@ -166,13 +161,7 @@ export interface Appointment {
   purpose: string;
 }
 
-export interface SimplifiedAppointment {
-  date: string;
-  time: string;
-  provider: string;
-  location: string;
-  purpose: string;
-}
+export type SimplifiedAppointment = Appointment;
 
 export const insertCarePlanSchema = createInsertSchema(carePlans).omit({
   id: true,

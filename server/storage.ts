@@ -9,7 +9,7 @@ import {
   type ChatMessage, type InsertChatMessage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, lte, isNull, sql } from "drizzle-orm";
+import { eq, desc, and, lte, isNull, inArray, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 export interface IStorage {
@@ -258,32 +258,35 @@ export class DatabaseStorage implements IStorage {
     resolved: boolean;
     resolvedAt?: Date | null;
   }>> {
-    const alertCheckIns = await db.select().from(checkIns).where(
-      eq(checkIns.response, "yellow")
-    );
-    
-    const redCheckIns = await db.select().from(checkIns).where(
-      eq(checkIns.response, "red")
+    const allAlertCheckIns = await db.select().from(checkIns).where(
+      inArray(checkIns.response, ["yellow", "red"])
     );
 
-    const allAlertCheckIns = [...alertCheckIns, ...redCheckIns];
-    
-    const alerts = [];
-    for (const checkIn of allAlertCheckIns) {
-      const [carePlan] = await db.select().from(carePlans).where(eq(carePlans.id, checkIn.carePlanId));
-      
-      // Filter by tenant if provided
-      if (tenantId && carePlan?.tenantId !== tenantId) {
-        continue;
-      }
-      
-      let patientName = "Unknown";
-      if (carePlan?.patientId) {
-        const [patient] = await db.select().from(patients).where(eq(patients.id, carePlan.patientId));
-        if (patient) patientName = patient.name;
-      }
-      
-      alerts.push({
+    if (allAlertCheckIns.length === 0) return [];
+
+    // Batch-fetch all referenced care plans, then filter by tenant
+    const carePlanIds = Array.from(new Set(allAlertCheckIns.map(c => c.carePlanId)));
+    const carePlanRows = await db.select().from(carePlans).where(inArray(carePlans.id, carePlanIds));
+    const carePlanMap = new Map(carePlanRows.map(cp => [cp.id, cp]));
+
+    const filtered = allAlertCheckIns.filter(c => {
+      const cp = carePlanMap.get(c.carePlanId);
+      return cp && (!tenantId || cp.tenantId === tenantId);
+    });
+
+    if (filtered.length === 0) return [];
+
+    // Batch-fetch all referenced patients
+    const patientIds = Array.from(new Set(
+      filtered.map(c => carePlanMap.get(c.carePlanId)?.patientId).filter(Boolean) as string[]
+    ));
+    const patientRows = await db.select().from(patients).where(inArray(patients.id, patientIds));
+    const patientMap = new Map(patientRows.map(p => [p.id, p]));
+
+    const alerts = filtered.map(checkIn => {
+      const cp = carePlanMap.get(checkIn.carePlanId);
+      const patientName = (cp?.patientId && patientMap.get(cp.patientId)?.name) || "Unknown";
+      return {
         id: checkIn.id,
         carePlanId: checkIn.carePlanId,
         patientName,
@@ -291,8 +294,8 @@ export class DatabaseStorage implements IStorage {
         respondedAt: checkIn.respondedAt || new Date(),
         resolved: !!checkIn.alertResolvedAt,
         resolvedAt: checkIn.alertResolvedAt,
-      });
-    }
+      };
+    });
 
     return alerts.sort((a, b) => 
       new Date(b.respondedAt).getTime() - new Date(a.respondedAt).getTime()
