@@ -341,9 +341,10 @@ export async function registerRoutes(
       // Check authorization: clinician/admin/interpreter session OR valid patient access token
       const isAuthenticated = req.session?.userId && (req.session?.userRole === "clinician" || req.session?.userRole === "admin" || req.session?.userRole === "interpreter");
       // [M1.2] Use timing-safe comparison to prevent token oracle attacks
+      // [M2.4] Require a non-null expiry; treat missing expiry as expired
       const hasValidToken = token && carePlan.accessToken &&
         timingSafeCompare(carePlan.accessToken, token as string) &&
-        (!carePlan.accessTokenExpiry || new Date(carePlan.accessTokenExpiry) > new Date());
+        (!!carePlan.accessTokenExpiry && new Date(carePlan.accessTokenExpiry) > new Date());
       
       if (!isAuthenticated && !hasValidToken) {
         return res.status(403).json({ error: "Access denied" });
@@ -924,7 +925,7 @@ export async function registerRoutes(
           email,
           phone,
           yearOfBirth,
-          pin: patientPin,
+          pin: await bcrypt.hash(patientPin, 10),
           preferredLanguage,
           tenantId,
         });
@@ -1106,8 +1107,8 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Care plan not found" });
       }
 
-      // Check token expiry
-      if (carePlan.accessTokenExpiry && new Date() > new Date(carePlan.accessTokenExpiry)) {
+      // Check token expiry — treat missing expiry as expired [M2.4]
+      if (!carePlan.accessTokenExpiry || new Date() > new Date(carePlan.accessTokenExpiry)) {
         return res.status(403).json({ error: "Access link has expired" });
       }
 
@@ -1150,14 +1151,13 @@ export async function registerRoutes(
         const lastNameMatches = patientLastName === providedLastName;
         const yearMatches = patient.yearOfBirth === yearOfBirth;
         
-        // Check PIN or password
-        // [M1.2] PIN uses timing-safe compare; password uses bcrypt (inherently timing-safe)
+        // Check PIN or password — both use bcrypt (inherently timing-safe)
         let credentialValid = false;
         if (password && hasPatientPassword) {
           credentialValid = await bcrypt.compare(password, patient.password!);
         } else if (pin) {
           credentialValid = patient.pin !== null && patient.pin !== undefined
-            ? timingSafeCompare(patient.pin, pin)
+            ? await bcrypt.compare(pin, patient.pin)
             : false;
         }
         
@@ -1223,8 +1223,8 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Care plan not found" });
       }
 
-      // Check if access token has expired
-      if (carePlan.accessTokenExpiry && new Date(carePlan.accessTokenExpiry) < new Date()) {
+      // Check if access token has expired — treat missing expiry as expired [M2.4]
+      if (!carePlan.accessTokenExpiry || new Date(carePlan.accessTokenExpiry) < new Date()) {
         return res.status(410).json({ error: "This care plan link has expired. Please contact your clinic for a new link." });
       }
 
@@ -1264,7 +1264,9 @@ export async function registerRoutes(
         hasPassword: !!patient.password,
       } : null;
 
-      res.json({ ...carePlan, patient: safePatient, checkIns });
+      // Strip internal AI-extraction field before returning to patient portal
+      const { extractedPatientName: _omit, ...safePlan } = carePlan;
+      res.json({ ...safePlan, patient: safePatient, checkIns });
     } catch (error) {
       console.error("Error fetching patient care plan:", error);
       res.status(500).json({ error: "Failed to fetch care plan" });
@@ -1340,11 +1342,11 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Care plan not found" });
       }
       
-      // Check token expiry
-      if (carePlan.accessTokenExpiry && new Date() > new Date(carePlan.accessTokenExpiry)) {
+      // Check token expiry — treat missing expiry as expired [M2.4]
+      if (!carePlan.accessTokenExpiry || new Date() > new Date(carePlan.accessTokenExpiry)) {
         return res.status(403).json({ error: "Access link has expired" });
       }
-      
+
       const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
       if (!patient) {
         return res.status(404).json({ error: "Patient not found" });
@@ -1699,7 +1701,7 @@ export async function registerRoutes(
       
       const enrichedPatients = await Promise.all(
         allPatients.map(async (patient) => {
-          const patientCarePlans = await storage.getCarePlansByPatientId(patient.id);
+          const patientCarePlans = await storage.getCarePlansByPatientId(patient.id, tenantId);
           const lastCarePlan = patientCarePlans.length > 0 ? patientCarePlans[0] : null;
           return {
             id: patient.id,
@@ -1845,7 +1847,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const linkedCarePlans = await storage.getCarePlansByPatientId(id);
+      const linkedCarePlans = await storage.getCarePlansByPatientId(id, tenantId);
       if (linkedCarePlans.length > 0) {
         return res.status(409).json({ 
           error: `Cannot delete patient with ${linkedCarePlans.length} linked care plan(s). Remove or reassign care plans first.` 
@@ -1883,8 +1885,8 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const patientCarePlans = await storage.getCarePlansByPatientId(id);
-      
+      const patientCarePlans = await storage.getCarePlansByPatientId(id, tenantId);
+
       const enriched = await Promise.all(
         patientCarePlans.map(async (plan) => {
           const clinician = plan.clinicianId ? await storage.getUser(plan.clinicianId) : undefined;
