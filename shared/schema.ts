@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -52,16 +52,18 @@ export type User = typeof users.$inferSelect;
 export const patients = pgTable("patients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  lastName: text("last_name"), // Extracted last name for verification (production auth)
+  lastName: text("last_name"),
   email: text("email").notNull(),
   phone: text("phone"),
   yearOfBirth: integer("year_of_birth").notNull(),
-  pin: varchar("pin", { length: 4 }), // 4-digit PIN for patient portal access (production auth)
-  password: text("password"), // Optional hashed password for repeat access (set by patient on first portal visit)
+  pin: varchar("pin", { length: 4 }),
+  password: text("password"),
   preferredLanguage: text("preferred_language").notNull().default("en"),
-  tenantId: varchar("tenant_id").references(() => tenants.id), // Tenant isolation
+  tenantId: varchar("tenant_id").references(() => tenants.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex("patients_email_tenant_idx").on(table.email, table.tenantId),
+]);
 
 export const insertPatientSchema = createInsertSchema(patients).omit({
   id: true,
