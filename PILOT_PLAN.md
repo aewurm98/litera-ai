@@ -59,6 +59,14 @@ Take Litera.ai from a single-demo-clinic MVP to a platform that can onboard 2-5 
 | 29 | **Patient Management UI** | Admin dashboard Patients tab with search, add/edit/delete dialogs, patient detail view showing care plan history with clinician and language. Patient selector dropdown in clinician send dialog pre-fills form fields from existing patients while preserving manual entry. |
 | 30 | **Notion-Style View Toggle** | Table and Kanban views with `localStorage` persistence (key: `litera-patient-view`). Kanban groups patients into 5 lifecycle columns: Registered (0 care plans), Care Plan Sent (draft/pending_review), Checked In (sent/approved), Needs Attention (unresolved alerts), Completed. Unresolved alerts take priority over status for column assignment. |
 | 31 | **Usability Audit & Bug Fixes** | Fixed "Total Patients" stat card counting care plans instead of patients. Fixed patient detail view showing duplicated name ("Olga Petrov Petrov") because `patient.name` already contains the full name. Full data pipeline audit confirmed no hardcoded/mock data in production paths and no broken connections between user roles. |
+| 32 | **Interpreter Role & Schema** | Added `interpreter` role to user schema. New fields: `users.languages` (text array for language specialties), `tenants.interpreterReviewMode` (disabled/optional/required). Care plan fields: `interpreterReviewedBy`, `interpreterReviewedAt`, `interpreterNotes`. New statuses: `interpreter_review`, `interpreter_approved`. |
+| 33 | **Interpreter Review Workflow** | Non-English care plans auto-route to `interpreter_review` status on clinician approval (based on tenant compliance mode). English care plans bypass interpreter review entirely. Status flow: `draft → pending_review → [interpreter_review → interpreter_approved →] approved → sent → completed`. |
+| 34 | **Interpreter Dashboard** | Dedicated dashboard at `/interpreter` with review queue filtered by interpreter's language specialties + tenant. 3-column review panel (Original | Simplified | Translated) with editable text areas. Approve (with optional edits) and Request Changes (with mandatory reason) actions. Recently reviewed items section. Full audit trail for all interpreter actions. |
+| 35 | **Tenant Compliance Modes** | Three interpreter review modes per tenant: `disabled` (no interpreter step), `optional` (clinician can override with mandatory justification logged to audit trail), `required` (non-English plans must be interpreter-approved before sending). |
+| 36 | **Clinician Override in Optional Mode** | When tenant is set to `optional`, clinician sees override dialog on non-English care plan approval. Two choices: send for interpreter review or approve directly with mandatory justification text. Override action and justification stored in audit log. |
+| 37 | **Interpreter Status Badges & Notes** | Clinician dashboard shows interpreter review status badges on care plans. Amber notification box displays interpreter notes when a care plan has been reviewed or returned by an interpreter. |
+| 38 | **Demo Interpreter Users** | Two interpreter users seeded: `riverside_interpreter` (Luis Reyes, CMI — Spanish/French/Russian) and `lakeside_interpreter` (Nadia Hassan, CMI — Arabic/Hindi/Vietnamese). Each scoped to their respective demo tenant. |
+| 39 | **Cross-Module Security Audit** | Added status guard on send endpoint (blocks sending care plans in `interpreter_review`). Created `server/auth.ts` module (fixes user creation crash). Added interpreter role to document access endpoint. Added shared secret guard on internal check-in scheduler endpoint. |
 
 ### OUTSTANDING — Prioritized for Pilot
 
@@ -78,6 +86,7 @@ Take Litera.ai from a single-demo-clinic MVP to a platform that can onboard 2-5 
 |------|----------|----------|------|
 | Clinic Admin | `riverside_admin` | `password123` | Dr. James Park |
 | Clinician | `nurse` | `password123` | Maria Chen, RN |
+| Interpreter | `riverside_interpreter` | `password123` | Luis Reyes, CMI (Spanish, French, Russian) |
 
 **Patients:** Rosa Martinez (es), Nguyen Thi Lan (vi), Wei Zhang (zh), Amadou Diallo (fr), Olga Petrov (ru)
 
@@ -89,6 +98,7 @@ Take Litera.ai from a single-demo-clinic MVP to a platform that can onboard 2-5 
 |------|----------|----------|------|
 | Clinic Admin | `lakeside_admin` | `password123` | Dr. Rachel Torres |
 | Clinician | `lakeside_nurse` | `password123` | Sarah Kim, NP |
+| Interpreter | `lakeside_interpreter` | `password123` | Nadia Hassan, CMI (Arabic, Hindi, Vietnamese) |
 
 **Patients:** Fatima Al-Hassan (ar), Aisha Rahman (ar), Arjun Sharma (hi), Pedro Gutierrez (es), Tran Van Duc (vi)
 
@@ -125,6 +135,7 @@ See `DEMO_CREDENTIALS.md` and `TESTING_CREDENTIALS.md` for full details includin
 | `super_admin` | Platform-wide (`tenantId = null`) | Yes | Yes (all tenants) | No (not tied to a clinic) | Yes (always, regardless of demo mode) |
 | `admin` | Single tenant | No | Yes (own tenant only) | No | Yes (when demo mode enabled) |
 | `clinician` | Single tenant | No | No | Yes | No (no access to Admin Dashboard) |
+| `interpreter` | Single tenant | No | No | No | No (reviews translations only) |
 
 **Note:** The "Reset Demo" button also appears on the Login page (accessible to anyone, no auth required) when demo mode is enabled. Super admins always see the reset button in the Admin Dashboard regardless of demo mode setting.
 
@@ -142,6 +153,7 @@ See `DEMO_CREDENTIALS.md` and `TESTING_CREDENTIALS.md` for full details includin
 | `client/src/pages/admin-dashboard.tsx` | Admin UI — patients, alerts, team, tenants, audit log |
 | `client/src/pages/clinician-dashboard.tsx` | Clinician UI — document upload, AI processing, care plan review, tenant-scoped sample docs |
 | `client/src/pages/patient-portal.tsx` | Patient-facing care plan view, check-in |
+| `client/src/pages/interpreter-dashboard.tsx` | Interpreter UI — translation review queue, 3-column review panel, approve/request changes |
 | `client/src/pages/login.tsx` | Login page with demo credentials for both tenants |
 | `DEMO_CREDENTIALS.md` | Full credential reference for both demo tenants |
 | `TESTING_CREDENTIALS.md` | Comprehensive testing guide with scenarios for multi-tenant isolation |
@@ -159,3 +171,5 @@ See `DEMO_CREDENTIALS.md` and `TESTING_CREDENTIALS.md` for full details includin
 - **Feb 19, 2026:** Implemented patient-first management: CRUD with deduplication, CSV import, patient detail with care plan history, patient selector in clinician send dialog.
 - **Feb 19, 2026:** Added Notion-style view toggle (Table/Kanban) to Patients tab with localStorage persistence. Kanban board groups patients into 5 lifecycle columns using enriched patient data + alert status.
 - **Feb 19, 2026:** Usability audit completed. Found and fixed: (1) "Total Patients" stat card was counting care plans instead of patients, (2) patient detail view displayed duplicated last name. No hardcoded data, no broken data pipelines between user roles, no missing datapoints confirmed.
+- **Feb 19, 2026:** Implemented medical interpreter human-in-the-loop review workflow. Added interpreter role with language specialties, tenant-level compliance modes (disabled/optional/required), interpreter dashboard with language-filtered queue and 3-column review panel, clinician override dialog with audit-logged justification, English bypass logic (no translation to review), and interpreter status badges + notes on clinician dashboard.
+- **Feb 19, 2026:** Cross-module security audit completed. Fixed: (1) Send endpoint now blocks care plans in `interpreter_review` status, (2) Created missing `server/auth.ts` module fixing user creation crash, (3) Added interpreter role to document access endpoint, (4) Added shared secret guard on internal check-in scheduler endpoint.
