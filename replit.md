@@ -10,6 +10,14 @@ Litera.ai is a healthcare companion platform designed to assist clinicians in ge
 
 ## Recent Changes
 
+- **2026-02-19 — Product Improvements Sprint**: 
+  - Fixed patient login: PINs now properly hashed with bcrypt in seed data (was plaintext causing verification failures). Error toast shows actual server message.
+  - Admin patient detail redesigned: clinical summary (care plan count, latest status, last check-in) replaces auth-centric fields. Demographics collapsed by default.
+  - Language field fix: care plan history falls back to patient's preferredLanguage with "(pending)" when translatedLanguage is null.
+  - Seed data diversified: reduced drafts from 5 to 2, added interpreter_review, interpreter_approved, and completed statuses with full translated content and check-ins.
+  - Interpreter dashboard redesigned: sortable table with inline preview pane, avg wait time metric, language breakdown by count.
+  - Settings page: tenant configuration UI for interpreter review mode (disabled/optional/required) replacing Coming Soon placeholder.
+  - Analytics page: care plans by status bar chart, processing pipeline metrics, check-in response rates, TCM compliance summary (CPT 99495/99496 eligibility).
 - **2026-02-19 — Milestone 5 (UI/UX Consistency)**: Standardized date formatting to `date-fns format()` across interpreter dashboard (was using `toLocaleDateString()`). Scoped admin dashboard localStorage view preference (`litera-patient-view`) by user ID to prevent cross-user interference. Added clinician name and creation date context to interpreter review panel header.
 - **2026-02-19 — Milestones 1-4 (Claude Code refactoring)**: M1: Security hardening (timing-safe comparisons, rate limiting). M2: Data model hardening (schema constraints). M3: Workflow completeness (Twilio SMS integration, interpreter review workflow). M4: Code quality (hashPassword consolidation into `server/auth.ts`, type deduplication, helper extraction, N+1 query fix via batched `inArray` queries).
 

@@ -54,6 +54,8 @@ import ClinicianDashboard from "@/pages/clinician-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
 import InterpreterDashboard from "@/pages/interpreter-dashboard";
 import PatientPortal from "@/pages/patient-portal";
+import SettingsPage from "@/pages/settings-page";
+import AnalyticsPage from "@/pages/analytics-page";
 
 interface User {
   id: string;
@@ -443,7 +445,7 @@ function AuthenticatedRoutes({ user }: { user: User }) {
       </Route>
       <Route path="/analytics">
         <MainLayout user={user}>
-          <ComingSoonPage title="Analytics Dashboard" />
+          <AnalyticsPage />
         </MainLayout>
       </Route>
       <Route path="/providers">
@@ -463,7 +465,7 @@ function AuthenticatedRoutes({ user }: { user: User }) {
       </Route>
       <Route path="/settings">
         <MainLayout user={user}>
-          <ComingSoonPage title="Settings" />
+          <SettingsPage />
         </MainLayout>
       </Route>
       <Route component={NotFound} />

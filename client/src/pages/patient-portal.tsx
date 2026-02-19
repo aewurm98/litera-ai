@@ -602,7 +602,7 @@ export default function PatientPortal() {
       } else if (error.attemptsRemaining !== undefined) {
         setAttemptsRemaining(error.attemptsRemaining);
         toast({ 
-          title: requiresFullAuth ? "Verification failed" : "Incorrect year of birth", 
+          title: error.error || "Verification failed", 
           description: `${error.attemptsRemaining} attempt${error.attemptsRemaining !== 1 ? 's' : ''} remaining`,
           variant: "destructive" 
         });
