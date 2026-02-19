@@ -107,7 +107,7 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label className="text-xs text-muted-foreground uppercase">Name</Label>
-            <p className="font-medium" data-testid="text-patient-detail-name">{patient.name}{patient.lastName ? ` ${patient.lastName}` : ""}</p>
+            <p className="font-medium" data-testid="text-patient-detail-name">{patient.name}</p>
           </div>
           <div>
             <Label className="text-xs text-muted-foreground uppercase">Email</Label>
@@ -524,7 +524,7 @@ export default function AdminDashboard() {
   };
 
   // Stats calculations
-  const totalPatients = carePlans.length;
+  const totalPatients = allPatients.length;
   const sentPlans = carePlans.filter(p => p.status === "sent" || p.status === "completed").length;
   const respondedCheckIns = carePlans.filter(p => 
     p.checkIns?.some(c => c.respondedAt)
