@@ -33,9 +33,9 @@ Litera.ai is built with a clear separation between its frontend, backend, and sh
 - **Schema & Validation**: Utilizes Drizzle ORM for database schema definition and Zod for API payload validation, ensuring data integrity across the application.
 
 ### Key Features
-- **Clinician Dashboard**: Enables document upload (PDF/images), AI-driven content processing (extraction, simplification to 5th-grade reading level, translation to 49 languages with back-translation), and a scroll-to-approve workflow.
+- **Clinician Dashboard**: Enables document upload (PDF/images), AI-driven content processing (extraction, simplification to 5th-grade reading level, translation to 49 languages with back-translation), scroll-to-approve workflow, and patient selector dropdown in the send dialog that pre-fills form fields from existing patients.
 - **Patient Portal**: Provides magic link access with multi-factor verification, display of care plans in the patient's preferred language, language toggling, and a traffic light check-in system for patient feedback (Green, Yellow, Red alerts).
-- **Admin Dashboard**: Offers patient list management, alert monitoring for patient check-ins, CSV export for TCM billing compliance, and audit trail viewing.
+- **Admin Dashboard**: Full patient roster management (CRUD with deduplication by email+tenantId), CSV bulk patient import, patient detail with care plan history, alert monitoring for patient check-ins, CSV export for TCM billing compliance, and audit trail viewing. Patients can only be deleted if they have no linked care plans.
 - **Internationalization**: Extensive language support (49 languages for content, 7 for UI translation).
 - **Multi-Modal Output**: Features PDF download capabilities (with considerations for non-Latin scripts) and text-to-speech functionality.
 
