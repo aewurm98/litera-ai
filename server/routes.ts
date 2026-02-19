@@ -29,6 +29,14 @@ function extractLastName(fullName: string): string {
 // Demo token store (in-memory, expires after 5 minutes)
 const demoTokens = new Map<string, { accessToken: string; expiresAt: Date }>();
 
+// [M1.8] Periodic cleanup of expired demo tokens to prevent memory leak
+setInterval(() => {
+  const now = new Date();
+  demoTokens.forEach((value, key) => {
+    if (now > value.expiresAt) demoTokens.delete(key);
+  });
+}, 60_000);
+
 // Generate a secure demo token for clinician preview
 function generateDemoToken(accessToken: string): string {
   const demoToken = crypto.randomBytes(32).toString("hex");
@@ -47,8 +55,48 @@ function validateDemoToken(demoToken: string, accessToken: string): boolean {
     demoTokens.delete(demoToken);
     return false;
   }
-  if (entry.accessToken !== accessToken) return false;
+  // [M1.2] Timing-safe comparison for demo token
+  if (!timingSafeCompare(entry.accessToken, accessToken)) return false;
   return true;
+}
+
+// [M1.2] Constant-time string comparison to prevent timing attacks
+function timingSafeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch {
+    return false;
+  }
+}
+
+// [M1.1] Rate limiting for staff login
+const loginAttempts = new Map<string, { count: number; lockedUntil?: Date }>();
+
+function checkLoginLock(username: string): boolean {
+  const attempt = loginAttempts.get(username);
+  if (!attempt) return false;
+  if (attempt.lockedUntil && new Date() < attempt.lockedUntil) return true;
+  if (attempt.lockedUntil && new Date() >= attempt.lockedUntil) {
+    loginAttempts.delete(username);
+    return false;
+  }
+  return false;
+}
+
+function recordLoginAttempt(username: string, success: boolean): void {
+  if (success) {
+    loginAttempts.delete(username);
+    return;
+  }
+  const attempt = loginAttempts.get(username) || { count: 0 };
+  attempt.count++;
+  if (attempt.count >= 5) {
+    const lockUntil = new Date();
+    lockUntil.setMinutes(lockUntil.getMinutes() + 15);
+    attempt.lockedUntil = lockUntil;
+  }
+  loginAttempts.set(username, attempt);
 }
 // Import pdfjs-dist legacy build for Node.js compatibility (no DOM APIs needed)
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -253,7 +301,7 @@ export async function registerRoutes(
   // Route to serve PDF files from attached_assets/mock_pdfs
   app.get("/api/documents/:filename", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
-      const { filename } = req.params;
+      const filename = req.params.filename as string;
       const path = await import("path");
       const fs = await import("fs");
       
@@ -281,7 +329,7 @@ export async function registerRoutes(
   // Authorization: requires either clinician session OR valid patient access token
   app.get("/api/care-plans/:id/document", async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { token } = req.query; // Patient access token from query param
       
       const carePlan = await storage.getCarePlan(id);
@@ -292,8 +340,11 @@ export async function registerRoutes(
       
       // Check authorization: clinician/admin/interpreter session OR valid patient access token
       const isAuthenticated = req.session?.userId && (req.session?.userRole === "clinician" || req.session?.userRole === "admin" || req.session?.userRole === "interpreter");
-      const hasValidToken = token && carePlan.accessToken === token && 
-        (!carePlan.accessTokenExpiry || new Date(carePlan.accessTokenExpiry) > new Date());
+      // [M1.2] Use timing-safe comparison to prevent token oracle attacks
+      // [M2.4] Require a non-null expiry; treat missing expiry as expired
+      const hasValidToken = token && carePlan.accessToken &&
+        timingSafeCompare(carePlan.accessToken, token as string) &&
+        (!!carePlan.accessTokenExpiry && new Date(carePlan.accessTokenExpiry) > new Date());
       
       if (!isAuthenticated && !hasValidToken) {
         return res.status(403).json({ error: "Access denied" });
@@ -342,7 +393,7 @@ export async function registerRoutes(
   // Serve sample documents for upload dialog
   app.get("/sample-docs/:filename", async (req: Request, res: Response) => {
     try {
-      const { filename } = req.params;
+      const filename = req.params.filename as string;
       const path = await import("path");
       const fs = await import("fs");
       
@@ -368,22 +419,32 @@ export async function registerRoutes(
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
       const { username, password } = req.body;
-      
+
       if (!username || !password) {
         return res.status(400).json({ error: "Username and password required" });
       }
-      
+
+      // [M1.1] Check login rate limit before hitting the database
+      if (checkLoginLock(username)) {
+        return res.status(429).json({ error: "Too many failed attempts. Please try again in 15 minutes." });
+      }
+
       const user = await storage.getUserByUsername(username);
-      
+
       if (!user) {
+        // Record attempt even for unknown usernames to prevent enumeration
+        recordLoginAttempt(username, false);
         return res.status(401).json({ error: "Invalid credentials" });
       }
-      
+
       const passwordMatch = await bcrypt.compare(password, user.password);
       if (!passwordMatch) {
+        recordLoginAttempt(username, false);
         return res.status(401).json({ error: "Invalid credentials" });
       }
-      
+
+      recordLoginAttempt(username, true);
+
       req.session.userId = user.id;
       req.session.userRole = user.role;
       req.session.userName = user.name;
@@ -697,8 +758,9 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Simplify content
+      // Simplify content — include extractedPatientName so the AI has patient context
       const simplified = await simplifyContent({
+        patientName: carePlan.extractedPatientName || "",
         diagnosis: carePlan.diagnosis || "",
         medications: carePlan.medications || [],
         appointments: carePlan.appointments || [],
@@ -863,7 +925,7 @@ export async function registerRoutes(
           email,
           phone,
           yearOfBirth,
-          pin: patientPin,
+          pin: await bcrypt.hash(patientPin, 10),
           preferredLanguage,
           tenantId,
         });
@@ -872,6 +934,11 @@ export async function registerRoutes(
         patient = await storage.updatePatient(patient.id, {
           lastName,
         });
+      }
+
+      // Guard: storage operations above should always return a patient record
+      if (!patient) {
+        return res.status(500).json({ error: "Failed to create or retrieve patient record" });
       }
 
       // Generate access token
@@ -900,9 +967,9 @@ export async function registerRoutes(
       });
 
       // Send email with magic link and PIN (for production mode verification)
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : "http://localhost:5000";
+      // [M1.5] APP_URL takes priority; fallback to Replit dev domain, then localhost
+      const baseUrl = process.env.APP_URL
+        || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "http://localhost:5000");
       const accessLink = `${baseUrl}/p/${accessToken}`;
 
       let emailSent = true;
@@ -977,9 +1044,9 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      // Only allow deletion if not yet sent
-      if (carePlan.status === "sent" || carePlan.status === "completed") {
-        return res.status(400).json({ error: "Cannot delete a care plan that has been sent to the patient" });
+      // [M1.6] Only allow deletion if not in-flight — block sent, completed, and interpreter review
+      if (["sent", "completed", "interpreter_review", "interpreter_approved"].includes(carePlan.status)) {
+        return res.status(400).json({ error: "Cannot delete a care plan that has been sent to the patient or is under interpreter review" });
       }
       
       const deleted = await storage.deleteCarePlan(id);
@@ -1007,6 +1074,10 @@ export async function registerRoutes(
       }
       
       const valid = validateDemoToken(demoToken, accessToken);
+      // [M1.3] Grant session-level access for the clinician preview flow
+      if (valid) {
+        req.session.verifiedTokens = { ...(req.session.verifiedTokens || {}), [accessToken]: true };
+      }
       res.json({ valid });
     } catch (error) {
       console.error("Error validating demo token:", error);
@@ -1036,8 +1107,8 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Care plan not found" });
       }
 
-      // Check token expiry
-      if (carePlan.accessTokenExpiry && new Date() > new Date(carePlan.accessTokenExpiry)) {
+      // Check token expiry — treat missing expiry as expired [M2.4]
+      if (!carePlan.accessTokenExpiry || new Date() > new Date(carePlan.accessTokenExpiry)) {
         return res.status(403).json({ error: "Access link has expired" });
       }
 
@@ -1080,12 +1151,14 @@ export async function registerRoutes(
         const lastNameMatches = patientLastName === providedLastName;
         const yearMatches = patient.yearOfBirth === yearOfBirth;
         
-        // Check PIN or password
+        // Check PIN or password — both use bcrypt (inherently timing-safe)
         let credentialValid = false;
         if (password && hasPatientPassword) {
           credentialValid = await bcrypt.compare(password, patient.password!);
         } else if (pin) {
-          credentialValid = patient.pin === pin;
+          credentialValid = patient.pin !== null && patient.pin !== undefined
+            ? await bcrypt.compare(pin, patient.pin)
+            : false;
         }
         
         isValid = lastNameMatches && yearMatches && credentialValid;
@@ -1119,6 +1192,10 @@ export async function registerRoutes(
       // Successful verification
       recordVerificationAttempt(token, true);
 
+      // [M1.3] Mark this token as verified in the session so the GET endpoint
+      // can confirm the patient has passed authentication before returning data.
+      req.session.verifiedTokens = { ...(req.session.verifiedTokens || {}), [token]: true };
+
       await storage.createAuditLog({
         carePlanId: carePlan.id,
         action: "verified",
@@ -1135,6 +1212,8 @@ export async function registerRoutes(
   });
 
   // Get care plan by token (for patient view)
+  // [M1.3] Requires prior verification via POST /verify or POST /validate-demo.
+  // Without a verified session, returns only enough info to render the verify form.
   app.get("/api/patient/:token", async (req: Request, res: Response) => {
     try {
       const token = req.params.token as string;
@@ -1144,12 +1223,24 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Care plan not found" });
       }
 
-      // Check if access token has expired
-      if (carePlan.accessTokenExpiry && new Date(carePlan.accessTokenExpiry) < new Date()) {
+      // Check if access token has expired — treat missing expiry as expired [M2.4]
+      if (!carePlan.accessTokenExpiry || new Date(carePlan.accessTokenExpiry) < new Date()) {
         return res.status(410).json({ error: "This care plan link has expired. Please contact your clinic for a new link." });
       }
 
-      // Log view
+      // [M1.3] Enforce session-level verification before exposing medical content.
+      // The frontend already gates this call behind isVerified, but we enforce it
+      // server-side to prevent direct API access bypassing the verify step.
+      const isVerified = req.session.verifiedTokens?.[token] === true;
+      if (!isVerified) {
+        return res.status(403).json({
+          error: "Verification required",
+          requiresVerification: true,
+          translatedLanguage: carePlan.translatedLanguage,
+        });
+      }
+
+      // [M1.5] Only log views for verified (authenticated) access
       await storage.createAuditLog({
         carePlanId: carePlan.id,
         action: "viewed",
@@ -1173,7 +1264,9 @@ export async function registerRoutes(
         hasPassword: !!patient.password,
       } : null;
 
-      res.json({ ...carePlan, patient: safePatient, checkIns });
+      // Strip internal AI-extraction field before returning to patient portal
+      const { extractedPatientName: _omit, ...safePlan } = carePlan;
+      res.json({ ...safePlan, patient: safePatient, checkIns });
     } catch (error) {
       console.error("Error fetching patient care plan:", error);
       res.status(500).json({ error: "Failed to fetch care plan" });
@@ -1185,6 +1278,11 @@ export async function registerRoutes(
     try {
       const token = req.params.token as string;
       const { response } = req.body; // green, yellow, red
+
+      // [M1.4] Require verified session — same guard as the GET endpoint
+      if (!req.session.verifiedTokens?.[token]) {
+        return res.status(403).json({ error: "Verification required" });
+      }
 
       const carePlan = await storage.getCarePlanByToken(token);
       if (!carePlan) {
@@ -1233,17 +1331,22 @@ export async function registerRoutes(
     try {
       const token = req.params.token as string;
       const { password } = req.body;
-      
+
+      // [M1.4] Require verified session before allowing password change
+      if (!req.session.verifiedTokens?.[token]) {
+        return res.status(403).json({ error: "Verification required" });
+      }
+
       const carePlan = await storage.getCarePlanByToken(token);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
       
-      // Check token expiry
-      if (carePlan.accessTokenExpiry && new Date() > new Date(carePlan.accessTokenExpiry)) {
+      // Check token expiry — treat missing expiry as expired [M2.4]
+      if (!carePlan.accessTokenExpiry || new Date() > new Date(carePlan.accessTokenExpiry)) {
         return res.status(403).json({ error: "Access link has expired" });
       }
-      
+
       const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
       if (!patient) {
         return res.status(404).json({ error: "Patient not found" });
@@ -1513,9 +1616,14 @@ export async function registerRoutes(
   });
   
   // Update user (admin only) - super_admin can change tenantId, regular admins cannot
-  app.patch("/api/admin/users/:id", requireAdminAuth, async (req: Request, res: Response) => {
+  const updateUserSchema = z.object({
+    name: z.string().min(1).max(200).optional(),
+    role: z.enum(["clinician", "interpreter", "admin", "super_admin"]).optional(),
+    tenantId: z.string().nullable().optional(),
+  });
+  app.patch("/api/admin/users/:id", requireAdminAuth, validateBody(updateUserSchema), async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { name, role, tenantId } = req.body;
       const isSuperAdmin = req.session.userRole === "super_admin";
       
@@ -1554,7 +1662,7 @@ export async function registerRoutes(
   // Delete user (admin only)
   app.delete("/api/admin/users/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const isSuperAdmin = req.session.userRole === "super_admin";
       
       // Prevent deleting yourself
@@ -1593,7 +1701,7 @@ export async function registerRoutes(
       
       const enrichedPatients = await Promise.all(
         allPatients.map(async (patient) => {
-          const patientCarePlans = await storage.getCarePlansByPatientId(patient.id);
+          const patientCarePlans = await storage.getCarePlansByPatientId(patient.id, tenantId);
           const lastCarePlan = patientCarePlans.length > 0 ? patientCarePlans[0] : null;
           return {
             id: patient.id,
@@ -1674,7 +1782,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/patients/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const tenantId = req.session.tenantId;
       
       const patient = await storage.getPatient(id);
@@ -1727,7 +1835,7 @@ export async function registerRoutes(
 
   app.delete("/api/admin/patients/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const tenantId = req.session.tenantId;
       
       const patient = await storage.getPatient(id);
@@ -1739,7 +1847,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const linkedCarePlans = await storage.getCarePlansByPatientId(id);
+      const linkedCarePlans = await storage.getCarePlansByPatientId(id, tenantId);
       if (linkedCarePlans.length > 0) {
         return res.status(409).json({ 
           error: `Cannot delete patient with ${linkedCarePlans.length} linked care plan(s). Remove or reassign care plans first.` 
@@ -1765,7 +1873,7 @@ export async function registerRoutes(
 
   app.get("/api/admin/patients/:id/care-plans", requireAdminAuth, async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const tenantId = req.session.tenantId;
       
       const patient = await storage.getPatient(id);
@@ -1777,8 +1885,8 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const patientCarePlans = await storage.getCarePlansByPatientId(id);
-      
+      const patientCarePlans = await storage.getCarePlansByPatientId(id, tenantId);
+
       const enriched = await Promise.all(
         patientCarePlans.map(async (plan) => {
           const clinician = plan.clinicianId ? await storage.getUser(plan.clinicianId) : undefined;
@@ -1988,8 +2096,8 @@ export async function registerRoutes(
       if (!isSuperAdmin) {
         return res.status(403).json({ error: "Only super admins can update tenants" });
       }
-      
-      const { id } = req.params;
+
+      const id = req.params.id as string;
       const { name, isDemo, interpreterReviewMode } = req.body;
       
       const updateData: any = {};
@@ -2218,9 +2326,9 @@ export async function registerRoutes(
         const patient = checkIn.patientId ? await storage.getPatient(checkIn.patientId) : null;
         if (!patient) continue;
 
-        const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-          : "http://localhost:5000";
+        // [M1.5] APP_URL takes priority; fallback to Replit dev domain, then localhost
+        const baseUrl = process.env.APP_URL
+          || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "http://localhost:5000");
         const accessLink = `${baseUrl}/p/${carePlan.accessToken}`;
 
         try {

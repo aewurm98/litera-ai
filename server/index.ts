@@ -34,6 +34,8 @@ declare module "express-session" {
     userRole?: string;
     userName?: string;
     tenantId?: string;
+    // Tracks which patient access tokens have been verified in this session
+    verifiedTokens?: Record<string, boolean>;
   }
 }
 

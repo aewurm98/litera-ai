@@ -26,7 +26,7 @@ export interface IStorage {
   updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined>;
   updatePatientPassword(id: string, hashedPassword: string): Promise<void>;
   deletePatient(id: string): Promise<boolean>;
-  getCarePlansByPatientId(patientId: string): Promise<CarePlan[]>;
+  getCarePlansByPatientId(patientId: string, tenantId?: string): Promise<CarePlan[]>;
   
   getCarePlan(id: string): Promise<CarePlan | undefined>;
   getCarePlanByToken(token: string): Promise<CarePlan | undefined>;
@@ -151,9 +151,12 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async getCarePlansByPatientId(patientId: string): Promise<CarePlan[]> {
+  async getCarePlansByPatientId(patientId: string, tenantId?: string): Promise<CarePlan[]> {
+    const conditions = tenantId
+      ? and(eq(carePlans.patientId, patientId), eq(carePlans.tenantId, tenantId))
+      : eq(carePlans.patientId, patientId);
     return await db.select().from(carePlans)
-      .where(eq(carePlans.patientId, patientId))
+      .where(conditions)
       .orderBy(desc(carePlans.createdAt));
   }
 

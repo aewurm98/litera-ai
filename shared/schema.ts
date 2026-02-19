@@ -61,7 +61,7 @@ export const patients = pgTable("patients", {
   email: text("email").notNull(),
   phone: text("phone"),
   yearOfBirth: integer("year_of_birth").notNull(),
-  pin: varchar("pin", { length: 4 }),
+  pin: text("pin"),  // bcrypt hash stored here; original length-4 constraint removed
   password: text("password"),
   preferredLanguage: text("preferred_language").notNull().default("en"),
   tenantId: varchar("tenant_id").references(() => tenants.id),
