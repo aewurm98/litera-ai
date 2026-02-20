@@ -10,6 +10,10 @@ Litera.ai is a healthcare companion platform designed to assist clinicians in ge
 
 ## Recent Changes
 
+- **2026-02-20 — Production Deployment Fix**:
+  - Fixed production login failure: added `seedDatabase()` call on server startup in `server/index.ts` so the production database is auto-seeded when empty.
+  - Created `PRODUCTION_NOTES.md` documenting environment differences, seeding behavior, credential parity, patient PIN requirements, and common troubleshooting.
+
 - **2026-02-19 — Experiments Sandbox**:
   - Created `/experiments` hub page with three isolated experiment environments.
   - Comprehension Evaluation (`/experiments/comprehension`): Hardcoded patient portal with English/Spanish toggle, TTS, and AI chatbot (OpenAI-powered Q&A about the care plan content). No login, no tenant, no check-in.

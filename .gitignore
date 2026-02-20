@@ -6,3 +6,4 @@ vite.config.ts.*
 *.tar.gz
 DEMO_CREDENTIALS.md
 TESTING_CREDENTIALS.md
+PRODUCTION_NOTES.md
