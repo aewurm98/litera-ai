@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import type { CarePlan, Patient, CheckIn } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
+import CarePlanChatbot from "@/components/care-plan-chatbot";
 
 type CarePlanWithPatient = CarePlan & { patient: Patient; checkIns?: CheckIn[] };
 
@@ -1720,6 +1721,13 @@ export default function PatientPortal() {
           </DialogContent>
         </Dialog>
       </main>
+
+      {/* Chatbot FAB */}
+      <CarePlanChatbot
+        apiEndpoint={`/api/patient/${token}/chat`}
+        language={showEnglish ? "en" : (carePlan.translatedLanguage || "en")}
+        bottomOffset="24"
+      />
 
       {/* Bottom Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t p-4">

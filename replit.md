@@ -40,7 +40,7 @@ Litera.ai is built with a clear separation between its frontend, backend, and sh
 ### Key Features
 - **Clinician Dashboard**: Document upload (PDF/images), AI-driven content processing (extraction, simplification to 5th-grade, translation to 49 languages with back-translation), scroll-to-approve workflow, patient selector, and interpreter review status display.
 - **Interpreter Dashboard**: Translation review queue filtered by language specialties, 3-column review panel with editable text areas, approve/request changes workflow with audit trail, and back-translation verification.
-- **Patient Portal**: Magic link access with multi-factor verification, care plan display in preferred language, language toggling, and a traffic light check-in system.
+- **Patient Portal**: Magic link access with multi-factor verification, care plan display in preferred language, language toggling, a traffic light check-in system, and an AI-powered chatbot for care plan Q&A (grounded in the patient's actual care plan data, multilingual, rate-limited).
 - **Admin Dashboard**: Patient roster management (CRUD, bulk import), patient detail with care plan history, alert monitoring, CSV export for TCM compliance, audit trail, and Notion-style view toggle (Table/Kanban).
 - **Internationalization**: Support for 49 languages for content and 7 for UI.
 - **Multi-Modal Output**: PDF download, text-to-speech, and SMS delivery.

@@ -1555,6 +1555,102 @@ export async function registerRoutes(
     }
   });
 
+  // Patient chatbot — answer questions about their care plan (requires verified session)
+  const patientChatLimiter = new Map<string, { count: number; resetAt: number }>();
+  app.post("/api/patient/:token/chat", async (req: Request, res: Response) => {
+    try {
+      const token = req.params.token as string;
+
+      if (!req.session.verifiedTokens?.[token]) {
+        return res.status(403).json({ error: "Verification required" });
+      }
+
+      const ip = req.ip || "unknown";
+      const now = Date.now();
+      const entry = patientChatLimiter.get(ip);
+      if (entry && entry.resetAt > now) {
+        if (entry.count >= 30) {
+          return res.status(429).json({ answer: "You've reached the question limit. Please try again later." });
+        }
+        entry.count++;
+      } else {
+        patientChatLimiter.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+      }
+
+      const { question, language } = req.body;
+      if (!question || typeof question !== "string") {
+        return res.status(400).json({ error: "Question is required" });
+      }
+      if (question.length > 2000) {
+        return res.status(400).json({ error: "Question is too long (max 2000 characters)" });
+      }
+
+      const carePlan = await storage.getCarePlanByToken(token);
+      if (!carePlan) {
+        return res.status(404).json({ error: "Care plan not found" });
+      }
+
+      const diagnosis = carePlan.simplifiedDiagnosis || carePlan.diagnosis || "";
+      const instructions = carePlan.simplifiedInstructions || carePlan.instructions || "";
+      const warnings = carePlan.simplifiedWarnings || carePlan.warnings || "";
+      const medications = carePlan.simplifiedMedications || carePlan.medications || [];
+      const appointments = carePlan.simplifiedAppointments || carePlan.appointments || [];
+
+      const contextText = `
+Diagnosis: ${diagnosis}
+Instructions: ${instructions}
+Warnings: ${warnings}
+Medications: ${JSON.stringify(medications)}
+Appointments: ${JSON.stringify(appointments)}
+`;
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        ...(process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && !process.env.OPENAI_API_KEY
+          ? { baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL }
+          : {}),
+      });
+
+      const responseLang = language || "English";
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are a helpful healthcare assistant that answers patient questions about their discharge care plan.
+Respond in ${responseLang} at a 5th-grade reading level.
+Be warm, clear, and reassuring. Only answer questions based on the care plan information provided below.
+If the patient asks about something not covered in their care plan, kindly suggest they contact their care team.
+Do NOT provide medical advice beyond what is in the care plan.
+Keep responses concise (2-4 sentences).
+
+Care Plan Information:
+${contextText}`
+          },
+          { role: "user", content: question },
+        ],
+        max_tokens: 300,
+      });
+
+      const answer = response.choices[0]?.message?.content || "I'm sorry, I couldn't answer that question.";
+
+      await storage.createAuditLog({
+        carePlanId: carePlan.id,
+        action: "patient_chat",
+        details: { language: responseLang },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+
+      res.json({ answer });
+    } catch (error: any) {
+      console.error("Patient chat error:", error);
+      res.status(500).json({ answer: "Sorry, I had trouble answering. Please try again." });
+    }
+  });
+
   // Set patient password (for repeat access without PIN)
   app.post("/api/patient/:token/set-password", validateBody(setPatientPasswordSchema), async (req: Request, res: Response) => {
     try {

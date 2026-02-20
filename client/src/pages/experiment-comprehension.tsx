@@ -1,10 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Heart,
   Pill,
@@ -17,12 +15,9 @@ import {
   Clock,
   MapPin,
   ArrowLeft,
-  Send,
-  Loader2,
-  MessageCircle,
-  X,
   FlaskConical,
 } from "lucide-react";
+import CarePlanChatbot from "@/components/care-plan-chatbot";
 
 const SAMPLE_CARE_PLAN = {
   patientName: "Maria Garcia",
@@ -56,11 +51,6 @@ const SAMPLE_CARE_PLAN = {
   },
 };
 
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
 function formatContent(content: string): string {
   return content;
 }
@@ -68,11 +58,6 @@ function formatContent(content: string): string {
 export default function ExperimentComprehension() {
   const [showEnglish, setShowEnglish] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const isTTSSupported = typeof window !== "undefined" && "speechSynthesis" in window;
 
   const lang = showEnglish ? "en" : "es";
@@ -90,9 +75,6 @@ export default function ExperimentComprehension() {
       appointments: "Your Appointments",
       readAloud: "Read Aloud",
       stopReading: "Stop Reading",
-      askQuestion: "Ask a question about your care plan...",
-      chatTitle: "Ask About Your Care Plan",
-      chatWelcome: "Hi! I can help you understand your care plan. Ask me anything about your medications, appointments, or instructions.",
     },
     es: {
       yourCarePlan: "Su Plan de Cuidado",
@@ -104,17 +86,10 @@ export default function ExperimentComprehension() {
       appointments: "Sus Citas",
       readAloud: "Leer en Voz Alta",
       stopReading: "Dejar de Leer",
-      askQuestion: "Haga una pregunta sobre su plan de cuidado...",
-      chatTitle: "Pregunte Sobre Su Plan de Cuidado",
-      chatWelcome: "¡Hola! Puedo ayudarle a entender su plan de cuidado. Pregúnteme cualquier cosa sobre sus medicinas, citas o instrucciones.",
     },
   };
 
   const t = ui[uiLang];
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
 
   const speakSection = useCallback((text: string) => {
     if (!text || !isTTSSupported) return;
@@ -141,39 +116,6 @@ export default function ExperimentComprehension() {
     const allText = [content.diagnosis, content.medications.map(m => `${m.name}, ${m.dose}, ${m.frequency}. ${m.instructions}`).join(" "), content.instructions, content.warnings].join(". ");
     speakSection(allText);
   }, [content, isSpeaking, speakSection]);
-
-  const handleChatSend = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const userMsg = chatInput.trim();
-    setChatInput("");
-    const newMessages: ChatMessage[] = [...chatMessages, { role: "user", content: userMsg }];
-    setChatMessages(newMessages);
-    setChatLoading(true);
-
-    try {
-      const response = await fetch("/api/experiments/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: userMsg,
-          language: showEnglish ? "English" : "Spanish",
-          carePlanContext: {
-            diagnosis: content.diagnosis,
-            instructions: content.instructions,
-            warnings: content.warnings,
-            medications: content.medications,
-            appointments: content.appointments,
-          },
-        }),
-      });
-      const data = await response.json();
-      setChatMessages([...newMessages, { role: "assistant", content: data.answer || "I'm sorry, I couldn't answer that question." }]);
-    } catch {
-      setChatMessages([...newMessages, { role: "assistant", content: showEnglish ? "Sorry, I had trouble answering. Please try again." : "Lo siento, tuve problemas para responder. Por favor intente de nuevo." }]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -358,70 +300,17 @@ export default function ExperimentComprehension() {
       </main>
 
       {/* Chatbot FAB */}
-      <button
-        onClick={() => setChatOpen(!chatOpen)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg z-50"
-        data-testid="button-chat-toggle"
-      >
-        {chatOpen ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
-      </button>
-
-      {/* Chat Panel */}
-      {chatOpen && (
-        <div className="fixed bottom-24 right-4 w-[calc(100%-2rem)] max-w-md bg-card border rounded-xl shadow-xl z-50 flex flex-col" style={{ maxHeight: "60vh" }}>
-          <div className="flex items-center justify-between gap-2 p-4 border-b">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold">{t.chatTitle}</h3>
-            </div>
-            <Button variant="ghost" size="icon" onClick={() => setChatOpen(false)} data-testid="button-chat-close">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <ScrollArea className="flex-1 p-4" style={{ maxHeight: "calc(60vh - 8rem)" }}>
-            <div className="space-y-3">
-              {chatMessages.length === 0 && (
-                <div className="p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
-                  {t.chatWelcome}
-                </div>
-              )}
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-[85%] p-3 rounded-lg text-sm ${
-                      msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
-                    }`}
-                    data-testid={`chat-message-${msg.role}-${i}`}
-                  >
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-muted p-3 rounded-lg">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-          </ScrollArea>
-          <div className="p-3 border-t flex gap-2">
-            <Input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder={t.askQuestion}
-              onKeyDown={(e) => e.key === "Enter" && handleChatSend()}
-              disabled={chatLoading}
-              data-testid="input-chat-question"
-            />
-            <Button size="icon" onClick={handleChatSend} disabled={chatLoading || !chatInput.trim()} data-testid="button-chat-send">
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <CarePlanChatbot
+        apiEndpoint="/api/experiments/chat"
+        language={showEnglish ? "en" : "es"}
+        carePlanContext={{
+          diagnosis: content.diagnosis,
+          instructions: content.instructions,
+          warnings: content.warnings,
+          medications: content.medications,
+          appointments: content.appointments,
+        }}
+      />
     </div>
   );
 }
