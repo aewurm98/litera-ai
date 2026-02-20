@@ -64,7 +64,15 @@ import {
   RotateCcw,
   X,
   PenLine,
+  Mic,
+  MicOff,
+  ClipboardPaste,
+  Camera,
+  Type,
+  Mail,
+  Copy,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   CarePlan,
   Patient,
@@ -287,6 +295,13 @@ export default function ClinicianDashboard() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [inputTab, setInputTab] = useState("upload");
+  const [pasteText, setPasteText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [dictationText, setDictationText] = useState("");
+  const recognitionRef = useRef<any>(null);
+  const [testCredentials, setTestCredentials] = useState<{ lastName: string; yearOfBirth: number; pin: string; accessLink: string } | null>(null);
+  const [isTestCredentialsOpen, setIsTestCredentialsOpen] = useState(false);
   const [columnsScrolled, setColumnsScrolled] = useState<boolean[]>([
     false,
     false,
@@ -454,6 +469,71 @@ export default function ClinicianDashboard() {
     },
   });
 
+  const textInputMutation = useMutation({
+    mutationFn: async ({ text, method }: { text: string; method: "paste" | "dictation" }) => {
+      const response = await apiRequest("POST", "/api/care-plans/from-text", { text, method });
+      return response.json();
+    },
+    onSuccess: (data: CarePlanWithPatient) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
+      setSelectedCarePlan(data);
+      if (data.patient?.preferredLanguage) {
+        setPatientLanguage(data.patient.preferredLanguage);
+      }
+      setIsUploadDialogOpen(false);
+      setPasteText("");
+      setDictationText("");
+      toast({
+        title: "Care plan created",
+        description: "AI has extracted the medical content from your text.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Processing failed",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const startDictation = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast({ title: "Not supported", description: "Speech recognition is not available in this browser.", variant: "destructive" });
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    let finalTranscript = dictationText;
+    recognition.onresult = (event: any) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + " ";
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setDictationText(finalTranscript + interim);
+    };
+    recognition.onerror = () => { setIsRecording(false); };
+    recognition.onend = () => { setIsRecording(false); };
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+  };
+
+  const stopDictation = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsRecording(false);
+  };
+
   // Process mutation (simplify + translate)
   const processMutation = useMutation({
     mutationFn: async ({ id, language }: { id: string; language: string }) => {
@@ -551,6 +631,31 @@ export default function ClinicianDashboard() {
     },
     onError: () => {
       toast({ title: "Failed to send", variant: "destructive" });
+    },
+  });
+
+  const sendTestMutation = useMutation({
+    mutationFn: async (carePlanId: string) => {
+      const res = await apiRequest("POST", `/api/care-plans/${carePlanId}/send-test`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
+      setIsSendDialogOpen(false);
+      if (data.testCredentials) {
+        setTestCredentials(data.testCredentials);
+        setIsTestCredentialsOpen(true);
+      }
+      toast({
+        title: data.emailSent ? "Test email sent!" : "Test created (email failed)",
+        description: data.emailSent
+          ? "Check your inbox for the patient care plan email."
+          : "The test care plan was created but the email could not be delivered. Use the link below.",
+        variant: data.emailSent ? "default" : "destructive",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to send test", description: error.message, variant: "destructive" });
     },
   });
 
@@ -739,7 +844,7 @@ export default function ClinicianDashboard() {
               onClick={() => setIsUploadDialogOpen(true)}
               data-testid="button-new-care-plan"
             >
-              <Upload className="h-4 w-4 mr-2" />
+              <FileText className="h-4 w-4 mr-2" />
               New
             </Button>
           </div>
@@ -1562,169 +1667,237 @@ export default function ClinicianDashboard() {
                 Welcome to Litera.ai
               </h2>
               <p className="text-muted-foreground mb-6">
-                Upload a discharge summary to create simplified, translated care
-                instructions for your patients.
+                Add discharge instructions to create simplified, translated care
+                plans for your patients.
               </p>
               <Button
                 size="lg"
                 onClick={() => setIsUploadDialogOpen(true)}
                 data-testid="button-upload-main"
               >
-                <Upload className="h-5 w-5 mr-2" />
-                Upload Discharge Summary
+                <FileText className="h-5 w-5 mr-2" />
+                New Care Plan
               </Button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Upload Dialog */}
-      <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      {/* New Care Plan Dialog */}
+      <Dialog open={isUploadDialogOpen} onOpenChange={(open) => {
+        setIsUploadDialogOpen(open);
+        if (!open) {
+          setUploadFiles([]);
+          setUploadProgress(null);
+          setPasteText("");
+          setDictationText("");
+          if (isRecording) stopDictation();
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Upload Discharge Summary</DialogTitle>
+            <DialogTitle>New Care Plan</DialogTitle>
             <DialogDescription>
-              Upload a PDF or image of the patient's discharge instructions.
+              Add discharge instructions using any method below.
             </DialogDescription>
           </DialogHeader>
-          
-          {/* Sample Documents Dropdown - Only visible for demo tenants */}
-          {isTenantDemo && (
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Sample Documents (Demo)</Label>
-            <Select
-              onValueChange={async (filename) => {
-                try {
-                  const response = await fetch(`/sample-docs/${filename}`);
-                  const blob = await response.blob();
-                  const file = new File([blob], filename, { type: 'application/pdf' });
-                  setUploadFiles((prev) => [...prev, file]);
-                } catch (error) {
-                  toast({
-                    title: "Failed to load sample",
-                    description: "Could not load the sample document",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              <SelectTrigger className="w-full" data-testid="select-sample-document">
-                <SelectValue placeholder="Select a sample discharge document..." />
-              </SelectTrigger>
-              <SelectContent>
-                {tenantSampleDocs.map((doc) => (
-                  <SelectItem key={doc.file} value={doc.file}>
-                    {doc.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Or upload your own file below
-            </p>
-          </div>
-          )}
 
-          <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-              isDragging
-                ? "border-primary bg-primary/5"
-                : "border-muted-foreground/25"
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            {uploadFiles.length > 0 ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-center gap-2">
-                  <FileText className="h-6 w-6 text-primary" />
-                  <span className="font-medium">{uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''} selected</span>
+          <Tabs value={inputTab} onValueChange={setInputTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="upload" className="text-xs" data-testid="tab-upload">
+                <Upload className="h-3.5 w-3.5 mr-1" />
+                Upload
+              </TabsTrigger>
+              <TabsTrigger value="photo" className="text-xs" data-testid="tab-photo">
+                <Camera className="h-3.5 w-3.5 mr-1" />
+                Photo
+              </TabsTrigger>
+              <TabsTrigger value="dictate" className="text-xs" data-testid="tab-dictate">
+                <Mic className="h-3.5 w-3.5 mr-1" />
+                Dictate
+              </TabsTrigger>
+              <TabsTrigger value="paste" className="text-xs" data-testid="tab-paste">
+                <ClipboardPaste className="h-3.5 w-3.5 mr-1" />
+                Paste
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Upload Tab */}
+            <TabsContent value="upload" className="space-y-3 mt-3">
+              {isTenantDemo && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Sample Documents (Demo)</Label>
+                  <Select
+                    onValueChange={async (filename) => {
+                      try {
+                        const response = await fetch(`/sample-docs/${filename}`);
+                        const blob = await response.blob();
+                        const file = new File([blob], filename, { type: 'application/pdf' });
+                        setUploadFiles((prev) => [...prev, file]);
+                      } catch (error) {
+                        toast({ title: "Failed to load sample", description: "Could not load the sample document", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full" data-testid="select-sample-document">
+                      <SelectValue placeholder="Select a sample discharge document..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenantSampleDocs.map((doc) => (
+                        <SelectItem key={doc.file} value={doc.file}>{doc.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="max-h-32 overflow-y-auto text-left space-y-1">
-                  {uploadFiles.map((file, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1">
-                      <span className="truncate flex-1">{file.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 ml-2"
-                        onClick={() => setUploadFiles(prev => prev.filter((_, i) => i !== idx))}
-                        data-testid={`button-remove-file-${idx}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+              )}
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25"}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                {uploadFiles.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <FileText className="h-6 w-6 text-primary" />
+                      <span className="font-medium">{uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''} selected</span>
                     </div>
-                  ))}
-                </div>
-                <Label htmlFor="file-upload-add" className="cursor-pointer">
-                  <span className="text-xs text-primary hover:underline">+ Add more files</span>
-                  <Input
-                    id="file-upload-add"
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,image/*"
-                    multiple
-                    onChange={handleFileChange}
-                  />
+                    <div className="max-h-32 overflow-y-auto text-left space-y-1">
+                      {uploadFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1">
+                          <span className="truncate flex-1">{file.name}</span>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 ml-2" onClick={() => setUploadFiles(prev => prev.filter((_, i) => i !== idx))} data-testid={`button-remove-file-${idx}`}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <Label htmlFor="file-upload-add" className="cursor-pointer">
+                      <span className="text-xs text-primary hover:underline">+ Add more files</span>
+                      <Input id="file-upload-add" type="file" className="hidden" accept=".pdf,image/*" multiple onChange={handleFileChange} />
+                    </Label>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-sm text-muted-foreground mb-2">Drag and drop files here, or</p>
+                    <Label htmlFor="file-upload" className="cursor-pointer">
+                      <span className="text-primary hover:underline">browse files</span>
+                      <Input id="file-upload" type="file" className="hidden" accept=".pdf,image/*" multiple onChange={handleFileChange} data-testid="input-file-upload" />
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-2">Supports PDF, JPG, PNG</p>
+                  </>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setIsUploadDialogOpen(false); setUploadFiles([]); setUploadProgress(null); }} disabled={uploadMutation.isPending}>Cancel</Button>
+                <Button onClick={handleUpload} disabled={uploadFiles.length === 0 || uploadMutation.isPending} data-testid="button-upload-confirm">
+                  {uploadMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />{uploadProgress ? `${uploadProgress.current}/${uploadProgress.total}` : 'Processing...'}</>) : (<><Upload className="h-4 w-4 mr-2" />Upload{uploadFiles.length > 1 ? ` ${uploadFiles.length} files` : ''}</>)}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            {/* Photo Tab */}
+            <TabsContent value="photo" className="space-y-3 mt-3">
+              <div className="text-center space-y-3">
+                <Camera className="h-10 w-10 text-muted-foreground mx-auto" />
+                <p className="text-sm text-muted-foreground">Take a photo of discharge paperwork using your device camera, or select an existing photo.</p>
+                <Label htmlFor="photo-capture" className="cursor-pointer">
+                  <Button variant="outline" asChild>
+                    <span><Camera className="h-4 w-4 mr-2" />Open Camera</span>
+                  </Button>
+                  <Input id="photo-capture" type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length > 0) { setUploadFiles(files); setInputTab("upload"); }
+                    e.target.value = '';
+                  }} data-testid="input-photo-capture" />
+                </Label>
+                <Label htmlFor="photo-gallery" className="cursor-pointer block">
+                  <Button variant="ghost" size="sm" asChild>
+                    <span className="text-primary">Or choose from gallery</span>
+                  </Button>
+                  <Input id="photo-gallery" type="file" className="hidden" accept="image/*" multiple onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length > 0) { setUploadFiles(files); setInputTab("upload"); }
+                    e.target.value = '';
+                  }} data-testid="input-photo-gallery" />
                 </Label>
               </div>
-            ) : (
-              <>
-                <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-                <p className="text-sm text-muted-foreground mb-2">
-                  Drag and drop files here, or
+            </TabsContent>
+
+            {/* Dictation Tab */}
+            <TabsContent value="dictate" className="space-y-3 mt-3">
+              <div className="text-center space-y-3">
+                {isRecording ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                    <span className="text-sm font-medium text-red-600">Recording...</span>
+                  </div>
+                ) : (
+                  <Mic className="h-10 w-10 text-muted-foreground mx-auto" />
+                )}
+                <p className="text-sm text-muted-foreground">
+                  {isRecording ? "Speak clearly. Click stop when finished." : "Dictate the patient's discharge instructions."}
                 </p>
-                <Label htmlFor="file-upload" className="cursor-pointer">
-                  <span className="text-primary hover:underline">
-                    browse files
-                  </span>
-                  <Input
-                    id="file-upload"
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,image/*"
-                    multiple
-                    onChange={handleFileChange}
-                    data-testid="input-file-upload"
-                  />
-                </Label>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Supports PDF, JPG, PNG - Select multiple files
+                <Button
+                  variant={isRecording ? "destructive" : "outline"}
+                  onClick={isRecording ? stopDictation : startDictation}
+                  data-testid="button-dictation-toggle"
+                >
+                  {isRecording ? (<><MicOff className="h-4 w-4 mr-2" />Stop Recording</>) : (<><Mic className="h-4 w-4 mr-2" />Start Dictation</>)}
+                </Button>
+              </div>
+              <Textarea
+                placeholder="Dictated text will appear here. You can also edit it manually..."
+                value={dictationText}
+                onChange={(e) => setDictationText(e.target.value)}
+                rows={6}
+                className="resize-none"
+                data-testid="textarea-dictation"
+              />
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setIsUploadDialogOpen(false); setDictationText(""); if (isRecording) stopDictation(); }}>Cancel</Button>
+                <Button
+                  onClick={() => textInputMutation.mutate({ text: dictationText, method: "dictation" })}
+                  disabled={dictationText.trim().length < 20 || textInputMutation.isPending}
+                  data-testid="button-dictation-submit"
+                >
+                  {textInputMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>) : (<><Check className="h-4 w-4 mr-2" />Create Care Plan</>)}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            {/* Paste Text Tab */}
+            <TabsContent value="paste" className="space-y-3 mt-3">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Paste or type the patient's discharge instructions below.</p>
+                <Textarea
+                  placeholder="Paste discharge instructions, clinical notes, or care plan text here..."
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  rows={8}
+                  className="resize-none"
+                  data-testid="textarea-paste"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {pasteText.length < 20 ? `${20 - pasteText.length} more characters needed` : `${pasteText.length} characters`}
                 </p>
-              </>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsUploadDialogOpen(false);
-                setUploadFiles([]);
-                setUploadProgress(null);
-              }}
-              disabled={uploadMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={uploadFiles.length === 0 || uploadMutation.isPending}
-              data-testid="button-upload-confirm"
-            >
-              {uploadMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {uploadProgress ? `${uploadProgress.current}/${uploadProgress.total}` : 'Uploading...'}
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload {uploadFiles.length > 1 ? `${uploadFiles.length} files` : ''}
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setIsUploadDialogOpen(false); setPasteText(""); }}>Cancel</Button>
+                <Button
+                  onClick={() => textInputMutation.mutate({ text: pasteText, method: "paste" })}
+                  disabled={pasteText.trim().length < 20 || textInputMutation.isPending}
+                  data-testid="button-paste-submit"
+                >
+                  {textInputMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>) : (<><Check className="h-4 w-4 mr-2" />Create Care Plan</>)}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
@@ -1856,6 +2029,24 @@ export default function ClinicianDashboard() {
               </Select>
             </div>
           </div>
+          <div className="border-t pt-3 mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                if (selectedCarePlan) sendTestMutation.mutate(selectedCarePlan.id);
+              }}
+              disabled={sendTestMutation.isPending || sendMutation.isPending}
+              data-testid="button-send-test"
+            >
+              {sendTestMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending test...</>
+              ) : (
+                <><Mail className="h-4 w-4 mr-2" />Send Test to Me (preview the patient experience)</>
+              )}
+            </Button>
+          </div>
           <DialogFooter>
             <Button
               variant="outline"
@@ -1881,6 +2072,63 @@ export default function ClinicianDashboard() {
               Send Care Plan
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Test Credentials Dialog */}
+      <Dialog open={isTestCredentialsOpen} onOpenChange={setIsTestCredentialsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Test Care Plan Sent</DialogTitle>
+            <DialogDescription>
+              A care plan email has been sent to your email. You can also access it directly using the link below.
+            </DialogDescription>
+          </DialogHeader>
+          {testCredentials && (
+            <div className="space-y-4">
+              <div className="bg-muted rounded-lg p-4 space-y-3">
+                <h4 className="text-sm font-semibold">Patient Login Credentials</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <span className="text-muted-foreground">Last Name:</span>
+                  <span className="font-mono font-medium">{testCredentials.lastName}</span>
+                  <span className="text-muted-foreground">Year of Birth:</span>
+                  <span className="font-mono font-medium">{testCredentials.yearOfBirth}</span>
+                  <span className="text-muted-foreground">PIN:</span>
+                  <span className="font-mono font-medium">{testCredentials.pin}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Patient Portal Link</Label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={testCredentials.accessLink}
+                    className="text-xs font-mono"
+                    data-testid="input-test-link"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      navigator.clipboard.writeText(testCredentials.accessLink);
+                      toast({ title: "Link copied!" });
+                    }}
+                    data-testid="button-copy-test-link"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => window.open(testCredentials.accessLink, "_blank")}
+                data-testid="button-open-test-link"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open Patient Portal
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

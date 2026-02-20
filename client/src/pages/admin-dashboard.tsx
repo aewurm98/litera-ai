@@ -99,6 +99,7 @@ type EnrichedPatient = {
   carePlanCount: number;
   lastCarePlanStatus: string | null;
   lastCarePlanDate: string | null;
+  isTestPatient: boolean;
 };
 
 function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPatient; getStatusBadge: (status: string) => JSX.Element }) {
@@ -527,6 +528,21 @@ export default function AdminDashboard() {
     },
   });
 
+  const cleanupTestMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/admin/patients/test/cleanup");
+      return res.json();
+    },
+    onSuccess: (data: { deleted: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/patients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
+      toast({ title: `${data.deleted} test patient${data.deleted !== 1 ? 's' : ''} removed` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Cleanup failed", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Import patients mutation
   const importPatientsMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -814,6 +830,23 @@ export default function AdminDashboard() {
                     <LayoutGrid className="h-4 w-4" />
                   </Button>
                 </div>
+                {filteredPatients.some(p => p.isTestPatient) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                    onClick={() => {
+                      if (confirm(`Remove all test patients and their care plans? This cannot be undone.`)) {
+                        cleanupTestMutation.mutate();
+                      }
+                    }}
+                    disabled={cleanupTestMutation.isPending}
+                    data-testid="button-cleanup-test"
+                  >
+                    {cleanupTestMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                    Clean Up Test Patients
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => setIsImportDialogOpen(true)} data-testid="button-import-csv">
                   <Upload className="h-4 w-4 mr-2" />
                   Import CSV
@@ -859,7 +892,12 @@ export default function AdminDashboard() {
                       <TableRow key={patient.id} data-testid={`row-patient-${patient.id}`}>
                         <TableCell>
                           <div>
-                            <p className="font-medium" data-testid={`text-patient-name-${patient.id}`}>{patient.name}</p>
+                            <p className="font-medium" data-testid={`text-patient-name-${patient.id}`}>
+                              {patient.name}
+                              {patient.isTestPatient && (
+                                <Badge variant="outline" className="ml-2 text-[10px] py-0 px-1.5 border-orange-300 text-orange-600 bg-orange-50">TEST</Badge>
+                              )}
+                            </p>
                             <p className="text-sm text-muted-foreground">Born {patient.yearOfBirth}</p>
                           </div>
                         </TableCell>
@@ -988,7 +1026,12 @@ export default function AdminDashboard() {
                           >
                             <CardContent className="p-3 space-y-2">
                               <div className="flex items-start justify-between gap-1">
-                                <p className="font-medium text-sm leading-tight" data-testid={`kanban-name-${patient.id}`}>{patient.name}</p>
+                                <div className="flex items-center gap-1">
+                                  <p className="font-medium text-sm leading-tight" data-testid={`kanban-name-${patient.id}`}>{patient.name}</p>
+                                  {patient.isTestPatient && (
+                                    <Badge variant="outline" className="text-[10px] py-0 px-1 border-orange-300 text-orange-600 bg-orange-50">TEST</Badge>
+                                  )}
+                                </div>
                                 <Badge variant="secondary" className="text-[10px] shrink-0">
                                   {SUPPORTED_LANGUAGES.find(l => l.code === patient.preferredLanguage)?.name || patient.preferredLanguage}
                                 </Badge>

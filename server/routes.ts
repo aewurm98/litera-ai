@@ -1096,6 +1096,122 @@ export async function registerRoutes(
     }
   });
 
+  // Send test email to clinician (email testing workflow)
+  app.post("/api/care-plans/:id/send-test", requireClinicianAuth, async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const tenantId = req.session.tenantId;
+      const user = await storage.getUser(clinicianId);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const carePlan = await storage.getCarePlan(id);
+      if (!carePlan) {
+        return res.status(404).json({ error: "Care plan not found" });
+      }
+      if (tenantId && carePlan.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const sendableStatuses = ["approved", "interpreter_approved", "pending_review", "draft"];
+      if (!sendableStatuses.includes(carePlan.status)) {
+        return res.status(400).json({ error: `Cannot send test for this care plan (status: "${carePlan.status}").` });
+      }
+
+      const testEmail = user.email;
+      const testName = `Test Patient (${user.name})`;
+      const testLastName = "Test";
+      const testYob = 2000;
+      const testPin = generatePin();
+
+      let patient = await storage.getPatientByEmail(testEmail, tenantId);
+      if (!patient) {
+        patient = await storage.createPatient({
+          name: testName,
+          lastName: testLastName,
+          email: testEmail,
+          phone: null,
+          yearOfBirth: testYob,
+          pin: await bcrypt.hash(testPin, 10),
+          preferredLanguage: carePlan.translatedLanguage || "en",
+          tenantId,
+          isTestPatient: true,
+        });
+      } else {
+        const newPin = await bcrypt.hash(testPin, 10);
+        patient = await storage.updatePatient(patient.id, {
+          isTestPatient: true,
+          pin: newPin,
+        });
+      }
+
+      if (!patient) {
+        return res.status(500).json({ error: "Failed to create test patient" });
+      }
+
+      const accessToken = generateAccessToken();
+      const accessTokenExpiry = new Date();
+      accessTokenExpiry.setDate(accessTokenExpiry.getDate() + 30);
+
+      const testCarePlan = await storage.createCarePlan({
+        clinicianId,
+        tenantId: carePlan.tenantId,
+        status: "sent",
+        originalContent: carePlan.originalContent,
+        simplifiedContent: carePlan.simplifiedContent,
+        translatedContent: carePlan.translatedContent,
+        originalLanguage: carePlan.originalLanguage,
+        translatedLanguage: carePlan.translatedLanguage,
+        backTranslation: carePlan.backTranslation,
+        medications: carePlan.medications as any,
+        appointments: carePlan.appointments as any,
+        patientId: patient.id,
+        accessToken,
+        accessTokenExpiry,
+        dischargeDate: new Date(),
+      });
+
+      const baseUrl = process.env.APP_URL
+        || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "http://localhost:5000");
+      const accessLink = `${baseUrl}/p/${accessToken}`;
+
+      let emailSent = true;
+      try {
+        await sendCarePlanEmail(testEmail, testName, accessLink, testPin);
+      } catch (emailError) {
+        console.error("Test email sending failed:", emailError);
+        emailSent = false;
+      }
+
+      await storage.createAuditLog({
+        carePlanId: testCarePlan.id,
+        userId: clinicianId,
+        action: "sent",
+        details: { patientEmail: testEmail, isTest: true, sourceCarePlanId: id },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+
+      res.json({
+        ...testCarePlan,
+        patient,
+        emailSent,
+        testCredentials: {
+          lastName: testLastName,
+          yearOfBirth: testYob,
+          pin: testPin,
+          accessLink,
+        },
+      });
+    } catch (error) {
+      console.error("Error sending test care plan:", error);
+      res.status(500).json({ error: "Failed to send test care plan" });
+    }
+  });
+
   // Generate demo token for clinician preview (requires clinician auth)
   app.post("/api/care-plans/:id/demo-token", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
@@ -1880,6 +1996,7 @@ ${contextText}`
             carePlanCount: patientCarePlans.length,
             lastCarePlanStatus: lastCarePlan?.status || null,
             lastCarePlanDate: lastCarePlan?.createdAt || null,
+            isTestPatient: patient.isTestPatient || false,
           };
         })
       );
@@ -2016,6 +2133,37 @@ ${contextText}`
         return res.status(409).json({ error: "Another patient with this email already exists" });
       }
       res.status(500).json({ error: "Failed to update patient" });
+    }
+  });
+
+  app.delete("/api/admin/patients/test/cleanup", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.session.tenantId;
+      const allPatients = await storage.getAllPatients(tenantId);
+      const testPatients = allPatients.filter(p => p.isTestPatient);
+      let deleted = 0;
+
+      for (const patient of testPatients) {
+        const linkedCarePlans = await storage.getCarePlansByPatientId(patient.id, tenantId);
+        for (const cp of linkedCarePlans) {
+          await storage.deleteCarePlan(cp.id);
+        }
+        await storage.deletePatient(patient.id);
+        deleted++;
+      }
+
+      await storage.createAuditLog({
+        userId: req.session.userId,
+        action: "test_patients_cleanup",
+        details: { deleted },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+
+      res.json({ deleted });
+    } catch (error) {
+      console.error("Error cleaning up test patients:", error);
+      res.status(500).json({ error: "Failed to clean up test patients" });
     }
   });
 

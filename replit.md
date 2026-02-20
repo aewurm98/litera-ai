@@ -10,6 +10,12 @@ Litera.ai is a healthcare companion platform designed to assist clinicians in ge
 
 ## Recent Changes
 
+- **2026-02-20 — Pilot Deployment Features**:
+  - **Multi-role user access**: Added `roles` text array column to users schema. Auth system checks roles array membership (backward-compatible: falls back to single `role` field if `roles` is empty). Frontend sidebar shows all permitted dashboard tabs. Demo admin users (riverside_admin, lakeside_admin) now have roles: ["admin", "clinician"] for seamless multi-dashboard access.
+  - **Flexible input methods**: Clinician "New Care Plan" dialog now has 4 tabs: Upload (PDF/images), Photo (camera capture), Dictate (Web Speech API), Paste Text. New `/api/care-plans/from-text` endpoint processes raw text input directly (skips PDF extraction). Dictation uses continuous speech recognition with interim results.
+  - **Email testing workflow**: "Send Test to Me" button in send dialog clones the care plan and sends it to the clinician's own email as a test patient. Shows credentials dialog with patient login info (lastName: "Test", YOB: 2000, auto-generated PIN) and direct portal link. Test patients flagged with `isTestPatient` boolean and shown with orange "TEST" badge in admin roster. "Clean Up Test Patients" button in admin dashboard deletes all test patients and their linked care plans.
+  - All test sends create cloned care plans — original care plans are never mutated by the test workflow.
+
 - **2026-02-20 — Production Deployment Fix**:
   - Fixed production login failure: added `seedDatabase()` call on server startup in `server/index.ts` so the production database is auto-seeded when empty.
   - Created `PRODUCTION_NOTES.md` documenting environment differences, seeding behavior, credential parity, patient PIN requirements, and common troubleshooting.
