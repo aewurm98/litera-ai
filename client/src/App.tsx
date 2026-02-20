@@ -417,7 +417,10 @@ function ComingSoonPage({ title }: { title: string }) {
   );
 }
 
+const DASHBOARD_ROUTES = ["/clinician", "/admin", "/interpreter"] as const;
+
 function AuthenticatedRoutes({ user }: { user: User }) {
+  const [location] = useLocation();
   const roles = user.roles || [user.role];
   const hasRole = (r: string) => roles.includes(r);
   const isAdmin = hasRole("admin") || hasRole("super_admin");
@@ -426,65 +429,58 @@ function AuthenticatedRoutes({ user }: { user: User }) {
 
   const defaultRoute = isAdmin ? "/admin" : isClinician ? "/clinician" : isInterpreter ? "/interpreter" : "/clinician";
 
+  const canAccessClinician = isClinician || isAdmin;
+  const canAccessAdmin = isAdmin;
+  const canAccessInterpreter = isInterpreter;
+
+  const isDashboardRoute = (DASHBOARD_ROUTES as readonly string[]).includes(location);
+
+  if (location === "/") {
+    return <Redirect to={defaultRoute} />;
+  }
+
+  if (location === "/clinician" && !canAccessClinician) return <Redirect to={defaultRoute} />;
+  if (location === "/admin" && !canAccessAdmin) return <Redirect to={defaultRoute} />;
+  if (location === "/interpreter" && !canAccessInterpreter) return <Redirect to={defaultRoute} />;
+
   return (
-    <Switch>
-      <Route path="/">
-        <Redirect to={defaultRoute} />
-      </Route>
-      <Route path="/clinician">
-        {(isClinician || isAdmin) ? (
-          <MainLayout user={user}>
-            <ClinicianDashboard />
-          </MainLayout>
-        ) : (
-          <Redirect to={defaultRoute} />
-        )}
-      </Route>
-      <Route path="/admin">
-        {isAdmin ? (
-          <MainLayout user={user}>
-            <AdminDashboard />
-          </MainLayout>
-        ) : (
-          <Redirect to={defaultRoute} />
-        )}
-      </Route>
-      <Route path="/interpreter">
-        {isInterpreter ? (
-          <MainLayout user={user}>
-            <InterpreterDashboard />
-          </MainLayout>
-        ) : (
-          <Redirect to={defaultRoute} />
-        )}
-      </Route>
-      <Route path="/analytics">
-        <MainLayout user={user}>
-          <AnalyticsPage />
-        </MainLayout>
-      </Route>
-      <Route path="/providers">
-        <MainLayout user={user}>
-          <ComingSoonPage title="Provider Directory" />
-        </MainLayout>
-      </Route>
-      <Route path="/videos">
-        <MainLayout user={user}>
-          <ComingSoonPage title="Video Library" />
-        </MainLayout>
-      </Route>
-      <Route path="/notifications">
-        <MainLayout user={user}>
-          <ComingSoonPage title="Notification Settings" />
-        </MainLayout>
-      </Route>
-      <Route path="/settings">
-        <MainLayout user={user}>
-          <SettingsPage />
-        </MainLayout>
-      </Route>
-      <Route component={NotFound} />
-    </Switch>
+    <MainLayout user={user}>
+      {canAccessClinician && (
+        <div style={{ display: location === "/clinician" ? "contents" : "none" }}>
+          <ClinicianDashboard />
+        </div>
+      )}
+      {canAccessAdmin && (
+        <div style={{ display: location === "/admin" ? "contents" : "none" }}>
+          <AdminDashboard />
+        </div>
+      )}
+      {canAccessInterpreter && (
+        <div style={{ display: location === "/interpreter" ? "contents" : "none" }}>
+          <InterpreterDashboard />
+        </div>
+      )}
+      {!isDashboardRoute && (
+        <Switch>
+          <Route path="/analytics">
+            <AnalyticsPage />
+          </Route>
+          <Route path="/providers">
+            <ComingSoonPage title="Provider Directory" />
+          </Route>
+          <Route path="/videos">
+            <ComingSoonPage title="Video Library" />
+          </Route>
+          <Route path="/notifications">
+            <ComingSoonPage title="Notification Settings" />
+          </Route>
+          <Route path="/settings">
+            <SettingsPage />
+          </Route>
+          <Route component={NotFound} />
+        </Switch>
+      )}
+    </MainLayout>
   );
 }
 
