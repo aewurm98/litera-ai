@@ -5,6 +5,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { pool } from "./db";
+import { seedDatabase } from "./seed";
 
 // Validate required environment variables at startup
 if (!process.env.SESSION_SECRET) {
@@ -107,6 +108,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await seedDatabase();
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
