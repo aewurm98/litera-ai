@@ -65,6 +65,7 @@ interface User {
   id: string;
   name: string;
   role: string;
+  roles: string[];
   tenantId?: string | null;
   tenant?: { id: string; name: string; isDemo: boolean } | null;
 }
@@ -277,7 +278,8 @@ function AppSidebar({ user }: { user: User }) {
     },
   ];
 
-  const filteredNav = mainNavItems.filter(item => item.roles.includes(user.role));
+  const userRoles = user.roles || [user.role];
+  const filteredNav = mainNavItems.filter(item => item.roles.some(r => userRoles.includes(r)));
 
   return (
     <Sidebar>
@@ -344,7 +346,7 @@ function AppSidebar({ user }: { user: User }) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user.name}</p>
-            <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+            <p className="text-xs text-muted-foreground capitalize">{(user.roles || [user.role]).join(" · ")}</p>
           </div>
         </div>
         <div className="space-y-2">
@@ -416,35 +418,41 @@ function ComingSoonPage({ title }: { title: string }) {
 }
 
 function AuthenticatedRoutes({ user }: { user: User }) {
+  const roles = user.roles || [user.role];
+  const hasRole = (r: string) => roles.includes(r);
+  const isAdmin = hasRole("admin") || hasRole("super_admin");
+  const isClinician = hasRole("clinician");
+  const isInterpreter = hasRole("interpreter");
+
+  const defaultRoute = isClinician ? "/" : isAdmin ? "/admin" : isInterpreter ? "/interpreter" : "/";
+
   return (
     <Switch>
       <Route path="/">
-        {user.role === "admin" || user.role === "super_admin" ? (
-          <Redirect to="/admin" />
-        ) : user.role === "interpreter" ? (
-          <Redirect to="/interpreter" />
-        ) : (
+        {isClinician ? (
           <MainLayout user={user}>
             <ClinicianDashboard />
           </MainLayout>
+        ) : (
+          <Redirect to={defaultRoute} />
         )}
       </Route>
       <Route path="/admin">
-        {user.role === "admin" || user.role === "super_admin" ? (
+        {isAdmin ? (
           <MainLayout user={user}>
             <AdminDashboard />
           </MainLayout>
         ) : (
-          <Redirect to="/" />
+          <Redirect to={defaultRoute} />
         )}
       </Route>
       <Route path="/interpreter">
-        {user.role === "interpreter" ? (
+        {isInterpreter ? (
           <MainLayout user={user}>
             <InterpreterDashboard />
           </MainLayout>
         ) : (
-          <Redirect to="/" />
+          <Redirect to={defaultRoute} />
         )}
       </Route>
       <Route path="/analytics">

@@ -35,7 +35,8 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").notNull().default("clinician"), // clinician, interpreter, admin, super_admin
+  role: text("role").notNull().default("clinician"), // Primary role: clinician, interpreter, admin, super_admin
+  roles: text("roles").array().notNull().default(sql`ARRAY[]::text[]`), // All assigned roles for multi-role access
   name: text("name").notNull(),
   languages: text("languages").array(), // Language codes interpreter specializes in (e.g., ["es", "fr"])
   tenantId: varchar("tenant_id").references(() => tenants.id),
@@ -45,6 +46,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
   role: true,
+  roles: true,
   name: true,
   languages: true,
   tenantId: true,
@@ -64,6 +66,7 @@ export const patients = pgTable("patients", {
   pin: text("pin"),  // bcrypt hash stored here; original length-4 constraint removed
   password: text("password"),
   preferredLanguage: text("preferred_language").notNull().default("en"),
+  isTestPatient: boolean("is_test_patient").notNull().default(false),
   tenantId: varchar("tenant_id").references(() => tenants.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [

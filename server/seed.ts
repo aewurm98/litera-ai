@@ -43,6 +43,7 @@ export async function seedDatabase(force: boolean = false) {
     username: "admin",
     password: hashedPassword,
     role: "super_admin",
+    roles: ["super_admin", "admin"],
     name: "Angela Torres",
     tenantId: null,
   }).returning();
@@ -127,6 +128,7 @@ async function seedDemoData() {
       username: "admin",
       password: hashedPassword,
       role: "super_admin",
+      roles: ["super_admin", "admin"],
       name: "Angela Torres",
       tenantId: null,
     }).returning();
@@ -140,6 +142,7 @@ async function seedDemoData() {
     username: "riverside_admin",
     password: hashedPassword,
     role: "admin",
+    roles: ["admin", "clinician"],
     name: "Dr. James Park",
     tenantId: tenant1.id,
   }).returning();
@@ -148,6 +151,7 @@ async function seedDemoData() {
     username: "nurse",
     password: hashedPassword,
     role: "clinician",
+    roles: ["clinician"],
     name: "Maria Chen, RN",
     tenantId: tenant1.id,
   }).returning();
@@ -157,6 +161,7 @@ async function seedDemoData() {
     username: "lakeside_admin",
     password: hashedPassword,
     role: "admin",
+    roles: ["admin", "clinician"],
     name: "Dr. Rachel Torres",
     tenantId: tenant2.id,
   }).returning();
@@ -165,6 +170,7 @@ async function seedDemoData() {
     username: "lakeside_nurse",
     password: hashedPassword,
     role: "clinician",
+    roles: ["clinician"],
     name: "Sarah Kim, NP",
     tenantId: tenant2.id,
   }).returning();
@@ -174,6 +180,7 @@ async function seedDemoData() {
     username: "riverside_interpreter",
     password: hashedPassword,
     role: "interpreter",
+    roles: ["interpreter"],
     name: "Luis Reyes, CMI",
     languages: ["es", "fr", "ru"],
     tenantId: tenant1.id,
@@ -184,6 +191,7 @@ async function seedDemoData() {
     username: "lakeside_interpreter",
     password: hashedPassword,
     role: "interpreter",
+    roles: ["interpreter"],
     name: "Nadia Hassan, CMI",
     languages: ["ar", "hi", "vi"],
     tenantId: tenant2.id,

@@ -272,11 +272,19 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function getUserRoles(req: Request): string[] {
+  if (req.session.userRoles && req.session.userRoles.length > 0) {
+    return req.session.userRoles;
+  }
+  return req.session.userRole ? [req.session.userRole] : [];
+}
+
 function requireClinicianAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  if (req.session.userRole !== "clinician" && req.session.userRole !== "admin") {
+  const roles = getUserRoles(req);
+  if (!roles.includes("clinician") && !roles.includes("admin") && !roles.includes("super_admin")) {
     return res.status(403).json({ error: "Access denied. Clinician or admin role required." });
   }
   (req as any).clinicianId = req.session.userId;
@@ -288,7 +296,8 @@ function requireAdminAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  if (req.session.userRole !== "admin" && req.session.userRole !== "super_admin") {
+  const roles = getUserRoles(req);
+  if (!roles.includes("admin") && !roles.includes("super_admin")) {
     return res.status(403).json({ error: "Access denied. Admin role required." });
   }
   (req as any).adminId = req.session.userId;
@@ -300,7 +309,8 @@ function requireInterpreterAuth(req: Request, res: Response, next: NextFunction)
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  if (req.session.userRole !== "interpreter") {
+  const roles = getUserRoles(req);
+  if (!roles.includes("interpreter")) {
     return res.status(403).json({ error: "Access denied. Interpreter role required." });
   }
   (req as any).interpreterId = req.session.userId;
@@ -402,7 +412,8 @@ export async function registerRoutes(
       }
       
       // Check authorization: clinician/admin/interpreter session OR valid patient access token
-      const isAuthenticated = req.session?.userId && (req.session?.userRole === "clinician" || req.session?.userRole === "admin" || req.session?.userRole === "interpreter");
+      const sessionRoles = req.session?.userRoles || (req.session?.userRole ? [req.session.userRole] : []);
+      const isAuthenticated = req.session?.userId && sessionRoles.some((r: string) => ["clinician", "admin", "super_admin", "interpreter"].includes(r));
       // [M1.2] Use timing-safe comparison to prevent token oracle attacks
       // [M2.4] Require a non-null expiry; treat missing expiry as expired
       const hasValidToken = token && carePlan.accessToken &&
@@ -508,8 +519,11 @@ export async function registerRoutes(
 
       recordLoginAttempt(username, true);
 
+      const effectiveRoles = user.roles && user.roles.length > 0 ? user.roles : [user.role];
+
       req.session.userId = user.id;
       req.session.userRole = user.role;
+      req.session.userRoles = effectiveRoles;
       req.session.userName = user.name;
       req.session.tenantId = user.tenantId ?? undefined;
       
@@ -518,6 +532,7 @@ export async function registerRoutes(
         username: user.username,
         name: user.name,
         role: user.role,
+        roles: effectiveRoles,
         tenantId: user.tenantId
       });
     } catch (error) {
@@ -580,10 +595,15 @@ export async function registerRoutes(
       tenant = await storage.getTenant(req.session.tenantId);
     }
     
+    const roles = req.session.userRoles && req.session.userRoles.length > 0
+      ? req.session.userRoles
+      : [req.session.userRole!];
+
     res.json({
       id: req.session.userId,
       name: req.session.userName,
       role: req.session.userRole,
+      roles,
       tenantId: req.session.tenantId,
       tenant: tenant ? { id: tenant.id, name: tenant.name, slug: tenant.slug, isDemo: tenant.isDemo, interpreterReviewMode: tenant.interpreterReviewMode } : null,
     });
@@ -715,6 +735,67 @@ export async function registerRoutes(
         : error?.message?.includes("timeout") || error?.message?.includes("ETIMEDOUT")
         ? "Processing timed out. Please try again."
         : "Failed to process upload. Please try again with a different file.";
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Create care plan from raw text input (paste, dictation, etc.)
+  app.post("/api/care-plans/from-text", requireClinicianAuth, async (req: Request, res: Response) => {
+    try {
+      const textSchema = z.object({
+        text: z.string().min(20, "Text must be at least 20 characters"),
+        method: z.enum(["paste", "dictation", "photo"]).default("paste"),
+      });
+      const parsed = textSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Validation failed", details: parsed.error.errors });
+      }
+
+      const { text, method } = parsed.data;
+      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const tenantId = req.session.tenantId;
+
+      const extracted = await extractDischargeContent(text);
+
+      let matchedPatientId: string | undefined = undefined;
+      if (extracted.patientName) {
+        const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
+        if (matchedPatient) {
+          matchedPatientId = matchedPatient.id;
+        }
+      }
+
+      const carePlan = await storage.createCarePlan({
+        clinicianId,
+        patientId: matchedPatientId,
+        tenantId,
+        status: "draft",
+        originalContent: text,
+        originalFileName: `${method}_input_${new Date().toISOString().slice(0, 10)}`,
+        extractedPatientName: extracted.patientName,
+        diagnosis: extracted.diagnosis,
+        medications: extracted.medications,
+        appointments: extracted.appointments,
+        instructions: extracted.instructions,
+        warnings: extracted.warnings,
+      });
+
+      await storage.createAuditLog({
+        carePlanId: carePlan.id,
+        userId: clinicianId,
+        action: "uploaded",
+        details: { method, textLength: text.length, patientName: extracted.patientName, autoMatchedPatientId: matchedPatientId },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+
+      const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
+      res.json({ ...carePlan, patient: matchedPatient });
+    } catch (error: any) {
+      console.error("Error creating care plan from text:", error);
+      const message = error?.message?.includes("OpenAI") || error?.message?.includes("API")
+        ? "AI processing failed. Please check the text and try again."
+        : "Failed to process text input. Please try again.";
       res.status(500).json({ error: message });
     }
   });

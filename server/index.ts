@@ -34,9 +34,9 @@ declare module "express-session" {
   interface SessionData {
     userId?: string;
     userRole?: string;
+    userRoles?: string[];
     userName?: string;
     tenantId?: string;
-    // Tracks which patient access tokens have been verified in this session
     verifiedTokens?: Record<string, boolean>;
   }
 }
