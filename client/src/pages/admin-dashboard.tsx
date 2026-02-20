@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -38,7 +38,13 @@ import {
   LayoutGrid,
   List,
   Mail,
-  CircleDot
+  CircleDot,
+  ChevronDown,
+  ChevronUp,
+  Activity,
+  Globe,
+  Phone,
+  User,
 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
@@ -96,36 +102,105 @@ type EnrichedPatient = {
 };
 
 function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPatient; getStatusBadge: (status: string) => JSX.Element }) {
+  const [showDemographics, setShowDemographics] = useState(false);
   const { data: patientCarePlans = [], isLoading: carePlansLoading } = useQuery<CarePlanWithDetails[]>({
     queryKey: ["/api/admin/patients", patient.id, "care-plans"],
     enabled: true,
   });
 
+  const latestCarePlan = patientCarePlans.length > 0
+    ? patientCarePlans.reduce((latest, cp) => new Date(cp.createdAt) > new Date(latest.createdAt) ? cp : latest)
+    : null;
+  const latestCheckIn = latestCarePlan?.checkIns?.length
+    ? latestCarePlan.checkIns.filter(c => c.response).sort((a, b) => new Date(b.respondedAt!).getTime() - new Date(a.respondedAt!).getTime())[0]
+    : null;
+  const preferredLangName = SUPPORTED_LANGUAGES.find(l => l.code === patient.preferredLanguage)?.name || patient.preferredLanguage;
+
   return (
     <ScrollArea className="flex-1 pr-4">
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label className="text-xs text-muted-foreground uppercase">Name</Label>
-            <p className="font-medium" data-testid="text-patient-detail-name">{patient.name}</p>
+      <div className="space-y-5">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-3 rounded-md bg-muted/50">
+            <div className="flex items-center gap-2 mb-1">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <Label className="text-xs text-muted-foreground uppercase">Care Plans</Label>
+            </div>
+            <p className="text-lg font-semibold" data-testid="text-patient-detail-plan-count">{patientCarePlans.length}</p>
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground uppercase">Email</Label>
-            <p data-testid="text-patient-detail-email">{patient.email}</p>
+          <div className="p-3 rounded-md bg-muted/50">
+            <div className="flex items-center gap-2 mb-1">
+              <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+              <Label className="text-xs text-muted-foreground uppercase">Latest Status</Label>
+            </div>
+            <div data-testid="text-patient-detail-latest-status">
+              {latestCarePlan ? getStatusBadge(latestCarePlan.status) : <span className="text-sm text-muted-foreground">None</span>}
+            </div>
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground uppercase">Phone</Label>
-            <p data-testid="text-patient-detail-phone">{patient.phone || "\u2014"}</p>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground uppercase">Language</Label>
-            <p data-testid="text-patient-detail-language">{SUPPORTED_LANGUAGES.find(l => l.code === patient.preferredLanguage)?.name || patient.preferredLanguage}</p>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground uppercase">Year of Birth</Label>
-            <p data-testid="text-patient-detail-yob">{patient.yearOfBirth}</p>
+          <div className="p-3 rounded-md bg-muted/50">
+            <div className="flex items-center gap-2 mb-1">
+              <Bell className="h-3.5 w-3.5 text-muted-foreground" />
+              <Label className="text-xs text-muted-foreground uppercase">Last Check-in</Label>
+            </div>
+            <div data-testid="text-patient-detail-last-checkin">
+              {latestCheckIn ? (
+                <Badge variant={latestCheckIn.response === "green" ? "default" : latestCheckIn.response === "yellow" ? "secondary" : "destructive"} className="text-xs">
+                  {latestCheckIn.response === "green" ? "Doing well" : latestCheckIn.response === "yellow" ? "Has questions" : "Needs help"}
+                </Badge>
+              ) : <span className="text-sm text-muted-foreground">None</span>}
+            </div>
           </div>
         </div>
+
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <Globe className="h-3.5 w-3.5" />
+            <span data-testid="text-patient-detail-language">{preferredLangName}</span>
+          </div>
+          <span>·</span>
+          <div className="flex items-center gap-1.5">
+            <Mail className="h-3.5 w-3.5" />
+            <span data-testid="text-patient-detail-email">{patient.email}</span>
+          </div>
+          {patient.phone && (
+            <>
+              <span>·</span>
+              <div className="flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5" />
+                <span data-testid="text-patient-detail-phone">{patient.phone}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <button
+          onClick={() => setShowDemographics(!showDemographics)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover-elevate px-2 py-1 rounded-md"
+          data-testid="button-toggle-demographics"
+        >
+          {showDemographics ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {showDemographics ? "Hide" : "Show"} demographics
+        </button>
+
+        {showDemographics && (
+          <div className="grid grid-cols-2 gap-3 p-3 rounded-md border text-sm">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase">Full Name</Label>
+              <p data-testid="text-patient-detail-name">{patient.name}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase">Year of Birth</Label>
+              <p data-testid="text-patient-detail-yob">{patient.yearOfBirth}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase">Last Name (Auth)</Label>
+              <p>{patient.lastName || "\u2014"}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase">Registered</Label>
+              <p>{patient.createdAt ? format(new Date(patient.createdAt), "MMM d, yyyy") : "\u2014"}</p>
+            </div>
+          </div>
+        )}
 
         <div>
           <Label className="text-xs text-muted-foreground uppercase mb-3 block">Care Plan History</Label>
@@ -154,7 +229,9 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
                     <TableCell>{getStatusBadge(cp.status)}</TableCell>
                     <TableCell>{cp.clinician?.name || "\u2014"}</TableCell>
                     <TableCell>
-                      {SUPPORTED_LANGUAGES.find(l => l.code === cp.translatedLanguage)?.name || "\u2014"}
+                      {cp.translatedLanguage
+                        ? SUPPORTED_LANGUAGES.find(l => l.code === cp.translatedLanguage)?.name || cp.translatedLanguage
+                        : <span className="text-muted-foreground">{preferredLangName} <span className="text-xs">(pending)</span></span>}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -185,14 +262,7 @@ export default function AdminDashboard() {
   const [editUserForm, setEditUserForm] = useState<{ id: string; name: string; role: string; tenantId: string }>({ id: "", name: "", role: "", tenantId: "" });
   const [editTenantForm, setEditTenantForm] = useState<{ id: string; name: string; isDemo: boolean }>({ id: "", name: "", isDemo: false });
 
-  const [patientView, setPatientView] = useState<"table" | "kanban">(() => {
-    const saved = localStorage.getItem("litera-patient-view");
-    return saved === "kanban" ? "kanban" : "table";
-  });
-  const handlePatientViewChange = (view: "table" | "kanban") => {
-    setPatientView(view);
-    localStorage.setItem("litera-patient-view", view);
-  };
+  const [patientView, setPatientView] = useState<"table" | "kanban">("table");
 
   const [isCreatePatientDialogOpen, setIsCreatePatientDialogOpen] = useState(false);
   const [isEditPatientDialogOpen, setIsEditPatientDialogOpen] = useState(false);
@@ -215,6 +285,23 @@ export default function AdminDashboard() {
     queryKey: ["/api/auth/me"],
   });
   const isSuperAdmin = currentUser?.role === "super_admin";
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      const key = `litera-patient-view-${currentUser.id}`;
+      const saved = localStorage.getItem(key);
+      if (saved === "kanban" || saved === "table") {
+        setPatientView(saved);
+      }
+    }
+  }, [currentUser?.id]);
+
+  const handlePatientViewChange = (view: "table" | "kanban") => {
+    setPatientView(view);
+    if (currentUser?.id) {
+      localStorage.setItem(`litera-patient-view-${currentUser.id}`, view);
+    }
+  };
 
   // Fetch all care plans
   const { data: carePlans = [], isLoading } = useQuery<CarePlanWithDetails[]>({

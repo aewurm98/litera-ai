@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -31,8 +33,13 @@ import {
   ArrowLeft,
   Eye,
   AlertTriangle,
+  User,
+  ArrowUpDown,
+  BarChart3,
+  Globe,
 } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
+import { format, differenceInHours } from "date-fns";
 
 interface CarePlan {
   id: string;
@@ -158,8 +165,14 @@ function ReviewPanel({ carePlan, onBack }: { carePlan: CarePlan; onBack: () => v
         <div>
           <h2 className="text-xl font-semibold">Review Care Plan</h2>
           <p className="text-sm text-muted-foreground">
-            {carePlan.extractedPatientName || carePlan.patient?.name || "Unknown Patient"} - {getLanguageName(carePlan.translatedLanguage || "en")}
+            {carePlan.extractedPatientName || carePlan.patient?.name || "Unknown Patient"} — {getLanguageName(carePlan.translatedLanguage || "en")}
           </p>
+          <div className="flex items-center gap-2 mt-1">
+            <User className="h-3 w-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
+              Created by {carePlan.clinician?.name || "Unknown Clinician"} · {format(new Date(carePlan.createdAt), "MMM d, yyyy")}
+            </span>
+          </div>
         </div>
         <Badge variant="outline" className="ml-auto">{carePlan.originalFileName}</Badge>
       </div>
@@ -419,9 +432,88 @@ function ReviewPanel({ carePlan, onBack }: { carePlan: CarePlan; onBack: () => v
   );
 }
 
+function PreviewPane({ carePlan }: { carePlan: CarePlan }) {
+  return (
+    <ScrollArea className="h-full">
+      <div className="p-4 space-y-4">
+        <div>
+          <h3 className="font-semibold text-lg" data-testid="text-preview-patient-name">
+            {carePlan.extractedPatientName || carePlan.patient?.name || "Unknown Patient"}
+          </h3>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <Badge variant="secondary" className="text-xs">
+              {getLanguageName(carePlan.translatedLanguage || "en")}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {carePlan.clinician?.name || "Unknown Clinician"} · {format(new Date(carePlan.createdAt), "MMM d, yyyy")}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase">Diagnosis</Label>
+            <p className="text-sm mt-1">{carePlan.diagnosis || "Not extracted"}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase">Simplified</Label>
+              <p className="text-sm mt-1 text-muted-foreground">{carePlan.simplifiedDiagnosis || "Not generated"}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase">Translated</Label>
+              <p className="text-sm mt-1 text-muted-foreground">{carePlan.translatedDiagnosis || "Not generated"}</p>
+            </div>
+          </div>
+
+          {carePlan.simplifiedMedications && carePlan.simplifiedMedications.length > 0 && (
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase">Medications ({carePlan.simplifiedMedications.length})</Label>
+              <div className="space-y-1 mt-1">
+                {carePlan.simplifiedMedications.map((med, i) => (
+                  <div key={i} className="text-sm p-2 rounded-md bg-muted/50">
+                    <span className="font-medium">{med.name}</span> {med.dose} — {med.frequency}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {carePlan.simplifiedAppointments && carePlan.simplifiedAppointments.length > 0 && (
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase">Appointments ({carePlan.simplifiedAppointments.length})</Label>
+              <div className="space-y-1 mt-1">
+                {carePlan.simplifiedAppointments.map((apt, i) => (
+                  <div key={i} className="text-sm p-2 rounded-md bg-muted/50">
+                    <span className="font-medium">{apt.provider}</span> — {apt.date} at {apt.time}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {carePlan.backTranslatedDiagnosis && (
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase">Back-Translation Check</Label>
+              <p className="text-sm mt-1 italic text-muted-foreground">{carePlan.backTranslatedDiagnosis}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </ScrollArea>
+  );
+}
+
+type SortField = "date" | "patient" | "language";
+type SortDir = "asc" | "desc";
+
 export default function InterpreterDashboard() {
   const [selectedCarePlan, setSelectedCarePlan] = useState<CarePlan | null>(null);
+  const [previewCarePlan, setPreviewCarePlan] = useState<CarePlan | null>(null);
   const [languageFilter, setLanguageFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const { data: queue, isLoading } = useQuery<CarePlan[]>({
     queryKey: ["/api/interpreter/queue"],
@@ -443,7 +535,43 @@ export default function InterpreterDashboard() {
     languageFilter === "all" || cp.translatedLanguage === languageFilter
   );
 
+  const sortedQueue = [...filteredQueue].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    switch (sortField) {
+      case "date":
+        return dir * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      case "patient": {
+        const nameA = a.extractedPatientName || a.patient?.name || "";
+        const nameB = b.extractedPatientName || b.patient?.name || "";
+        return dir * nameA.localeCompare(nameB);
+      }
+      case "language":
+        return dir * (getLanguageName(a.translatedLanguage || "").localeCompare(getLanguageName(b.translatedLanguage || "")));
+      default:
+        return 0;
+    }
+  });
+
   const queueLanguages = Array.from(new Set((queue || []).map(cp => cp.translatedLanguage).filter(Boolean)));
+
+  const languageBreakdown = (queue || []).reduce((acc, cp) => {
+    const lang = cp.translatedLanguage || "unknown";
+    acc[lang] = (acc[lang] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const avgWaitHours = queue && queue.length > 0
+    ? Math.round(queue.reduce((sum, cp) => sum + differenceInHours(new Date(), new Date(cp.createdAt)), 0) / queue.length)
+    : 0;
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -452,7 +580,7 @@ export default function InterpreterDashboard() {
         <p className="text-muted-foreground">Review and validate AI-generated translations before they reach patients.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -483,100 +611,192 @@ export default function InterpreterDashboard() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <Languages className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <BarChart3 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold" data-testid="text-languages-count">{queueLanguages.length}</p>
-                <p className="text-sm text-muted-foreground">Languages in Queue</p>
+                <p className="text-2xl font-bold" data-testid="text-avg-wait">{avgWaitHours}h</p>
+                <p className="text-sm text-muted-foreground">Avg. Wait Time</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                <Globe className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap" data-testid="text-language-breakdown">
+                  {Object.entries(languageBreakdown).map(([lang, count]) => (
+                    <Badge key={lang} variant="outline" className="text-xs">{getLanguageName(lang)} ({count})</Badge>
+                  ))}
+                  {Object.keys(languageBreakdown).length === 0 && <span className="text-sm text-muted-foreground">None</span>}
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">By Language</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex items-center gap-3">
-        <Label className="text-sm font-medium">Filter by language:</Label>
+      <div className="flex items-center gap-3 flex-wrap">
         <Select value={languageFilter} onValueChange={setLanguageFilter}>
           <SelectTrigger className="w-48" data-testid="select-language-filter">
-            <SelectValue />
+            <SelectValue placeholder="Filter by language" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Languages</SelectItem>
-            {queueLanguages.map(code => (
-              <SelectItem key={code} value={code!}>{getLanguageName(code!)}</SelectItem>
+            {queueLanguages.map(lang => (
+              <SelectItem key={lang} value={lang!}>{getLanguageName(lang!)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full" />)}
+        <div className="space-y-4">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
         </div>
-      ) : filteredQueue.length === 0 ? (
+      ) : sortedQueue.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center">
-            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-            <p className="text-lg font-medium">Queue is clear</p>
-            <p className="text-muted-foreground">No translations awaiting review right now.</p>
+          <CardContent className="pt-6 text-center">
+            <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="text-lg font-semibold">Queue Empty</h3>
+            <p className="text-muted-foreground text-sm mt-1">No care plans waiting for review. Check back later.</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {filteredQueue.map(cp => (
-            <Card key={cp.id} className="hover-elevate cursor-pointer" onClick={() => setSelectedCarePlan(cp)} data-testid={`card-queue-item-${cp.id}`}>
-              <CardContent className="py-4">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <FileText className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{cp.extractedPatientName || cp.patient?.name || "Unknown Patient"}</p>
-                      <p className="text-sm text-muted-foreground">{cp.diagnosis}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{getLanguageName(cp.translatedLanguage || "en")}</Badge>
-                    <Badge variant="outline">{cp.clinician?.name || "Unknown Clinician"}</Badge>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(cp.updatedAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className={previewCarePlan ? "lg:col-span-3" : "lg:col-span-5"}>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>
+                        <Button variant="ghost" size="sm" onClick={() => toggleSort("patient")} className="gap-1" data-testid="button-sort-patient">
+                          Patient <ArrowUpDown className="h-3 w-3" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>
+                        <Button variant="ghost" size="sm" onClick={() => toggleSort("language")} className="gap-1" data-testid="button-sort-language">
+                          Language <ArrowUpDown className="h-3 w-3" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>Diagnosis</TableHead>
+                      <TableHead>
+                        <Button variant="ghost" size="sm" onClick={() => toggleSort("date")} className="gap-1" data-testid="button-sort-date">
+                          Submitted <ArrowUpDown className="h-3 w-3" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedQueue.map((cp) => (
+                      <TableRow
+                        key={cp.id}
+                        className={`cursor-pointer ${previewCarePlan?.id === cp.id ? "bg-muted/50" : ""}`}
+                        onClick={() => setPreviewCarePlan(cp)}
+                        data-testid={`row-queue-item-${cp.id}`}
+                      >
+                        <TableCell className="font-medium">
+                          {cp.extractedPatientName || cp.patient?.name || "Unknown"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs">
+                            {getLanguageName(cp.translatedLanguage || "en")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                          {cp.diagnosis || "Not extracted"}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {format(new Date(cp.createdAt), "MMM d, h:mm a")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); setSelectedCarePlan(cp); }}
+                            data-testid={`button-review-${cp.id}`}
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1.5" />
+                            Review
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
-          ))}
+          </div>
+
+          {previewCarePlan && (
+            <div className="lg:col-span-2">
+              <Card className="h-[500px]">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
+                  <CardTitle className="text-sm font-medium">Preview</CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => setSelectedCarePlan(previewCarePlan)}
+                    data-testid="button-open-full-review"
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1.5" />
+                    Full Review
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-0 h-[calc(100%-52px)]">
+                  <PreviewPane carePlan={previewCarePlan} />
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       )}
 
       {reviewed && reviewed.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Recently Reviewed</h2>
-          {reviewed.slice(0, 5).map(cp => (
-            <Card key={cp.id} data-testid={`card-reviewed-item-${cp.id}`}>
-              <CardContent className="py-4">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <div>
-                      <p className="font-medium">{cp.extractedPatientName || cp.patient?.name || "Unknown Patient"}</p>
-                      <p className="text-sm text-muted-foreground">{cp.diagnosis}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{getLanguageName(cp.translatedLanguage || "en")}</Badge>
-                    <Badge variant={cp.status === "interpreter_approved" ? "default" : "outline"}>
-                      {cp.status === "interpreter_approved" ? "Approved" : cp.status}
-                    </Badge>
-                    <p className="text-xs text-muted-foreground">
-                      {cp.interpreterReviewedAt ? new Date(cp.interpreterReviewedAt).toLocaleDateString() : ""}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold mb-3" data-testid="text-recently-reviewed">Recently Reviewed</h2>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Language</TableHead>
+                    <TableHead>Reviewed</TableHead>
+                    <TableHead>Notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reviewed.map((cp) => (
+                    <TableRow key={cp.id} data-testid={`row-reviewed-item-${cp.id}`}>
+                      <TableCell className="font-medium">
+                        {cp.extractedPatientName || cp.patient?.name || "Unknown"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {getLanguageName(cp.translatedLanguage || "en")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {cp.interpreterReviewedAt
+                          ? format(new Date(cp.interpreterReviewedAt), "MMM d, h:mm a")
+                          : "Recently"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                        {cp.interpreterNotes || "\u2014"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
