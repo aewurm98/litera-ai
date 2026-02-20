@@ -119,6 +119,10 @@ function validateDemoToken(demoToken: string, accessToken: string): boolean {
   return true;
 }
 
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>/g, "");
+}
+
 // [M1.2] Constant-time string comparison to prevent timing attacks
 function timingSafeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -585,6 +589,39 @@ export async function registerRoutes(
     });
   });
   
+  // ============= Tenant Settings API =============
+
+  app.patch("/api/tenant/settings", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.session.tenantId;
+      if (!tenantId) {
+        return res.status(400).json({ error: "No tenant associated with your account" });
+      }
+
+      const schema = z.object({
+        interpreterReviewMode: z.enum(["disabled", "optional", "required"]),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Validation failed", details: parsed.error.errors });
+      }
+
+      const updated = await storage.updateTenant(tenantId, {
+        interpreterReviewMode: parsed.data.interpreterReviewMode,
+      });
+
+      if (!updated) {
+        return res.status(404).json({ error: "Tenant not found" });
+      }
+
+      res.json({ success: true, interpreterReviewMode: updated.interpreterReviewMode });
+    } catch (error) {
+      console.error("Error updating tenant settings:", error);
+      res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
   // ============= Care Plans API (Clinician) =============
   
   // Get all care plans (for clinician dashboard)
@@ -787,7 +824,11 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Check if interpreter review is needed (non-English translations in tenants with review mode)
+      const approvableStatuses = ["pending_review", "interpreter_approved", "draft"];
+      if (!approvableStatuses.includes(carePlan.status)) {
+        return res.status(400).json({ error: `Care plan cannot be approved — current status is "${carePlan.status}".` });
+      }
+
       let newStatus = "approved";
       const isNonEnglish = carePlan.translatedLanguage && carePlan.translatedLanguage !== "en";
       const skipInterpreterReview = req.body?.skipInterpreterReview === true;
@@ -807,18 +848,44 @@ export async function registerRoutes(
         newStatus = "approved";
       }
 
-      const updated = await storage.updateCarePlan(id, {
+      const updateData: any = {
         status: newStatus,
         approvedBy: clinicianId,
         approvedAt: new Date(),
-      });
+      };
+
+      const clinicianEdits = req.body?.clinicianEdits;
+      const editedFields: Record<string, { before: string; after: string }> = {};
+      if (clinicianEdits && typeof clinicianEdits === "object") {
+        const allowedFields = [
+          "simplifiedDiagnosis", "simplifiedInstructions", "simplifiedWarnings",
+          "simplifiedMedications", "simplifiedAppointments",
+        ];
+        for (const field of allowedFields) {
+          if (clinicianEdits[field] !== undefined && clinicianEdits[field] !== (carePlan as any)[field]) {
+            const sanitized = stripHtml(String(clinicianEdits[field]));
+            editedFields[field] = { before: (carePlan as any)[field] || "", after: sanitized };
+            updateData[field] = sanitized;
+          }
+        }
+      }
+
+      const updated = await storage.updateCarePlan(id, updateData);
 
       const action = newStatus === "interpreter_review" ? "sent_to_interpreter_review" : "approved";
+      const auditDetails: any = {};
+      if (skipInterpreterReview) {
+        auditDetails.skipInterpreterReview = true;
+        auditDetails.overrideJustification = overrideJustification || null;
+      }
+      if (Object.keys(editedFields).length > 0) {
+        auditDetails.clinicianEdits = editedFields;
+      }
       await storage.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
         action,
-        details: skipInterpreterReview ? { skipInterpreterReview: true, overrideJustification: overrideJustification || null } : undefined,
+        details: Object.keys(auditDetails).length > 0 ? auditDetails : undefined,
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });
@@ -1435,6 +1502,75 @@ export async function registerRoutes(
 
   // ============= Environment Info Endpoint =============
   // Returns environment info for frontend feature flags
+  // ============= Experiments API (Sandbox - no auth required) =============
+  const experimentChatLimiter = new Map<string, { count: number; resetAt: number }>();
+  app.post("/api/experiments/chat", async (req: Request, res: Response) => {
+    const ip = req.ip || "unknown";
+    const now = Date.now();
+    const entry = experimentChatLimiter.get(ip);
+    if (entry && entry.resetAt > now) {
+      if (entry.count >= 20) {
+        return res.status(429).json({ answer: "You've reached the question limit. Please try again later." });
+      }
+      entry.count++;
+    } else {
+      experimentChatLimiter.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    }
+    try {
+      const { question, language, carePlanContext } = req.body;
+      if (!question || !carePlanContext) {
+        return res.status(400).json({ error: "Question and care plan context are required" });
+      }
+      if (typeof question === "string" && question.length > 2000) {
+        return res.status(400).json({ error: "Question is too long (max 2000 characters)" });
+      }
+      const ctx = carePlanContext;
+      if (!ctx.diagnosis && !ctx.instructions && !ctx.warnings && !ctx.medications?.length && !ctx.appointments?.length) {
+        return res.status(400).json({ error: "Care plan context must include at least one field (diagnosis, instructions, warnings, medications, or appointments)" });
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const contextText = `
+Diagnosis: ${carePlanContext.diagnosis || ""}
+Instructions: ${carePlanContext.instructions || ""}
+Warnings: ${carePlanContext.warnings || ""}
+Medications: ${JSON.stringify(carePlanContext.medications || [])}
+Appointments: ${JSON.stringify(carePlanContext.appointments || [])}
+`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are a helpful healthcare assistant that answers patient questions about their discharge care plan. 
+Respond in ${language || "English"} at a 5th-grade reading level. 
+Be warm, clear, and reassuring. Only answer questions based on the care plan information provided below. 
+If the patient asks about something not covered in their care plan, kindly suggest they contact their care team.
+Do NOT provide medical advice beyond what is in the care plan.
+Keep responses concise (2-4 sentences).
+
+Care Plan Information:
+${contextText}`
+          },
+          { role: "user", content: question },
+        ],
+        max_tokens: 300,
+      });
+
+      const answer = response.choices[0]?.message?.content || "I'm sorry, I couldn't answer that question.";
+      res.json({ answer });
+    } catch (error: any) {
+      console.error("Experiment chat error:", error);
+      res.status(500).json({ answer: "Sorry, I had trouble answering. Please try again." });
+    }
+  });
+
   app.get("/api/env-info", (req: Request, res: Response) => {
     res.json({ 
       isDemoMode,
@@ -1682,6 +1818,15 @@ export async function registerRoutes(
       if (!name || !email || !yearOfBirth) {
         return res.status(400).json({ error: "Name, email, and year of birth are required" });
       }
+      if (typeof name !== "string" || name.length > 500) {
+        return res.status(400).json({ error: "Name must be 500 characters or fewer" });
+      }
+      if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: "A valid email address is required" });
+      }
+      if (typeof yearOfBirth !== "number" || yearOfBirth < 1900 || yearOfBirth > 2100) {
+        return res.status(400).json({ error: "Year of birth must be between 1900 and 2100" });
+      }
       
       const existing = await storage.getPatientByEmail(email, tenantId);
       if (existing) {
@@ -1695,16 +1840,18 @@ export async function registerRoutes(
         });
       }
       
-      const lastName = name.trim().split(/\s+/).pop() || name;
+      const sanitizedName = stripHtml(name);
+      const lastName = sanitizedName.trim().split(/\s+/).pop() || sanitizedName;
       const pin = Math.floor(1000 + Math.random() * 9000).toString();
+      const hashedPin = await bcrypt.hash(pin, 10);
       
       const patient = await storage.createPatient({
-        name,
+        name: sanitizedName,
         lastName,
         email,
         phone: phone || null,
         yearOfBirth,
-        pin,
+        pin: hashedPin,
         preferredLanguage: preferredLanguage || "en",
         tenantId,
       });
@@ -1742,7 +1889,17 @@ export async function registerRoutes(
       }
       
       const { name, email, phone, yearOfBirth, preferredLanguage } = req.body;
-      
+
+      if (name !== undefined && (typeof name !== "string" || name.length > 500)) {
+        return res.status(400).json({ error: "Name must be 500 characters or fewer" });
+      }
+      if (email !== undefined && (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+        return res.status(400).json({ error: "A valid email address is required" });
+      }
+      if (yearOfBirth !== undefined && (typeof yearOfBirth !== "number" || yearOfBirth < 1900 || yearOfBirth > 2100)) {
+        return res.status(400).json({ error: "Year of birth must be between 1900 and 2100" });
+      }
+
       if (email && email !== patient.email) {
         const existing = await storage.getPatientByEmail(email, tenantId);
         if (existing && existing.id !== id) {
@@ -1752,8 +1909,9 @@ export async function registerRoutes(
       
       const updateData: Partial<typeof patient> = {};
       if (name !== undefined) {
-        updateData.name = name;
-        updateData.lastName = name.trim().split(/\s+/).pop() || name;
+        const sanitizedName = stripHtml(name);
+        updateData.name = sanitizedName;
+        updateData.lastName = sanitizedName.trim().split(/\s+/).pop() || sanitizedName;
       }
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
@@ -1950,6 +2108,7 @@ export async function registerRoutes(
         
         const lastName = name.trim().split(/\s+/).pop() || name;
         const pin = Math.floor(1000 + Math.random() * 9000).toString();
+        const hashedPin = await bcrypt.hash(pin, 10);
         
         await storage.createPatient({
           name,
@@ -1957,7 +2116,7 @@ export async function registerRoutes(
           email,
           phone: phone || null,
           yearOfBirth,
-          pin,
+          pin: hashedPin,
           preferredLanguage: lang || "en",
           tenantId,
         });
@@ -2193,20 +2352,20 @@ export async function registerRoutes(
         status: "interpreter_approved",
         interpreterReviewedBy: interpreterId,
         interpreterReviewedAt: new Date(),
-        interpreterNotes: notes || null,
+        interpreterNotes: notes ? stripHtml(notes) : null,
       };
 
       // Apply any edits the interpreter made
-      if (simplifiedDiagnosis !== undefined) updateData.simplifiedDiagnosis = simplifiedDiagnosis;
-      if (simplifiedInstructions !== undefined) updateData.simplifiedInstructions = simplifiedInstructions;
-      if (simplifiedWarnings !== undefined) updateData.simplifiedWarnings = simplifiedWarnings;
-      if (simplifiedMedications !== undefined) updateData.simplifiedMedications = simplifiedMedications;
-      if (simplifiedAppointments !== undefined) updateData.simplifiedAppointments = simplifiedAppointments;
-      if (translatedDiagnosis !== undefined) updateData.translatedDiagnosis = translatedDiagnosis;
-      if (translatedInstructions !== undefined) updateData.translatedInstructions = translatedInstructions;
-      if (translatedWarnings !== undefined) updateData.translatedWarnings = translatedWarnings;
-      if (translatedMedications !== undefined) updateData.translatedMedications = translatedMedications;
-      if (translatedAppointments !== undefined) updateData.translatedAppointments = translatedAppointments;
+      if (simplifiedDiagnosis !== undefined) updateData.simplifiedDiagnosis = stripHtml(simplifiedDiagnosis);
+      if (simplifiedInstructions !== undefined) updateData.simplifiedInstructions = stripHtml(simplifiedInstructions);
+      if (simplifiedWarnings !== undefined) updateData.simplifiedWarnings = stripHtml(simplifiedWarnings);
+      if (simplifiedMedications !== undefined) updateData.simplifiedMedications = stripHtml(simplifiedMedications);
+      if (simplifiedAppointments !== undefined) updateData.simplifiedAppointments = stripHtml(simplifiedAppointments);
+      if (translatedDiagnosis !== undefined) updateData.translatedDiagnosis = stripHtml(translatedDiagnosis);
+      if (translatedInstructions !== undefined) updateData.translatedInstructions = stripHtml(translatedInstructions);
+      if (translatedWarnings !== undefined) updateData.translatedWarnings = stripHtml(translatedWarnings);
+      if (translatedMedications !== undefined) updateData.translatedMedications = stripHtml(translatedMedications);
+      if (translatedAppointments !== undefined) updateData.translatedAppointments = stripHtml(translatedAppointments);
       
       const updated = await storage.updateCarePlan(id as string, updateData);
       
@@ -2261,6 +2420,144 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error requesting changes:", error);
       res.status(500).json({ error: "Failed to request changes" });
+    }
+  });
+
+  // ============= Analytics API =============
+  app.get("/api/analytics", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userRole = req.session.userRole;
+      const tenantId = req.session.tenantId;
+
+      const { db } = await import("./db");
+      const { carePlans, checkIns } = await import("@shared/schema");
+      const { eq, sql, isNotNull, inArray } = await import("drizzle-orm");
+
+      const tenantFilter = userRole === "super_admin" || !tenantId
+        ? undefined
+        : eq(carePlans.tenantId, tenantId);
+
+      const allPlans = tenantFilter
+        ? await db.select().from(carePlans).where(tenantFilter)
+        : await db.select().from(carePlans);
+
+      const statusCounts: Record<string, number> = {};
+      for (const status of ["draft", "pending_review", "interpreter_review", "interpreter_approved", "approved", "sent", "completed"]) {
+        statusCounts[status] = 0;
+      }
+      let simplified = 0;
+      let translated = 0;
+      let sentToPatient = 0;
+
+      const sentOrCompletedPlanIds: string[] = [];
+      const allPlanIds: string[] = [];
+
+      for (const plan of allPlans) {
+        statusCounts[plan.status] = (statusCounts[plan.status] || 0) + 1;
+        if (plan.simplifiedDiagnosis) simplified++;
+        if (plan.translatedLanguage) translated++;
+        if (plan.status === "sent" || plan.status === "completed") {
+          sentToPatient++;
+          sentOrCompletedPlanIds.push(plan.id);
+        }
+        allPlanIds.push(plan.id);
+      }
+
+      let allCheckIns: Array<{
+        id: string;
+        carePlanId: string;
+        patientId: string;
+        response: string | null;
+        respondedAt: Date | null;
+        scheduledFor: Date;
+      }> = [];
+
+      if (allPlanIds.length > 0) {
+        allCheckIns = await db.select({
+          id: checkIns.id,
+          carePlanId: checkIns.carePlanId,
+          patientId: checkIns.patientId,
+          response: checkIns.response,
+          respondedAt: checkIns.respondedAt,
+          scheduledFor: checkIns.scheduledFor,
+        }).from(checkIns).where(inArray(checkIns.carePlanId, allPlanIds));
+      }
+
+      const totalCheckIns = allCheckIns.length;
+      const respondedCheckIns = allCheckIns.filter(c => c.respondedAt !== null);
+      const responded = respondedCheckIns.length;
+      const responseRate = totalCheckIns > 0 ? Math.round((responded / totalCheckIns) * 100) : 0;
+      const green = respondedCheckIns.filter(c => c.response === "green").length;
+      const yellow = respondedCheckIns.filter(c => c.response === "yellow").length;
+      const red = respondedCheckIns.filter(c => c.response === "red").length;
+
+      const sentPlans = allPlans.filter(p => p.status === "sent" || p.status === "completed");
+      const uniquePatientsSent = new Set(sentPlans.map(p => p.patientId).filter(Boolean));
+      const totalPatientsSent = uniquePatientsSent.size;
+
+      const checkInsByPatient = new Map<string, typeof allCheckIns>();
+      for (const ci of allCheckIns) {
+        if (!ci.patientId) continue;
+        if (!checkInsByPatient.has(ci.patientId)) {
+          checkInsByPatient.set(ci.patientId, []);
+        }
+        checkInsByPatient.get(ci.patientId)!.push(ci);
+      }
+
+      let eligible99495 = 0;
+      let eligible99496 = 0;
+
+      const planMap = new Map(allPlans.map(p => [p.id, p]));
+
+      for (const patientId of uniquePatientsSent) {
+        const patientCheckIns = checkInsByPatient.get(patientId!) || [];
+        const respondedCIs = patientCheckIns.filter(c => c.respondedAt !== null);
+
+        if (respondedCIs.length >= 2) {
+          eligible99495++;
+        }
+
+        const patientSentPlans = sentPlans.filter(p => p.patientId === patientId);
+        for (const plan of patientSentPlans) {
+          if (!plan.dischargeDate) continue;
+          const dischargeTime = new Date(plan.dischargeDate).getTime();
+          const within48h = respondedCIs.some(ci => {
+            if (ci.carePlanId !== plan.id) return false;
+            const respondedTime = new Date(ci.respondedAt!).getTime();
+            return respondedTime - dischargeTime <= 48 * 60 * 60 * 1000 && respondedTime >= dischargeTime;
+          });
+          if (within48h) {
+            eligible99496++;
+            break;
+          }
+        }
+      }
+
+      res.json({
+        statusCounts,
+        pipeline: {
+          uploaded: allPlans.length,
+          simplified,
+          translated,
+          sentToPatient,
+        },
+        checkIns: {
+          total: totalCheckIns,
+          responded,
+          responseRate,
+          green,
+          yellow,
+          red,
+        },
+        tcm: {
+          totalPatientsSent,
+          eligible99495,
+          eligible99496,
+        },
+      });
+    } catch (error) {
+      console.error("Analytics error:", error);
+      res.status(500).json({ error: "Failed to compute analytics" });
     }
   });
 

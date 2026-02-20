@@ -54,6 +54,12 @@ import ClinicianDashboard from "@/pages/clinician-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
 import InterpreterDashboard from "@/pages/interpreter-dashboard";
 import PatientPortal from "@/pages/patient-portal";
+import SettingsPage from "@/pages/settings-page";
+import AnalyticsPage from "@/pages/analytics-page";
+import ExperimentsHub from "@/pages/experiments-hub";
+import ExperimentComprehension from "@/pages/experiment-comprehension";
+import ExperimentLoginDemo from "@/pages/experiment-login-demo";
+import ExperimentInterpreter from "@/pages/experiment-interpreter";
 
 interface User {
   id: string;
@@ -443,7 +449,7 @@ function AuthenticatedRoutes({ user }: { user: User }) {
       </Route>
       <Route path="/analytics">
         <MainLayout user={user}>
-          <ComingSoonPage title="Analytics Dashboard" />
+          <AnalyticsPage />
         </MainLayout>
       </Route>
       <Route path="/providers">
@@ -463,7 +469,7 @@ function AuthenticatedRoutes({ user }: { user: User }) {
       </Route>
       <Route path="/settings">
         <MainLayout user={user}>
-          <ComingSoonPage title="Settings" />
+          <SettingsPage />
         </MainLayout>
       </Route>
       <Route component={NotFound} />
@@ -480,6 +486,19 @@ function Router() {
     return (
       <Switch>
         <Route path="/p/:token" component={PatientPortal} />
+        <Route component={NotFound} />
+      </Switch>
+    );
+  }
+
+  // Experiments sandbox routes - no auth required
+  if (location.startsWith("/experiments")) {
+    return (
+      <Switch>
+        <Route path="/experiments/comprehension" component={ExperimentComprehension} />
+        <Route path="/experiments/login-demo" component={ExperimentLoginDemo} />
+        <Route path="/experiments/interpreter" component={ExperimentInterpreter} />
+        <Route path="/experiments" component={ExperimentsHub} />
         <Route component={NotFound} />
       </Switch>
     );
