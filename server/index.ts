@@ -21,6 +21,7 @@ const isProduction = process.env.NODE_ENV === "production";
 export const isDemoMode = process.env.DEMO_MODE !== "false" && !isProduction;
 
 const app = express();
+app.set("trust proxy", 1);
 const httpServer = createServer(app);
 
 declare module "http" {

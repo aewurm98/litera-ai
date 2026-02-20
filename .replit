@@ -49,3 +49,6 @@ integrations = [
 
 [userenv.shared]
 DEMO_MODE = "false"
+
+[userenv.production]
+APP_URL = "https://workspace.alexwurm.replit.app"
