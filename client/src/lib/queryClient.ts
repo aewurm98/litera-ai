@@ -1,19 +1,17 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-// Check if we're on the patient portal (don't redirect for patient routes)
-function isPatientPortalRoute(): boolean {
-  return window.location.pathname.startsWith("/p/");
+// Check if we're on a public route that doesn't require authentication
+function isPublicRoute(): boolean {
+  const path = window.location.pathname;
+  return path.startsWith("/p/") || path.startsWith("/experiments");
 }
 
 // Handle session expiration by redirecting to login
 function handleSessionExpired() {
-  // Don't redirect if on patient portal
-  if (isPatientPortalRoute()) return;
+  if (isPublicRoute()) return;
   
-  // Don't redirect if already on login page
   if (window.location.pathname === "/login") return;
   
-  // Redirect to login
   window.location.href = "/login";
 }
 
