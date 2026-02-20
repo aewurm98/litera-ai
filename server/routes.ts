@@ -1121,7 +1121,10 @@ export async function registerRoutes(
         return res.status(400).json({ error: `Cannot send test for this care plan (status: "${carePlan.status}").` });
       }
 
-      const testEmail = user.email;
+      const { email: requestedEmail } = req.body || {};
+      const testEmail = requestedEmail && typeof requestedEmail === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requestedEmail)
+        ? requestedEmail
+        : `test+${user.username}@litera.health`;
       const testName = `Test Patient (${user.name})`;
       const testLastName = "Test";
       const testYob = 2000;
@@ -1161,13 +1164,27 @@ export async function registerRoutes(
         tenantId: carePlan.tenantId,
         status: "sent",
         originalContent: carePlan.originalContent,
-        simplifiedContent: carePlan.simplifiedContent,
-        translatedContent: carePlan.translatedContent,
-        originalLanguage: carePlan.originalLanguage,
-        translatedLanguage: carePlan.translatedLanguage,
-        backTranslation: carePlan.backTranslation,
+        originalFileName: carePlan.originalFileName,
+        extractedPatientName: carePlan.extractedPatientName,
+        diagnosis: carePlan.diagnosis,
         medications: carePlan.medications as any,
         appointments: carePlan.appointments as any,
+        instructions: carePlan.instructions,
+        warnings: carePlan.warnings,
+        simplifiedDiagnosis: carePlan.simplifiedDiagnosis,
+        simplifiedMedications: carePlan.simplifiedMedications as any,
+        simplifiedAppointments: carePlan.simplifiedAppointments as any,
+        simplifiedInstructions: carePlan.simplifiedInstructions,
+        simplifiedWarnings: carePlan.simplifiedWarnings,
+        translatedLanguage: carePlan.translatedLanguage,
+        translatedDiagnosis: carePlan.translatedDiagnosis,
+        translatedMedications: carePlan.translatedMedications as any,
+        translatedAppointments: carePlan.translatedAppointments as any,
+        translatedInstructions: carePlan.translatedInstructions,
+        translatedWarnings: carePlan.translatedWarnings,
+        backTranslatedDiagnosis: carePlan.backTranslatedDiagnosis,
+        backTranslatedInstructions: carePlan.backTranslatedInstructions,
+        backTranslatedWarnings: carePlan.backTranslatedWarnings,
         patientId: patient.id,
         accessToken,
         accessTokenExpiry,
@@ -1728,8 +1745,10 @@ export async function registerRoutes(
 
       const OpenAI = (await import("openai")).default;
       const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+        apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        ...(process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && !process.env.OPENAI_API_KEY
+          ? { baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL }
+          : {}),
       });
 
       const contextText = `
@@ -2738,7 +2757,7 @@ ${contextText}`
 
       const planMap = new Map(allPlans.map(p => [p.id, p]));
 
-      for (const patientId of uniquePatientsSent) {
+      for (const patientId of Array.from(uniquePatientsSent)) {
         const patientCheckIns = checkInsByPatient.get(patientId!) || [];
         const respondedCIs = patientCheckIns.filter(c => c.respondedAt !== null);
 

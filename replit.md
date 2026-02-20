@@ -2,40 +2,11 @@
 
 ## Overview
 
-Litera.ai is a healthcare companion platform designed to assist clinicians in generating simplified, translated discharge instructions for patients with Limited English Proficiency (LEP). The platform utilizes AI to extract, simplify (to a 5th-grade reading level), and translate medical content. These instructions are then delivered to patients via email or SMS, accessible through a magic link. The system also incorporates a traffic light check-in feature to ensure compliance with Transitional Care Management (TCM) billing requirements (CPT 99495/99496). The project aims to improve patient understanding and health outcomes, particularly for LEP populations, by providing accessible and clear post-discharge information.
+Litera.ai is a healthcare companion platform that assists clinicians in generating simplified, translated discharge instructions for patients with Limited English Proficiency (LEP). The platform uses AI to extract, simplify (to a 5th-grade reading level), and translate medical content. These instructions are delivered to patients via email or SMS, accessible through a magic link. The system also includes a traffic light check-in feature for Transitional Care Management (TCM) billing compliance. The project aims to improve patient understanding and health outcomes, especially for LEP populations, by providing accessible and clear post-discharge information.
 
 ## User Preferences
 
 - Twilio connector was dismissed — Twilio credentials (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER) must be set manually as Replit secrets for SMS functionality.
-
-## Recent Changes
-
-- **2026-02-20 — Pilot Deployment Features**:
-  - **Multi-role user access**: Added `roles` text array column to users schema. Auth system checks roles array membership (backward-compatible: falls back to single `role` field if `roles` is empty). Frontend sidebar shows all permitted dashboard tabs. Demo admin users (riverside_admin, lakeside_admin) now have roles: ["admin", "clinician"] for seamless multi-dashboard access.
-  - **Flexible input methods**: Clinician "New Care Plan" dialog now has 4 tabs: Upload (PDF/images), Photo (camera capture), Dictate (Web Speech API), Paste Text. New `/api/care-plans/from-text` endpoint processes raw text input directly (skips PDF extraction). Dictation uses continuous speech recognition with interim results.
-  - **Email testing workflow**: "Send Test to Me" button in send dialog clones the care plan and sends it to the clinician's own email as a test patient. Shows credentials dialog with patient login info (lastName: "Test", YOB: 2000, auto-generated PIN) and direct portal link. Test patients flagged with `isTestPatient` boolean and shown with orange "TEST" badge in admin roster. "Clean Up Test Patients" button in admin dashboard deletes all test patients and their linked care plans.
-  - All test sends create cloned care plans — original care plans are never mutated by the test workflow.
-
-- **2026-02-20 — Production Deployment Fix**:
-  - Fixed production login failure: added `seedDatabase()` call on server startup in `server/index.ts` so the production database is auto-seeded when empty.
-  - Created `PRODUCTION_NOTES.md` documenting environment differences, seeding behavior, credential parity, patient PIN requirements, and common troubleshooting.
-
-- **2026-02-19 — Experiments Sandbox**:
-  - Created `/experiments` hub page with three isolated experiment environments.
-  - Comprehension Evaluation (`/experiments/comprehension`): Hardcoded patient portal with English/Spanish toggle, TTS, and AI chatbot (OpenAI-powered Q&A about the care plan content). No login, no tenant, no check-in.
-  - Embeddable Login Demo (`/experiments/login-demo`): Unified login with role tabs (clinician/admin/interpreter/patient), quick-access credential buttons, iframe-friendly.
-  - Interpreter Sandbox (`/experiments/interpreter`): 3-column review interface with editable translations (diagnosis, instructions, warnings, medications, appointments). All changes stored in React state only — never persisted. Name-only entry, mock approve/request-changes flow.
-  - Backend: Added `POST /api/experiments/chat` endpoint (no auth) for care plan Q&A chatbot.
-- **2026-02-19 — Product Improvements Sprint**: 
-  - Fixed patient login: PINs now properly hashed with bcrypt in seed data (was plaintext causing verification failures). Error toast shows actual server message.
-  - Admin patient detail redesigned: clinical summary (care plan count, latest status, last check-in) replaces auth-centric fields. Demographics collapsed by default.
-  - Language field fix: care plan history falls back to patient's preferredLanguage with "(pending)" when translatedLanguage is null.
-  - Seed data diversified: reduced drafts from 5 to 2, added interpreter_review, interpreter_approved, and completed statuses with full translated content and check-ins.
-  - Interpreter dashboard redesigned: sortable table with inline preview pane, avg wait time metric, language breakdown by count.
-  - Settings page: tenant configuration UI for interpreter review mode (disabled/optional/required) replacing Coming Soon placeholder.
-  - Analytics page: care plans by status bar chart, processing pipeline metrics, check-in response rates, TCM compliance summary (CPT 99495/99496 eligibility).
-- **2026-02-19 — Milestone 5 (UI/UX Consistency)**: Standardized date formatting to `date-fns format()` across interpreter dashboard (was using `toLocaleDateString()`). Scoped admin dashboard localStorage view preference (`litera-patient-view`) by user ID to prevent cross-user interference. Added clinician name and creation date context to interpreter review panel header.
-- **2026-02-19 — Milestones 1-4 (Claude Code refactoring)**: M1: Security hardening (timing-safe comparisons, rate limiting). M2: Data model hardening (schema constraints). M3: Workflow completeness (Twilio SMS integration, interpreter review workflow). M4: Code quality (hashPassword consolidation into `server/auth.ts`, type deduplication, helper extraction, N+1 query fix via batched `inArray` queries).
 
 ## System Architecture
 
@@ -43,43 +14,43 @@ Litera.ai is built with a clear separation between its frontend, backend, and sh
 
 ### Frontend
 - **Framework**: React with Vite
-- **Styling**: Tailwind CSS and shadcn/ui for component library
+- **Styling**: Tailwind CSS and shadcn/ui
 - **Routing**: wouter
-- **State Management**: TanStack Query v5 for data fetching and caching
-- **Date Formatting**: `date-fns` `format()` used consistently across all dashboards (e.g., `"MMM d, yyyy"` for dates, `"MMM d, h:mm a"` for timestamps)
-- **Design System**: Employs a "Trust Blue" theme (#1e40af) and the Inter font for a consistent user experience.
-- **UI/UX**: Features a 3-column review interface for clinicians (Original | Simplified | Translated), collapsible sections, color-coded medical content, and editable textareas. The patient portal offers a multi-modal experience with UI translation in 7 languages, per-section text-to-speech, and print-friendly styles. localStorage preferences are scoped by user ID to prevent cross-user interference.
+- **State Management**: TanStack Query v5
+- **Date Formatting**: `date-fns` `format()`
+- **Design System**: "Trust Blue" theme (#1e40af) and Inter font.
+- **UI/UX**: Features a 3-column review interface for clinicians, collapsible sections, color-coded medical content, and editable textareas. The patient portal offers multi-modal experience with UI translation in 7 languages, per-section text-to-speech, and print-friendly styles. `localStorage` preferences are scoped by user ID.
 
 ### Backend
 - **Framework**: Express.js
-- **Storage**: PostgreSQL database via Drizzle ORM. `server/storage.ts` exposes a typed `IStorage` interface backed by `DatabaseStorage`. All list queries are tenant-scoped; `getAlerts` uses batched `inArray` queries (3 round-trips regardless of alert count).
-- **AI Integration**: Leverages OpenAI GPT-4o via Replit AI Integrations for core functionalities like content extraction, simplification, and translation.
-- **Email Service**: Resend, integrated via Replit Connector, handles email delivery.
-- **SMS Service**: Twilio (`server/services/twilio.ts`) for SMS delivery of care plan links. Requires manual secret setup: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`. SMS is optional — the system gracefully degrades to email-only when Twilio credentials are not set.
-- **Authentication**: Supports multi-factor authentication for patients (lastName + yearOfBirth + PIN/Password) and clinicians/interpreters, with robust session security and bcrypt hashing for passwords. Roles: super_admin, admin, clinician, interpreter. Centralized auth utilities (`hashPassword`, `comparePassword`) in `server/auth.ts` — imported by `routes.ts` and `seed.ts`; no duplicate bcrypt calls.
-- **Multi-Tenancy**: Implements a multi-tenant architecture to isolate data between different clinics, managed by a super admin role. Two demo tenants exist for validation: "Riverside Community Health" (slug: riverside) and "Lakeside Family Medicine" (slug: lakeside), each with separate clinicians, admins, interpreters, and 5 patients. Sample docs dropdown is tenant-scoped. See TESTING_CREDENTIALS.md for full login details.
-- **Interpreter Review Workflow**: Medical interpreters can review and edit AI-generated translations (including medications and appointments) before they reach patients. Tenant-level compliance controls (disabled/optional/required). English-language care plans bypass interpreter review. Care plan status flow: draft → pending_review → [interpreter_review → interpreter_approved →] approved → sent → completed. Interpreters have language specialties and only see care plans in their assigned languages. Language enforcement on approve endpoint prevents cross-language approvals.
-- **Security**: Includes server-side rate limiting (staff login: 5 attempts / 15 min; patient verify: 3 attempts / 15 min), Zod validation on API endpoints, session-gated patient portal (medical data requires verified session), timing-safe token/PIN comparisons, comprehensive audit logging, environment-based feature flags for secure production deployment, status allowlist on send endpoint (approved/interpreter_approved only), and shared secret guard on internal scheduler endpoint (INTERNAL_API_SECRET). Centralized auth utilities (`hashPassword`, `comparePassword`) in `server/auth.ts` — imported by `routes.ts` and `seed.ts`; no duplicate bcrypt calls.
-- **Required Environment Variables**: `DATABASE_URL`, `SESSION_SECRET`, `AI_INTEGRATIONS_OPENAI_API_KEY`. For production deployments, set `APP_URL` (e.g. `https://your-app.replit.app`) so patient email links resolve correctly. Without it, the app falls back to `REPLIT_DEV_DOMAIN` then `http://localhost:5000`.
-- **Optional Environment Variables**: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (for SMS delivery), `INTERNAL_API_SECRET` (for scheduler endpoint guard).
+- **Storage**: PostgreSQL database via Drizzle ORM. All list queries are tenant-scoped.
+- **AI Integration**: OpenAI GPT-4o for content extraction, simplification, and translation. Supports both direct `OPENAI_API_KEY` (standard) and `AI_INTEGRATIONS_OPENAI_API_KEY` (Replit proxy) — prefers standard key when both are set.
+- **Email Service**: Resend for email delivery. Supports both direct `RESEND_API_KEY` and Replit Connector proxy — prefers direct key when set.
+- **SMS Service**: Twilio for SMS delivery of care plan links (requires manual secret setup). Gracefully degrades to email-only if Twilio credentials are not set.
+- **Authentication**: Supports multi-factor authentication for patients (lastName + yearOfBirth + PIN/Password) and clinicians/interpreters. Uses robust session security and bcrypt hashing. Supports roles: super_admin, admin, clinician, interpreter.
+- **Multi-Tenancy**: Isolates data between different clinics, managed by a super admin role.
+- **Interpreter Review Workflow**: Medical interpreters can review and edit AI-generated translations. Tenant-level compliance controls (disabled/optional/required). English-language care plans bypass interpreter review.
+- **Security**: Includes server-side rate limiting, Zod validation on API endpoints, session-gated patient portal, timing-safe token/PIN comparisons, comprehensive audit logging, environment-based feature flags, and status allowlist on send endpoint.
+- **Required Environment Variables**: `DATABASE_URL`, `SESSION_SECRET`, and either `OPENAI_API_KEY` (standard) or `AI_INTEGRATIONS_OPENAI_API_KEY` (Replit). For email: either `RESEND_API_KEY` (standard) or Replit Connector. For production: set `APP_URL` for patient email links. See `MIGRATION_GUIDE.md` for full environment variable reference.
+- **Optional Environment Variables**: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `INTERNAL_API_SECRET`.
 
 ### Shared
-- **Schema & Validation**: Utilizes Drizzle ORM for database schema definition and Zod for API payload validation, ensuring data integrity across the application.
+- **Schema & Validation**: Drizzle ORM for database schema definition and Zod for API payload validation.
 
 ### Key Features
-- **Clinician Dashboard**: Enables document upload (PDF/images), AI-driven content processing (extraction, simplification to 5th-grade reading level, translation to 49 languages with back-translation), scroll-to-approve workflow, and patient selector dropdown in the send dialog that pre-fills form fields from existing patients. Shows interpreter review status and notes when applicable. Filter dropdowns include interpreter_review and interpreter_approved statuses.
-- **Interpreter Dashboard**: Translation review queue filtered by interpreter's language specialties. 3-column review panel (Original | Simplified | Translated) with editable text areas for all content sections including medications and appointments. Review panel header shows clinician name and creation date for context. Approve/request changes workflow with audit trail. Shows back-translation verification and recently reviewed items. Date formatting standardized with date-fns.
-- **Patient Portal**: Provides magic link access with multi-factor verification, display of care plans in the patient's preferred language, language toggling, and a traffic light check-in system for patient feedback (Green, Yellow, Red alerts).
-- **Admin Dashboard**: Full patient roster management (CRUD with deduplication by email+tenantId), CSV bulk patient import, patient detail with care plan history, alert monitoring for patient check-ins, CSV export for TCM billing compliance, and audit trail viewing. Patients can only be deleted if they have no linked care plans. Features a Notion-style view toggle between Table and Kanban views with user-scoped localStorage persistence. Kanban board groups patients into lifecycle columns: Registered, Care Plan Sent, Checked In, Needs Attention, and Completed.
-- **Internationalization**: Extensive language support (49 languages for content, 7 for UI translation).
-- **Multi-Modal Output**: Features PDF download capabilities (with considerations for non-Latin scripts), text-to-speech functionality, and SMS delivery.
+- **Clinician Dashboard**: Document upload (PDF/images), AI-driven content processing (extraction, simplification to 5th-grade, translation to 49 languages with back-translation), scroll-to-approve workflow, patient selector, and interpreter review status display.
+- **Interpreter Dashboard**: Translation review queue filtered by language specialties, 3-column review panel with editable text areas, approve/request changes workflow with audit trail, and back-translation verification.
+- **Patient Portal**: Magic link access with multi-factor verification, care plan display in preferred language, language toggling, and a traffic light check-in system.
+- **Admin Dashboard**: Patient roster management (CRUD, bulk import), patient detail with care plan history, alert monitoring, CSV export for TCM compliance, audit trail, and Notion-style view toggle (Table/Kanban).
+- **Internationalization**: Support for 49 languages for content and 7 for UI.
+- **Multi-Modal Output**: PDF download, text-to-speech, and SMS delivery.
 
 ## External Dependencies
 
-- **OpenAI GPT-4o**: Utilized for AI-driven text extraction, simplification, and translation. Integrated via Replit AI Integrations.
-- **Resend**: An email API service used for sending care plan emails to patients. Integrated via Replit Connector.
-- **Twilio**: SMS delivery service for care plan links. Requires manual secret setup (Replit connector was dismissed). See `server/services/twilio.ts`.
-- **pdfjs-dist (legacy build)**: Used for PDF processing, particularly for compatibility with Node.js environments and handling scanned/invalid PDFs.
-- **jsPDF**: Client-side library for generating PDF documents from care plan content.
-- **Web Speech API**: Browser-native API used for text-to-speech functionality in the patient portal.
-- **date-fns**: Date formatting library used consistently across all dashboards.
+- **OpenAI GPT-4o**: For AI-driven text extraction, simplification, and translation. Supports both standard API key and Replit AI Integrations proxy.
+- **Resend**: Email API service for sending care plan emails.
+- **Twilio**: SMS delivery service for care plan links.
+- **pdfjs-dist (legacy build)**: For PDF processing.
+- **jsPDF**: Client-side library for generating PDF documents.
+- **Web Speech API**: For text-to-speech functionality.
+- **date-fns**: Date formatting library.
