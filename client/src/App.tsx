@@ -424,12 +424,12 @@ function AuthenticatedRoutes({ user }: { user: User }) {
   const isClinician = hasRole("clinician");
   const isInterpreter = hasRole("interpreter");
 
-  const defaultRoute = isClinician ? "/" : isAdmin ? "/admin" : isInterpreter ? "/interpreter" : "/";
+  const defaultRoute = isAdmin ? "/admin" : isClinician ? "/" : isInterpreter ? "/interpreter" : "/";
 
   return (
     <Switch>
       <Route path="/">
-        {isClinician ? (
+        {(isClinician || isAdmin) ? (
           <MainLayout user={user}>
             <ClinicianDashboard />
           </MainLayout>
