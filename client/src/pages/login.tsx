@@ -59,7 +59,7 @@ export default function Login() {
       } else if (isInterpreter) {
         navigate("/interpreter");
       } else {
-        navigate("/");
+        navigate("/clinician");
       }
     },
     onError: (error: Error) => {

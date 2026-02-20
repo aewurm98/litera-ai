@@ -233,8 +233,8 @@ function AppSidebar({ user }: { user: User }) {
     {
       title: "Clinician Dashboard",
       icon: Stethoscope,
-      href: "/",
-      roles: ["clinician"],
+      href: "/clinician",
+      roles: ["clinician", "admin", "super_admin"],
     },
     {
       title: "Admin Dashboard",
@@ -424,11 +424,14 @@ function AuthenticatedRoutes({ user }: { user: User }) {
   const isClinician = hasRole("clinician");
   const isInterpreter = hasRole("interpreter");
 
-  const defaultRoute = isAdmin ? "/admin" : isClinician ? "/" : isInterpreter ? "/interpreter" : "/";
+  const defaultRoute = isAdmin ? "/admin" : isClinician ? "/clinician" : isInterpreter ? "/interpreter" : "/clinician";
 
   return (
     <Switch>
       <Route path="/">
+        <Redirect to={defaultRoute} />
+      </Route>
+      <Route path="/clinician">
         {(isClinician || isAdmin) ? (
           <MainLayout user={user}>
             <ClinicianDashboard />
@@ -528,7 +531,7 @@ function Router() {
       const userRoles = user.roles || [user.role];
       const isAdmin = userRoles.includes("admin") || userRoles.includes("super_admin");
       const isInterpreter = userRoles.includes("interpreter");
-      const homeRoute = isAdmin ? "/admin" : isInterpreter ? "/interpreter" : "/";
+      const homeRoute = isAdmin ? "/admin" : isInterpreter ? "/interpreter" : "/clinician";
       return <Redirect to={homeRoute} />;
     }
     return <Login />;

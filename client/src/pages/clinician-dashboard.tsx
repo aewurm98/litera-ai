@@ -397,11 +397,13 @@ export default function ClinicianDashboard() {
     CarePlanWithPatient[]
   >({
     queryKey: ["/api/care-plans"],
+    staleTime: 1000 * 30,
   });
 
   type SimplePatient = { id: string; name: string; lastName: string | null; email: string; phone: string | null; yearOfBirth: number; preferredLanguage: string };
   const { data: existingPatients = [] } = useQuery<SimplePatient[]>({
     queryKey: ["/api/patients"],
+    staleTime: 1000 * 30,
   });
 
   // Sort and filter care plans
@@ -919,7 +921,7 @@ export default function ClinicianDashboard() {
                           {plan.diagnosis || "Processing..."}
                         </p>
                       </div>
-                      <div className="flex-shrink-0 max-w-[130px] overflow-hidden">
+                      <div className="flex-shrink-0">
                         {getStatusBadge(plan.status)}
                       </div>
                     </div>

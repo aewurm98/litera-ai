@@ -307,26 +307,31 @@ export default function AdminDashboard() {
   // Fetch all care plans
   const { data: carePlans = [], isLoading } = useQuery<CarePlanWithDetails[]>({
     queryKey: ["/api/admin/care-plans"],
+    staleTime: 1000 * 30,
   });
 
   // Fetch alerts (yellow/red responses)
   const { data: alerts = [] } = useQuery<Alert[]>({
     queryKey: ["/api/admin/alerts"],
+    staleTime: 1000 * 30,
   });
 
   // Fetch users (admin only)
   const { data: allUsers = [] } = useQuery<UserWithTenant[]>({
     queryKey: ["/api/admin/users"],
+    staleTime: 1000 * 60,
   });
 
   // Fetch tenants (admin only)
   const { data: allTenants = [] } = useQuery<Tenant[]>({
     queryKey: ["/api/admin/tenants"],
+    staleTime: 1000 * 60,
   });
 
   // Fetch all patients
   const { data: allPatients = [], isLoading: patientsLoading } = useQuery<EnrichedPatient[]>({
     queryKey: ["/api/admin/patients"],
+    staleTime: 1000 * 30,
   });
 
   // Create user mutation
