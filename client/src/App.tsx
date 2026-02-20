@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, createContext, useContext, useEffect } from "react";
 import { 
   SidebarProvider, 
   SidebarTrigger,
@@ -69,6 +69,13 @@ interface User {
   tenantId?: string | null;
   tenant?: { id: string; name: string; isDemo: boolean } | null;
 }
+
+type DashboardTab = "clinician" | "admin" | "interpreter";
+
+const DashboardTabContext = createContext<{
+  activeTab: DashboardTab;
+  setActiveTab: (tab: DashboardTab) => void;
+}>({ activeTab: "clinician", setActiveTab: () => {} });
 
 function PasswordChangeDialog() {
   const [open, setOpen] = useState(false);
@@ -216,6 +223,7 @@ function useAuth() {
 
 function AppSidebar({ user }: { user: User }) {
   const [location, navigate] = useLocation();
+  const { activeTab, setActiveTab } = useContext(DashboardTabContext);
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -229,23 +237,23 @@ function AppSidebar({ user }: { user: User }) {
     },
   });
 
-  const mainNavItems = [
+  const dashboardNavItems: { title: string; icon: typeof Stethoscope; tab: DashboardTab; roles: string[] }[] = [
     {
       title: "Clinician Dashboard",
       icon: Stethoscope,
-      href: "/clinician",
+      tab: "clinician",
       roles: ["clinician", "admin", "super_admin"],
     },
     {
       title: "Admin Dashboard",
       icon: LayoutDashboard,
-      href: "/admin",
+      tab: "admin",
       roles: ["admin", "super_admin"],
     },
     {
       title: "Interpreter Dashboard",
       icon: Languages,
-      href: "/interpreter",
+      tab: "interpreter",
       roles: ["interpreter"],
     },
   ];
@@ -279,7 +287,14 @@ function AppSidebar({ user }: { user: User }) {
   ];
 
   const userRoles = user.roles || [user.role];
-  const filteredNav = mainNavItems.filter(item => item.roles.some(r => userRoles.includes(r)));
+  const filteredDashboardNav = dashboardNavItems.filter(item => item.roles.some(r => userRoles.includes(r)));
+
+  const handleDashboardTabClick = (tab: DashboardTab) => {
+    if (location !== "/dashboard") {
+      navigate("/dashboard");
+    }
+    setActiveTab(tab);
+  };
 
   return (
     <Sidebar>
@@ -299,17 +314,15 @@ function AppSidebar({ user }: { user: User }) {
           <SidebarGroupLabel>Main</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {filteredNav.map((item) => (
+              {filteredDashboardNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={location === item.href}
+                  <SidebarMenuButton
+                    isActive={location === "/dashboard" && activeTab === item.tab}
+                    onClick={() => handleDashboardTabClick(item.tab)}
                     data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                   >
-                    <a href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -383,7 +396,7 @@ function MainLayout({ children, user }: { children: React.ReactNode; user: User 
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <ThemeToggle />
           </header>
-          <main className="flex-1 overflow-auto relative">
+          <main className="flex-1 overflow-auto">
             {children}
           </main>
         </div>
@@ -417,88 +430,104 @@ function ComingSoonPage({ title }: { title: string }) {
   );
 }
 
-const DASHBOARD_ROUTES = ["/clinician", "/admin", "/interpreter"] as const;
+function getDefaultTab(user: User): DashboardTab {
+  const roles = user.roles || [user.role];
+  if (roles.includes("admin") || roles.includes("super_admin")) return "admin";
+  if (roles.includes("clinician")) return "clinician";
+  if (roles.includes("interpreter")) return "interpreter";
+  return "clinician";
+}
+
+const LEGACY_TAB_MAP: Record<string, DashboardTab> = {
+  "/clinician": "clinician",
+  "/admin": "admin",
+  "/interpreter": "interpreter",
+};
 
 function AuthenticatedRoutes({ user }: { user: User }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+
+  const legacyTab = LEGACY_TAB_MAP[location];
+  const initialTab = legacyTab || getDefaultTab(user);
+
+  const [activeTab, setActiveTab] = useState<DashboardTab>(initialTab);
+
+  useEffect(() => {
+    if (legacyTab) {
+      setActiveTab(legacyTab);
+      navigate("/dashboard", { replace: true });
+    }
+  }, [legacyTab, navigate]);
+
+  useEffect(() => {
+    if (location === "/") {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [location, navigate]);
+
   const roles = user.roles || [user.role];
   const hasRole = (r: string) => roles.includes(r);
   const isAdmin = hasRole("admin") || hasRole("super_admin");
   const isClinician = hasRole("clinician");
   const isInterpreter = hasRole("interpreter");
 
-  const defaultRoute = isAdmin ? "/admin" : isClinician ? "/clinician" : isInterpreter ? "/interpreter" : "/clinician";
-
   const canAccessClinician = isClinician || isAdmin;
   const canAccessAdmin = isAdmin;
   const canAccessInterpreter = isInterpreter;
 
-  const isDashboardRoute = (DASHBOARD_ROUTES as readonly string[]).includes(location);
-
-  if (location === "/") {
-    return <Redirect to={defaultRoute} />;
-  }
-
-  if (location === "/clinician" && !canAccessClinician) return <Redirect to={defaultRoute} />;
-  if (location === "/admin" && !canAccessAdmin) return <Redirect to={defaultRoute} />;
-  if (location === "/interpreter" && !canAccessInterpreter) return <Redirect to={defaultRoute} />;
+  const isDashboard = location === "/dashboard" || location === "/" || !!legacyTab;
 
   return (
-    <MainLayout user={user}>
-      {canAccessClinician && (
-        <div
-          className="absolute inset-0 overflow-auto"
-          style={location === "/clinician"
-            ? { zIndex: 1 }
-            : { visibility: "hidden", pointerEvents: "none", zIndex: 0 }
-          }
-        >
-          <ClinicianDashboard />
-        </div>
-      )}
-      {canAccessAdmin && (
-        <div
-          className="absolute inset-0 overflow-auto"
-          style={location === "/admin"
-            ? { zIndex: 1 }
-            : { visibility: "hidden", pointerEvents: "none", zIndex: 0 }
-          }
-        >
-          <AdminDashboard />
-        </div>
-      )}
-      {canAccessInterpreter && (
-        <div
-          className="absolute inset-0 overflow-auto"
-          style={location === "/interpreter"
-            ? { zIndex: 1 }
-            : { visibility: "hidden", pointerEvents: "none", zIndex: 0 }
-          }
-        >
-          <InterpreterDashboard />
-        </div>
-      )}
-      {!isDashboardRoute && (
+    <DashboardTabContext.Provider value={{ activeTab, setActiveTab }}>
+      {isDashboard ? (
+        <MainLayout user={user}>
+          {canAccessClinician && (
+            <div style={{ display: activeTab === "clinician" ? "block" : "none" }} className="h-full">
+              <ClinicianDashboard />
+            </div>
+          )}
+          {canAccessAdmin && (
+            <div style={{ display: activeTab === "admin" ? "block" : "none" }} className="h-full">
+              <AdminDashboard />
+            </div>
+          )}
+          {canAccessInterpreter && (
+            <div style={{ display: activeTab === "interpreter" ? "block" : "none" }} className="h-full">
+              <InterpreterDashboard />
+            </div>
+          )}
+        </MainLayout>
+      ) : (
         <Switch>
           <Route path="/analytics">
-            <AnalyticsPage />
+            <MainLayout user={user}>
+              <AnalyticsPage />
+            </MainLayout>
           </Route>
           <Route path="/providers">
-            <ComingSoonPage title="Provider Directory" />
+            <MainLayout user={user}>
+              <ComingSoonPage title="Provider Directory" />
+            </MainLayout>
           </Route>
           <Route path="/videos">
-            <ComingSoonPage title="Video Library" />
+            <MainLayout user={user}>
+              <ComingSoonPage title="Video Library" />
+            </MainLayout>
           </Route>
           <Route path="/notifications">
-            <ComingSoonPage title="Notification Settings" />
+            <MainLayout user={user}>
+              <ComingSoonPage title="Notification Settings" />
+            </MainLayout>
           </Route>
           <Route path="/settings">
-            <SettingsPage />
+            <MainLayout user={user}>
+              <SettingsPage />
+            </MainLayout>
           </Route>
           <Route component={NotFound} />
         </Switch>
       )}
-    </MainLayout>
+    </DashboardTabContext.Provider>
   );
 }
 
@@ -542,11 +571,7 @@ function Router() {
 
   if (location === "/login") {
     if (user) {
-      const userRoles = user.roles || [user.role];
-      const isAdmin = userRoles.includes("admin") || userRoles.includes("super_admin");
-      const isInterpreter = userRoles.includes("interpreter");
-      const homeRoute = isAdmin ? "/admin" : isInterpreter ? "/interpreter" : "/clinician";
-      return <Redirect to={homeRoute} />;
+      return <Redirect to="/dashboard" />;
     }
     return <Login />;
   }

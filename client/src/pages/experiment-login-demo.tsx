@@ -82,16 +82,7 @@ export default function ExperimentLoginDemo() {
     onSuccess: (user) => {
       queryClient.setQueryData(["/api/auth/me"], user);
       toast({ title: `Welcome, ${user.name}!` });
-      const roles = user.roles || [user.role];
-      const isAdmin = roles.includes("admin") || roles.includes("super_admin");
-      const isInterpreter = roles.includes("interpreter");
-      if (isAdmin) {
-        navigate("/admin");
-      } else if (isInterpreter) {
-        navigate("/interpreter");
-      } else {
-        navigate("/clinician");
-      }
+      navigate("/dashboard");
     },
     onError: (error: Error) => {
       toast({ title: "Login failed", description: error.message, variant: "destructive" });
