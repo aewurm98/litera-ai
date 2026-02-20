@@ -525,7 +525,11 @@ function Router() {
 
   if (location === "/login") {
     if (user) {
-      return <Redirect to="/" />;
+      const userRoles = user.roles || [user.role];
+      const isAdmin = userRoles.includes("admin") || userRoles.includes("super_admin");
+      const isInterpreter = userRoles.includes("interpreter");
+      const homeRoute = isAdmin ? "/admin" : isInterpreter ? "/interpreter" : "/";
+      return <Redirect to={homeRoute} />;
     }
     return <Login />;
   }

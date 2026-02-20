@@ -51,9 +51,12 @@ export default function Login() {
     onSuccess: (user) => {
       queryClient.setQueryData(["/api/auth/me"], user);
       toast({ title: `Welcome, ${user.name}!` });
-      if (user.role === "admin" || user.role === "super_admin") {
+      const roles = user.roles || [user.role];
+      const isAdmin = roles.includes("admin") || roles.includes("super_admin");
+      const isInterpreter = roles.includes("interpreter");
+      if (isAdmin) {
         navigate("/admin");
-      } else if (user.role === "interpreter") {
+      } else if (isInterpreter) {
         navigate("/interpreter");
       } else {
         navigate("/");
