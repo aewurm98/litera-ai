@@ -383,7 +383,7 @@ function MainLayout({ children, user }: { children: React.ReactNode; user: User 
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <ThemeToggle />
           </header>
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto relative">
             {children}
           </main>
         </div>
@@ -446,17 +446,35 @@ function AuthenticatedRoutes({ user }: { user: User }) {
   return (
     <MainLayout user={user}>
       {canAccessClinician && (
-        <div style={{ display: location === "/clinician" ? "contents" : "none" }}>
+        <div
+          className="absolute inset-0 overflow-auto"
+          style={location === "/clinician"
+            ? { zIndex: 1 }
+            : { visibility: "hidden", pointerEvents: "none", zIndex: 0 }
+          }
+        >
           <ClinicianDashboard />
         </div>
       )}
       {canAccessAdmin && (
-        <div style={{ display: location === "/admin" ? "contents" : "none" }}>
+        <div
+          className="absolute inset-0 overflow-auto"
+          style={location === "/admin"
+            ? { zIndex: 1 }
+            : { visibility: "hidden", pointerEvents: "none", zIndex: 0 }
+          }
+        >
           <AdminDashboard />
         </div>
       )}
       {canAccessInterpreter && (
-        <div style={{ display: location === "/interpreter" ? "contents" : "none" }}>
+        <div
+          className="absolute inset-0 overflow-auto"
+          style={location === "/interpreter"
+            ? { zIndex: 1 }
+            : { visibility: "hidden", pointerEvents: "none", zIndex: 0 }
+          }
+        >
           <InterpreterDashboard />
         </div>
       )}
