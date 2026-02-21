@@ -44,11 +44,17 @@ Output valid JSON with this exact structure:
   "patientName": "Full name of the patient",
   "diagnosis": "Primary diagnosis and conditions",
   "medications": [{"name": "Drug name", "dose": "Amount", "frequency": "How often", "instructions": "Special notes"}],
-  "appointments": [{"date": "Date", "time": "Time", "provider": "Doctor name", "location": "Address", "purpose": "Reason"}],
+  "appointments": [{"date": "Date or timeframe like 'Within 2 business days'", "time": "Time or 'To be scheduled' or 'Patient will receive a call'", "provider": "Doctor name", "location": "Full address or clinic name - NEVER redact", "purpose": "Reason for visit", "phone": "Phone number if provided", "schedulingInstructions": "How the appointment gets scheduled - e.g. 'Clinic will call patient' or 'Patient should call to schedule'", "itemsToBring": "Items patient should bring to the appointment"}],
   "instructions": "All care instructions and activity restrictions",
   "warnings": "Warning signs that require immediate medical attention"
 }
-Preserve all medical information accurately. Extract medications with exact dosages. Extract the patient's full name from the document.`,
+CRITICAL RULES:
+- Preserve ALL medical information accurately, including exact clinic names, addresses, phone numbers, and doctor names. NEVER replace real data with [REDACTED] or placeholders.
+- Extract medications with exact dosages.
+- Extract the patient's full name from the document.
+- For appointments: capture ALL scheduling details verbatim - who calls whom, timeframes, phone numbers, what to bring, and specific instructions.
+- If the document says the patient will receive a call, note that in schedulingInstructions.
+- If the document mentions items to bring (medications, ID, insurance card, etc.), capture them in itemsToBring.`,
       },
       {
         role: "user",
@@ -76,11 +82,11 @@ Output valid JSON with this exact structure:
   "patientName": "Full name of the patient",
   "diagnosis": "Primary diagnosis and conditions",
   "medications": [{"name": "Drug name", "dose": "Amount", "frequency": "How often", "instructions": "Special notes"}],
-  "appointments": [{"date": "Date", "time": "Time", "provider": "Doctor name", "location": "Address", "purpose": "Reason"}],
+  "appointments": [{"date": "Date or timeframe", "time": "Time or scheduling method", "provider": "Doctor name", "location": "Full address or clinic name - NEVER redact", "purpose": "Reason", "phone": "Phone number if provided", "schedulingInstructions": "How appointment gets scheduled", "itemsToBring": "Items patient should bring"}],
   "instructions": "All care instructions and activity restrictions",
   "warnings": "Warning signs that require immediate medical attention"
 }
-Preserve all medical information accurately. Extract the patient's full name from the document.`,
+CRITICAL: Preserve ALL information accurately including clinic names, addresses, phone numbers. NEVER replace real data with [REDACTED]. Extract the patient's full name from the document.`,
       },
       {
         role: "user",
@@ -122,6 +128,9 @@ RULES:
 4. Break complex instructions into numbered steps
 5. Replace medical jargon with everyday words
 6. Keep all critical safety information
+7. NEVER remove, redact, or replace specific details like clinic names, addresses, phone numbers, doctor names, or dates with placeholders like [REDACTED]. Keep all specific details exactly as they appear.
+8. For appointments: preserve ALL scheduling details including exact dates/timeframes, who will call whom, phone numbers to call, what to bring, and clinic locations. If the original says "patient will receive a call within 2 days", keep that exact detail.
+9. Include phone, schedulingInstructions, and itemsToBring fields in each appointment object when available.
 
 Output valid JSON with the same structure as input.`,
       },
@@ -157,6 +166,8 @@ RULES:
 3. Maintain the simple 5th grade reading level
 4. Preserve all medical accuracy
 5. Use culturally appropriate phrasing
+6. NEVER remove, redact, or replace specific details like clinic names, addresses, phone numbers, doctor names, or dates. Keep all specific details exactly as they appear.
+7. For appointment objects: preserve ALL fields including phone, schedulingInstructions, and itemsToBring when present.
 
 Output valid JSON with the same structure.`,
       },

@@ -35,7 +35,9 @@ import {
   VolumeX,
   Printer,
   Download,
-  FileText
+  FileText,
+  User,
+  ClipboardList
 } from "lucide-react";
 import type { CarePlan, Patient, CheckIn } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
@@ -1548,14 +1550,42 @@ export default function PatientPortal() {
                 <div key={index} className="p-4 bg-muted/50 rounded-lg">
                   <h4 className="font-semibold text-lg mb-2">{apt.purpose}</h4>
                   <div className="space-y-2 text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      <span>{apt.date} at {apt.time}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      <span>{apt.location}</span>
-                    </div>
+                    {apt.date && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        <span>{apt.date}{apt.time ? ` at ${apt.time}` : ''}</span>
+                      </div>
+                    )}
+                    {apt.schedulingInstructions && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        <span>{apt.schedulingInstructions}</span>
+                      </div>
+                    )}
+                    {apt.provider && (
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        <span>{apt.provider}</span>
+                      </div>
+                    )}
+                    {apt.location && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        <span>{apt.location}</span>
+                      </div>
+                    )}
+                    {apt.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4" />
+                        <span>{apt.phone}</span>
+                      </div>
+                    )}
+                    {apt.itemsToBring && (
+                      <div className="flex items-start gap-2">
+                        <ClipboardList className="h-4 w-4 mt-0.5" />
+                        <span><strong>Please bring:</strong> {apt.itemsToBring}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

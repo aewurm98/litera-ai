@@ -45,6 +45,7 @@ import {
   Upload,
   FileText,
   Check,
+  CheckCircle,
   Send,
   Loader2,
   AlertTriangle,
@@ -222,6 +223,22 @@ function AppointmentsList({
                 <MapPin className="h-3 w-3 flex-shrink-0" />
                 {apt.location}
               </div>
+            )}
+            {apt.phone && (
+              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                {apt.phone}
+              </div>
+            )}
+            {apt.schedulingInstructions && (
+              <p className="text-xs text-muted-foreground mt-1 italic">
+                {apt.schedulingInstructions}
+              </p>
+            )}
+            {apt.itemsToBring && (
+              <p className="text-xs text-muted-foreground mt-1">
+                <span className="font-medium">Bring:</span> {apt.itemsToBring}
+              </p>
             )}
           </div>
         ))}
@@ -566,6 +583,30 @@ export default function ClinicianDashboard() {
       });
       toast({
         title: "Processing failed",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Re-translate mutation (after clinician edits)
+  const retranslateMutation = useMutation({
+    mutationFn: async ({ id, edits }: { id: string; edits?: Record<string, string> }) => {
+      const res = await apiRequest("POST", `/api/care-plans/${id}/retranslate`, { edits });
+      return res.json() as Promise<CarePlanWithPatient>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
+      setSelectedCarePlan(data);
+      setClinicianEdits({});
+      toast({
+        title: "Translation updated",
+        description: "The translation has been refreshed with your edits",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Re-translation failed",
         description: "Please try again",
         variant: "destructive",
       });
@@ -1076,6 +1117,21 @@ export default function ClinicianDashboard() {
                     {patientLanguage === "en" ? "Simplify" : "Process & Translate"}
                   </Button>
                 )}
+                {hasEdits && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en" && (selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
+                  <Button
+                    variant="outline"
+                    onClick={() => retranslateMutation.mutate({ id: selectedCarePlan.id, edits: clinicianEdits })}
+                    disabled={retranslateMutation.isPending}
+                    data-testid="button-retranslate"
+                  >
+                    {retranslateMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Languages className="h-4 w-4 mr-2" />
+                    )}
+                    Update Translation
+                  </Button>
+                )}
                 {(selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
                   <Button
                     onClick={() => {
@@ -1099,6 +1155,12 @@ export default function ClinicianDashboard() {
                       ? (hasEdits ? "Save Edits & Final Approve" : "Final Approve") 
                       : (hasEdits ? "Save Edits & Approve" : "Verify & Approve")}
                   </Button>
+                )}
+                {selectedCarePlan.status === "pending_review" && !hasScrolledAll && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Eye className="h-3 w-3" />
+                    Scroll through all content to enable approval
+                  </span>
                 )}
                 {selectedCarePlan.status === "interpreter_review" && (
                   <Badge variant="secondary" className="py-2 px-3">
@@ -1520,7 +1582,7 @@ export default function ClinicianDashboard() {
                                   </CollapsibleTrigger>
                                   <CollapsibleContent className="mt-1 p-2 bg-muted rounded text-xs border">
                                     <span className="text-foreground">
-                                      {selectedCarePlan.backTranslatedDiagnosis}
+                                      {typeof selectedCarePlan.backTranslatedDiagnosis === "string" ? selectedCarePlan.backTranslatedDiagnosis : JSON.stringify(selectedCarePlan.backTranslatedDiagnosis, null, 2)}
                                     </span>
                                   </CollapsibleContent>
                                 </Collapsible>
@@ -1562,7 +1624,7 @@ export default function ClinicianDashboard() {
                                   </CollapsibleTrigger>
                                   <CollapsibleContent className="mt-1 p-2 bg-muted rounded text-xs border max-h-[100px] overflow-y-auto">
                                     <span className="text-foreground">
-                                      {selectedCarePlan.backTranslatedInstructions}
+                                      {typeof selectedCarePlan.backTranslatedInstructions === "string" ? selectedCarePlan.backTranslatedInstructions : JSON.stringify(selectedCarePlan.backTranslatedInstructions, null, 2)}
                                     </span>
                                   </CollapsibleContent>
                                 </Collapsible>
@@ -1592,7 +1654,7 @@ export default function ClinicianDashboard() {
                                   </CollapsibleTrigger>
                                   <CollapsibleContent className="mt-1 p-2 bg-muted rounded text-xs border">
                                     <span className="text-foreground">
-                                      {selectedCarePlan.backTranslatedWarnings}
+                                      {typeof selectedCarePlan.backTranslatedWarnings === "string" ? selectedCarePlan.backTranslatedWarnings : JSON.stringify(selectedCarePlan.backTranslatedWarnings, null, 2)}
                                     </span>
                                   </CollapsibleContent>
                                 </Collapsible>
@@ -1606,20 +1668,13 @@ export default function ClinicianDashboard() {
                   )}
                 </div>
 
-                {selectedCarePlan.status === "pending_review" &&
-                  !hasScrolledAll && (
-                    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm shadow-lg flex items-center gap-2 z-50">
-                      <Eye className="h-4 w-4" />
-                      Scroll through all content to enable approval
-                    </div>
-                  )}
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center p-8">
                 <div className="text-center">
                   {selectedCarePlan.status === "draft" ? (
                     <>
-                      <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                      <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
                       <p className="text-lg font-medium">Document Uploaded</p>
                       <p className="text-muted-foreground">
                         Select a language and click Process to continue

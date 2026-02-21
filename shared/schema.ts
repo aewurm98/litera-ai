@@ -162,6 +162,9 @@ export interface Appointment {
   provider: string;
   location: string;
   purpose: string;
+  phone?: string;
+  schedulingInstructions?: string;
+  itemsToBring?: string;
 }
 
 export type SimplifiedAppointment = Appointment;

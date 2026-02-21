@@ -45,6 +45,7 @@ import {
   Globe,
   Phone,
   User,
+  ExternalLink,
 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
@@ -201,6 +202,19 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
               <p>{patient.createdAt ? format(new Date(patient.createdAt), "MMM d, yyyy") : "\u2014"}</p>
             </div>
           </div>
+        )}
+
+        {latestCarePlan?.accessToken && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => window.open(`/p/${latestCarePlan.accessToken}?demo=1`, "_blank")}
+            data-testid="button-admin-view-as-patient"
+          >
+            <ExternalLink className="h-4 w-4 mr-2" />
+            View as Patient
+          </Button>
         )}
 
         <div>
@@ -1383,6 +1397,7 @@ export default function AdminDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="clinician">Clinician</SelectItem>
+                  <SelectItem value="interpreter">Interpreter</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                 </SelectContent>
@@ -1518,6 +1533,7 @@ export default function AdminDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="clinician">Clinician</SelectItem>
+                  <SelectItem value="interpreter">Interpreter</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                 </SelectContent>

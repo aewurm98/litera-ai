@@ -627,12 +627,37 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Validation failed", details: parsed.error.errors });
       }
 
+      const oldTenant = await storage.getTenant(tenantId);
+      const oldMode = oldTenant?.interpreterReviewMode;
+      const newMode = parsed.data.interpreterReviewMode;
+
       const updated = await storage.updateTenant(tenantId, {
-        interpreterReviewMode: parsed.data.interpreterReviewMode,
+        interpreterReviewMode: newMode,
       });
 
       if (!updated) {
         return res.status(404).json({ error: "Tenant not found" });
+      }
+
+      // Cascade: update existing care plans that may be stuck due to the mode change
+      if (oldMode !== newMode) {
+        const allPlans = await storage.getAllCarePlans(tenantId);
+        let updatedCount = 0;
+
+        for (const plan of allPlans) {
+          // If switching away from "required" or "optional" to "disabled" or a less strict mode,
+          // move plans stuck in "interpreter_review" forward to "approved"
+          if (plan.status === "interpreter_review") {
+            if (newMode === "disabled" || (newMode === "optional" && oldMode === "required")) {
+              await storage.updateCarePlan(plan.id, { status: "approved" });
+              updatedCount++;
+            }
+          }
+        }
+
+        if (updatedCount > 0) {
+          console.log(`Updated ${updatedCount} care plans after interpreter review mode changed from ${oldMode} to ${newMode}`);
+        }
       }
 
       res.json({ success: true, interpreterReviewMode: updated.interpreterReviewMode });
@@ -884,6 +909,91 @@ export async function registerRoutes(
         : error?.message?.includes("timeout") || error?.message?.includes("ETIMEDOUT")
         ? "Processing timed out. This can happen with large documents. Please try again."
         : "Failed to simplify and translate content. Please try again.";
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Re-translate care plan after clinician edits
+  app.post("/api/care-plans/:id/retranslate", requireClinicianAuth, async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const tenantId = req.session.tenantId;
+
+      const carePlan = await storage.getCarePlan(id);
+      if (!carePlan) {
+        return res.status(404).json({ error: "Care plan not found" });
+      }
+
+      if (tenantId && carePlan.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      if (!carePlan.translatedLanguage || carePlan.translatedLanguage === "en") {
+        return res.status(400).json({ error: "Re-translation is only available for non-English care plans" });
+      }
+
+      const { edits } = req.body || {};
+      const simplifiedData = {
+        diagnosis: edits?.simplifiedDiagnosis || carePlan.simplifiedDiagnosis || "",
+        medications: carePlan.simplifiedMedications || [],
+        appointments: carePlan.simplifiedAppointments || [],
+        instructions: edits?.simplifiedInstructions || carePlan.simplifiedInstructions || "",
+        warnings: edits?.simplifiedWarnings || carePlan.simplifiedWarnings || "",
+      };
+
+      const languageName = SUPPORTED_LANGUAGES.find(l => l.code === carePlan.translatedLanguage)?.name || carePlan.translatedLanguage;
+      const translated = await translateContent(simplifiedData, languageName!);
+
+      const updateData: any = {
+        translatedDiagnosis: translated.diagnosis,
+        translatedMedications: translated.medications,
+        translatedAppointments: translated.appointments,
+        translatedInstructions: translated.instructions,
+        translatedWarnings: translated.warnings,
+        backTranslatedDiagnosis: translated.backTranslatedDiagnosis,
+        backTranslatedInstructions: translated.backTranslatedInstructions,
+        backTranslatedWarnings: translated.backTranslatedWarnings,
+      };
+
+      if (edits) {
+        if (edits.simplifiedDiagnosis !== undefined) updateData.simplifiedDiagnosis = edits.simplifiedDiagnosis;
+        if (edits.simplifiedInstructions !== undefined) updateData.simplifiedInstructions = edits.simplifiedInstructions;
+        if (edits.simplifiedWarnings !== undefined) updateData.simplifiedWarnings = edits.simplifiedWarnings;
+      }
+
+      // Reset status to require re-approval after re-translation
+      if (carePlan.status === "interpreter_approved" || carePlan.status === "approved" || carePlan.status === "sent") {
+        const tenant = tenantId ? await storage.getTenant(tenantId) : null;
+        if (tenant?.interpreterReviewMode === "required") {
+          updateData.status = "interpreter_review";
+          updateData.interpreterReviewedBy = null;
+          updateData.interpreterReviewedAt = null;
+          updateData.interpreterNotes = null;
+        } else {
+          updateData.status = "simplified";
+        }
+        updateData.approvedBy = null;
+        updateData.approvedAt = null;
+      }
+
+      const updated = await storage.updateCarePlan(id, updateData);
+
+      await storage.createAuditLog({
+        carePlanId: id,
+        userId: clinicianId,
+        action: "retranslated",
+        details: { language: carePlan.translatedLanguage, editedFields: edits ? Object.keys(edits) : [] },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error re-translating care plan:", error);
+      const message = error?.message?.includes("rate") || error?.status === 429
+        ? "AI service is temporarily busy. Please wait a moment and try again."
+        : "Failed to re-translate content. Please try again.";
       res.status(500).json({ error: message });
     }
   });
@@ -2550,6 +2660,9 @@ ${contextText}`
       const id = req.params.id as string;
       const { name, isDemo, interpreterReviewMode } = req.body;
       
+      const oldTenant = await storage.getTenant(id);
+      const oldMode = oldTenant?.interpreterReviewMode;
+
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (isDemo !== undefined) updateData.isDemo = isDemo;
@@ -2558,6 +2671,17 @@ ${contextText}`
       const tenant = await storage.updateTenant(id, updateData);
       if (!tenant) {
         return res.status(404).json({ error: "Tenant not found" });
+      }
+
+      if (interpreterReviewMode !== undefined && oldMode !== interpreterReviewMode) {
+        const allPlans = await storage.getAllCarePlans(id);
+        for (const plan of allPlans) {
+          if (plan.status === "interpreter_review") {
+            if (interpreterReviewMode === "disabled" || (interpreterReviewMode === "optional" && oldMode === "required")) {
+              await storage.updateCarePlan(plan.id, { status: "approved" });
+            }
+          }
+        }
       }
       
       res.json(tenant);
@@ -2574,6 +2698,9 @@ ${contextText}`
       if (!tenantId) return res.status(400).json({ error: "No tenant assigned" });
       
       const { interpreterReviewMode } = req.body;
+      const oldTenant = await storage.getTenant(tenantId);
+      const oldMode = oldTenant?.interpreterReviewMode;
+
       const updateData: any = {};
       if (interpreterReviewMode !== undefined) {
         if (!["disabled", "optional", "required"].includes(interpreterReviewMode)) {
@@ -2584,6 +2711,17 @@ ${contextText}`
       
       const tenant = await storage.updateTenant(tenantId, updateData);
       if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+
+      if (interpreterReviewMode !== undefined && oldMode !== interpreterReviewMode) {
+        const allPlans = await storage.getAllCarePlans(tenantId);
+        for (const plan of allPlans) {
+          if (plan.status === "interpreter_review") {
+            if (interpreterReviewMode === "disabled" || (interpreterReviewMode === "optional" && oldMode === "required")) {
+              await storage.updateCarePlan(plan.id, { status: "approved" });
+            }
+          }
+        }
+      }
       
       await storage.createAuditLog({
         userId: (req as any).adminId,
