@@ -421,7 +421,7 @@ function ComingSoonPage({ title }: { title: string }) {
           <ul className="list-disc list-inside text-muted-foreground space-y-1">
             <li>Advanced analytics and reporting</li>
             <li>Video content library for patient education</li>
-            <li>SMS and push notifications</li>
+            <li>Push notifications</li>
             <li>Provider directory integration</li>
           </ul>
         </div>

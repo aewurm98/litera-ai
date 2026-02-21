@@ -13,7 +13,6 @@ import {
   translateContent 
 } from "./services/openai";
 import { sendCarePlanEmail, sendCheckInEmail } from "./services/resend";
-import { sendCarePlanSms, sendCheckInSms } from "./services/twilio";
 import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
 import { isDemoMode } from "./index";
 
@@ -249,7 +248,12 @@ const verifyPatientSchema = z.object({
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
-  newPassword: z.string().min(8, "New password must be at least 8 characters"),
+  newPassword: z.string()
+    .min(8, "New password must be at least 8 characters")
+    .regex(/[A-Z]/, "Must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Must contain at least one special character"),
 });
 
 const checkInResponseSchema = z.object({
@@ -572,9 +576,20 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Current password is incorrect" });
       }
       
-      // Hash new password and update
+      const isSamePassword = await bcrypt.compare(newPassword, user.password);
+      if (isSamePassword) {
+        return res.status(400).json({ error: "New password must be different from current password" });
+      }
+      
       const hashedNewPassword = await bcrypt.hash(newPassword, 10);
       await storage.updateUserPassword(userId, hashedNewPassword);
+      
+      const updatedUser = await storage.getUser(userId);
+      const verifyPersisted = updatedUser ? await bcrypt.compare(newPassword, updatedUser.password) : false;
+      if (!verifyPersisted) {
+        console.error(`[Security] Password change verification failed for user ${userId}`);
+        return res.status(500).json({ error: "Password update failed verification" });
+      }
       
       res.json({ success: true, message: "Password changed successfully" });
     } catch (error) {
@@ -1173,20 +1188,15 @@ export async function registerRoutes(
       const accessLink = `${baseUrl}/p/${accessToken}`;
 
       let emailSent = true;
+      let emailError: any = null;
       try {
-        // Include PIN in email for production auth (patient will need lastName + yearOfBirth + PIN)
         await sendCarePlanEmail(email, name, accessLink, patientPin);
-      } catch (emailError) {
-        console.error("Email sending failed:", emailError);
+      } catch (err: any) {
+        console.error("Email sending failed:", err?.message || err);
         emailSent = false;
-        // Continue even if email fails - care plan is still sent
+        emailError = err?.message || "Email delivery failed";
       }
 
-      // Send SMS if patient has a phone number (gracefully skips if Twilio env vars not set)
-      let smsSent = false;
-      if (patient.phone) {
-        smsSent = await sendCarePlanSms(patient.phone, name, accessLink, patientPin);
-      }
 
       await storage.createAuditLog({
         carePlanId: id,
@@ -1199,7 +1209,7 @@ export async function registerRoutes(
 
       // Return enriched plan
       const checkIns = await storage.getCheckInsByCarePlanId(id);
-      res.json({ ...updated, patient, checkIns, emailSent, smsSent });
+      res.json({ ...updated, patient, checkIns, emailSent, emailError: emailError || undefined });
     } catch (error) {
       console.error("Error sending care plan:", error);
       res.status(500).json({ error: "Failed to send care plan" });
@@ -3073,10 +3083,6 @@ ${contextText}`
 
         try {
           await sendCheckInEmail(patient.email, patient.name, accessLink, checkIn.attemptNumber);
-          // Send SMS check-in if patient has a phone number
-          if (patient.phone) {
-            await sendCheckInSms(patient.phone, patient.name, accessLink);
-          }
           await storage.updateCheckIn(checkIn.id, { sentAt: new Date() });
 
           await storage.createAuditLog({

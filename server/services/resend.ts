@@ -84,6 +84,7 @@ export async function sendCarePlanEmail(
       ? `<strong>Important:</strong> You will need to verify your identity by entering your last name, year of birth, and the PIN shown above.`
       : `<strong>Important:</strong> You will need to verify your identity by entering your year of birth.`;
     
+    console.log(`[Resend] Sending care plan email to: ${toEmail}, from: ${fromEmail}`);
     const result = await client.emails.send({
       from: fromEmail,
       to: toEmail,
@@ -139,9 +140,11 @@ export async function sendCarePlanEmail(
       `,
     });
     
+    console.log(`[Resend] Care plan email sent successfully:`, JSON.stringify(result));
     return result;
-  } catch (error) {
-    console.error("Failed to send care plan email:", error);
+  } catch (error: any) {
+    console.error("Failed to send care plan email:", error?.message || error);
+    if (error?.statusCode) console.error(`[Resend] Status code: ${error.statusCode}`);
     throw error;
   }
 }

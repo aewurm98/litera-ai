@@ -351,7 +351,7 @@ export default function ClinicianDashboard() {
   const [patientEmail, setPatientEmail] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
   const [patientYearOfBirth, setPatientYearOfBirth] = useState("");
-  const [patientLanguage, setPatientLanguage] = useState("es");
+  const [patientLanguage, setPatientLanguage] = useState("");
   
   // Form validation state (touched fields)
   const [formTouched, setFormTouched] = useState({
@@ -662,7 +662,7 @@ export default function ClinicianDashboard() {
       if (data.emailSent === false) {
         toast({
           title: "Care plan saved, but email failed",
-          description: "The care plan was created but the email could not be delivered. You can share the patient portal link manually.",
+          description: data.emailError || "The care plan was created but the email could not be delivered. You can share the patient portal link manually.",
           variant: "destructive",
         });
       } else {
@@ -757,7 +757,7 @@ export default function ClinicianDashboard() {
     setPatientEmail("");
     setPatientPhone("");
     setPatientYearOfBirth("");
-    setPatientLanguage("es");
+    setPatientLanguage("");
     setFormTouched({ name: false, email: false, yearOfBirth: false });
   };
 
@@ -803,8 +803,11 @@ export default function ClinicianDashboard() {
     setFormTouched({ name: true, email: true, yearOfBirth: true });
     
     // Validate before submitting
-    if (!patientName.trim() || !isValidEmail(patientEmail) || !isValidYearOfBirth(patientYearOfBirth)) {
-      return; // Don't submit if validation fails
+    if (!patientName.trim() || !isValidEmail(patientEmail) || !isValidYearOfBirth(patientYearOfBirth) || !patientLanguage) {
+      if (!patientLanguage) {
+        toast({ title: "Please select a language", variant: "destructive" });
+      }
+      return;
     }
     
     sendMutation.mutate({
@@ -869,7 +872,7 @@ export default function ClinicianDashboard() {
       setPatientLanguage(
         patient.preferredLanguage ||
           selectedCarePlan.translatedLanguage ||
-          "es",
+          "",
       );
     }
   }, [isSendDialogOpen, selectedCarePlan]);
@@ -1100,12 +1103,16 @@ export default function ClinicianDashboard() {
               <div className="flex items-center gap-2">
                 {selectedCarePlan.status === "draft" && (
                   <Button
-                    onClick={() =>
+                    onClick={() => {
+                      if (!patientLanguage) {
+                        toast({ title: "Please select a language first", variant: "destructive" });
+                        return;
+                      }
                       processMutation.mutate({
                         id: selectedCarePlan.id,
                         language: patientLanguage,
-                      })
-                    }
+                      });
+                    }}
                     disabled={processingIds.has(selectedCarePlan.id)}
                     data-testid="button-process"
                   >
@@ -1114,7 +1121,7 @@ export default function ClinicianDashboard() {
                     ) : (
                       <RefreshCw className="h-4 w-4 mr-2" />
                     )}
-                    {patientLanguage === "en" ? "Simplify" : "Process & Translate"}
+                    {patientLanguage === "en" ? "Simplify" : patientLanguage ? "Process & Translate" : "Select Language to Process"}
                   </Button>
                 )}
                 {hasEdits && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en" && (selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
@@ -1177,19 +1184,19 @@ export default function ClinicianDashboard() {
                         setPatientEmail(selectedCarePlan.patient.email || "");
                         setPatientPhone(selectedCarePlan.patient.phone || "");
                         setPatientYearOfBirth(selectedCarePlan.patient.yearOfBirth?.toString() || "");
-                        setPatientLanguage(selectedCarePlan.patient.preferredLanguage || selectedCarePlan.translatedLanguage || "es");
+                        setPatientLanguage(selectedCarePlan.patient.preferredLanguage || selectedCarePlan.translatedLanguage || "");
                       } else if (selectedCarePlan.extractedPatientName) {
                         setPatientName(selectedCarePlan.extractedPatientName);
                         setPatientEmail("");
                         setPatientPhone("");
                         setPatientYearOfBirth("");
-                        setPatientLanguage(selectedCarePlan.translatedLanguage || "es");
+                        setPatientLanguage(selectedCarePlan.translatedLanguage || "");
                       } else {
                         setPatientName("");
                         setPatientEmail("");
                         setPatientPhone("");
                         setPatientYearOfBirth("");
-                        setPatientLanguage(selectedCarePlan.translatedLanguage || "es");
+                        setPatientLanguage(selectedCarePlan.translatedLanguage || "");
                       }
                       setIsSendDialogOpen(true);
                     }}
@@ -2045,9 +2052,7 @@ export default function ClinicianDashboard() {
                 onChange={(e) => setPatientPhone(e.target.value)}
                 data-testid="input-patient-phone"
               />
-              {patientPhone && (
-                <p className="text-xs text-muted-foreground">SMS will be sent alongside the email.</p>
-              )}
+              
             </div>
             <div className="space-y-2">
               <Label htmlFor="patient-yob" className={formErrors.yearOfBirth ? "text-destructive" : ""}>

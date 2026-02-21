@@ -145,7 +145,7 @@ export default function ExperimentLoginDemo() {
                 <div className="p-4 bg-muted rounded-lg text-sm">
                   <p className="font-medium mb-2">Patient Access</p>
                   <p className="text-muted-foreground mb-3">
-                    Patients access their care plans through a secure magic link sent via email or SMS. No traditional login is required.
+                    Patients access their care plans through a secure magic link sent via email. No traditional login is required.
                   </p>
                   <p className="text-muted-foreground">
                     To preview the patient experience, try the Comprehension Evaluation experiment or use the clinician dashboard to send a care plan.
