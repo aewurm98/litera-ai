@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +13,6 @@ import {
   VolumeX,
   Clock,
   MapPin,
-  ArrowLeft,
   FlaskConical,
 } from "lucide-react";
 import CarePlanChatbot from "@/components/care-plan-chatbot";
@@ -128,11 +126,6 @@ export default function ExperimentComprehension() {
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3">
-              <Link href="/experiments">
-                <Button variant="ghost" size="icon" className="text-primary-foreground" data-testid="button-back-experiments">
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-              </Link>
               <div>
                 <h1 className="text-xl font-semibold">{t.yourCarePlan}</h1>
                 <p className="text-primary-foreground/80 text-sm">{SAMPLE_CARE_PLAN.patientName}</p>

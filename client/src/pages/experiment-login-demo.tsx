@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Heart, Loader2, ArrowLeft, Stethoscope, Shield, Languages, LayoutDashboard, FlaskConical } from "lucide-react";
+import { Heart, Loader2, Stethoscope, Shield, Languages, LayoutDashboard, FlaskConical } from "lucide-react";
 
 type RoleTab = "clinician" | "admin" | "interpreter" | "patient";
 
@@ -107,11 +107,6 @@ export default function ExperimentLoginDemo() {
 
       <div className="max-w-lg mx-auto px-4 pt-6 pb-8">
         <div className="flex items-center gap-2 mb-6">
-          <Link href="/experiments">
-            <Button variant="ghost" size="icon" data-testid="button-back-experiments">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
           <div className="flex items-center gap-2">
             <Heart className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold text-primary">Litera.ai</span>

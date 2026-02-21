@@ -31,6 +31,42 @@ interface TranslatedContent extends SimplifiedContent {
   backTranslatedWarnings: string;
 }
 
+const EXTRACTION_SYSTEM_PROMPT = `You are a medical document parser specializing in discharge summaries. Your task has TWO phases.
+
+PHASE 1 — COMPREHENSIVE INVENTORY (think step-by-step):
+Before producing JSON, mentally scan the ENTIRE document from start to finish and inventory every piece of medical information. Discharge documents vary widely in format — information may appear:
+- In clearly labeled sections (e.g., "Medications", "Follow-Up")
+- As free-text paragraphs with no section headers
+- As colored, bold, or highlighted text (e.g., red warning text below a medication table)
+- As footnotes, sidebars, margin notes, or callout boxes
+- Embedded within medication instructions (e.g., "Stop taking if you experience...")
+- In tables, checklists, or numbered/bulleted lists
+- As addenda or additional pages appended to the main summary
+
+Pay special attention to:
+- WARNING SIGNS / RED FLAGS: These are often visually emphasized (red text, bold, exclamation marks, boxed content) and may appear ANYWHERE in the document — below medication tables, after instructions, in sidebars, at the very end, or interspersed within other sections. Collect ALL of them.
+- MEDICATION SIDE EFFECTS & PRECAUTIONS: Sometimes listed separately from the medication table itself.
+- ACTIVITY RESTRICTIONS & CARE INSTRUCTIONS: May be scattered across multiple sections.
+
+PHASE 2 — STRUCTURED OUTPUT:
+After your inventory, output valid JSON with this exact structure:
+{
+  "patientName": "Full name of the patient",
+  "diagnosis": "Primary diagnosis and conditions",
+  "medications": [{"name": "Drug name", "dose": "Amount", "frequency": "How often", "instructions": "Special notes including any precautions or side effects mentioned anywhere in the document for this medication"}],
+  "appointments": [{"date": "Date or timeframe like 'Within 2 business days'", "time": "Time or 'To be scheduled' or 'Patient will receive a call'", "provider": "Doctor name", "location": "Full address or clinic name - NEVER redact", "purpose": "Reason for visit", "phone": "Phone number if provided", "schedulingInstructions": "How the appointment gets scheduled", "itemsToBring": "Items patient should bring to the appointment"}],
+  "instructions": "ALL care instructions and activity restrictions from the entire document, consolidated",
+  "warnings": "ALL warning signs, red flags, and reasons to seek immediate medical attention — gathered from EVERY part of the document, not just a section labeled 'Warnings'"
+}
+
+CRITICAL RULES:
+- Preserve ALL medical information accurately. NEVER replace real data with [REDACTED] or placeholders.
+- The "warnings" field must contain EVERY warning sign, danger signal, or "call your doctor if" / "go to the ER if" statement found ANYWHERE in the document — even if it appears under medications, instructions, or in visually emphasized (red/bold) text.
+- The "instructions" field must consolidate ALL care instructions from the entire document, not just from a section labeled "Instructions".
+- Extract medications with exact dosages. If medication-specific warnings appear elsewhere in the document, include them in that medication's "instructions" field AND in the top-level "warnings" field.
+- For appointments: capture ALL scheduling details verbatim — who calls whom, timeframes, phone numbers, what to bring.
+- Extract the patient's full name from the document.`;
+
 // Extract structured content from discharge document
 export async function extractDischargeContent(text: string): Promise<ExtractedContent> {
   const response = await openai.chat.completions.create({
@@ -38,27 +74,11 @@ export async function extractDischargeContent(text: string): Promise<ExtractedCo
     messages: [
       {
         role: "system",
-        content: `You are a medical document parser. Extract structured information from discharge summaries.
-Output valid JSON with this exact structure:
-{
-  "patientName": "Full name of the patient",
-  "diagnosis": "Primary diagnosis and conditions",
-  "medications": [{"name": "Drug name", "dose": "Amount", "frequency": "How often", "instructions": "Special notes"}],
-  "appointments": [{"date": "Date or timeframe like 'Within 2 business days'", "time": "Time or 'To be scheduled' or 'Patient will receive a call'", "provider": "Doctor name", "location": "Full address or clinic name - NEVER redact", "purpose": "Reason for visit", "phone": "Phone number if provided", "schedulingInstructions": "How the appointment gets scheduled - e.g. 'Clinic will call patient' or 'Patient should call to schedule'", "itemsToBring": "Items patient should bring to the appointment"}],
-  "instructions": "All care instructions and activity restrictions",
-  "warnings": "Warning signs that require immediate medical attention"
-}
-CRITICAL RULES:
-- Preserve ALL medical information accurately, including exact clinic names, addresses, phone numbers, and doctor names. NEVER replace real data with [REDACTED] or placeholders.
-- Extract medications with exact dosages.
-- Extract the patient's full name from the document.
-- For appointments: capture ALL scheduling details verbatim - who calls whom, timeframes, phone numbers, what to bring, and specific instructions.
-- If the document says the patient will receive a call, note that in schedulingInstructions.
-- If the document mentions items to bring (medications, ID, insurance card, etc.), capture them in itemsToBring.`,
+        content: EXTRACTION_SYSTEM_PROMPT,
       },
       {
         role: "user",
-        content: `Extract the following discharge summary into structured JSON:\n\n${text}`,
+        content: `Extract the following discharge summary into structured JSON. Remember to scan the ENTIRE document for warnings, instructions, and other details — they may not be in clearly labeled sections:\n\n${text}`,
       },
     ],
     response_format: { type: "json_object" },
@@ -76,17 +96,7 @@ export async function extractFromImage(base64Image: string): Promise<ExtractedCo
     messages: [
       {
         role: "system",
-        content: `You are a medical document parser. Extract structured information from discharge summary images.
-Output valid JSON with this exact structure:
-{
-  "patientName": "Full name of the patient",
-  "diagnosis": "Primary diagnosis and conditions",
-  "medications": [{"name": "Drug name", "dose": "Amount", "frequency": "How often", "instructions": "Special notes"}],
-  "appointments": [{"date": "Date or timeframe", "time": "Time or scheduling method", "provider": "Doctor name", "location": "Full address or clinic name - NEVER redact", "purpose": "Reason", "phone": "Phone number if provided", "schedulingInstructions": "How appointment gets scheduled", "itemsToBring": "Items patient should bring"}],
-  "instructions": "All care instructions and activity restrictions",
-  "warnings": "Warning signs that require immediate medical attention"
-}
-CRITICAL: Preserve ALL information accurately including clinic names, addresses, phone numbers. NEVER replace real data with [REDACTED]. Extract the patient's full name from the document.`,
+        content: EXTRACTION_SYSTEM_PROMPT,
       },
       {
         role: "user",
@@ -99,7 +109,7 @@ CRITICAL: Preserve ALL information accurately including clinic names, addresses,
           },
           {
             type: "text",
-            text: "Extract all discharge information from this medical document image into structured JSON, including the patient's full name.",
+            text: "Extract all discharge information from this medical document image into structured JSON. Scan the ENTIRE image for warnings, instructions, and details — they may appear as colored text, footnotes, sidebars, or in unexpected positions relative to the main content.",
           },
         ],
       },
@@ -127,10 +137,11 @@ RULES:
 3. Use "you" and active voice
 4. Break complex instructions into numbered steps
 5. Replace medical jargon with everyday words
-6. Keep all critical safety information
+6. Keep ALL critical safety information — every warning sign, red flag, and "call your doctor if" statement must be preserved in the "warnings" field. Do NOT drop any warnings even if they were originally embedded in medication or instruction sections.
 7. NEVER remove, redact, or replace specific details like clinic names, addresses, phone numbers, doctor names, or dates with placeholders like [REDACTED]. Keep all specific details exactly as they appear.
 8. For appointments: preserve ALL scheduling details including exact dates/timeframes, who will call whom, phone numbers to call, what to bring, and clinic locations. If the original says "patient will receive a call within 2 days", keep that exact detail.
 9. Include phone, schedulingInstructions, and itemsToBring fields in each appointment object when available.
+10. The "warnings" field is critical for patient safety. Ensure it contains ALL danger signs from the input — simplify the language but never omit a warning.
 
 Output valid JSON with the same structure as input.`,
       },

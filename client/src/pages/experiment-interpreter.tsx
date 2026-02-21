@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +9,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import {
   Languages,
-  ArrowLeft,
   CheckCircle2,
   AlertTriangle,
   FileText,
@@ -159,12 +157,6 @@ export default function ExperimentInterpreter() {
               <Button className="w-full" onClick={handleEnter} disabled={!interpreterName.trim()} data-testid="button-enter-sandbox">
                 Enter Sandbox
               </Button>
-              <Link href="/experiments">
-                <Button variant="ghost" className="w-full" data-testid="button-back-experiments">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Experiments
-                </Button>
-              </Link>
             </CardContent>
           </Card>
         </div>
@@ -212,11 +204,6 @@ export default function ExperimentInterpreter() {
                 <Button variant="outline" className="flex-1" onClick={handleReset} data-testid="button-review-again">
                   Review Again
                 </Button>
-                <Link href="/experiments" className="flex-1">
-                  <Button variant="outline" className="w-full" data-testid="button-back-experiments">
-                    Back to Experiments
-                  </Button>
-                </Link>
               </div>
             </CardContent>
           </Card>
@@ -236,11 +223,6 @@ export default function ExperimentInterpreter() {
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-3">
-              <Link href="/experiments">
-                <Button variant="ghost" size="icon" data-testid="button-back-experiments">
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-              </Link>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="font-semibold">Translation Review</h1>
