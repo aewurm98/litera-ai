@@ -24,7 +24,6 @@ export interface IStorage {
   findPatientByName(name: string, tenantId?: string): Promise<Patient | undefined>;
   getAllPatients(tenantId?: string): Promise<Patient[]>;
   createPatient(patient: InsertPatient): Promise<Patient>;
-  createPatientAllowDuplicateEmail(patient: InsertPatient): Promise<Patient>;
   updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined>;
   updatePatientPassword(id: string, hashedPassword: string): Promise<void>;
   deletePatient(id: string): Promise<boolean>;
@@ -144,16 +143,6 @@ export class DatabaseStorage implements IStorage {
 
   async createPatient(insertPatient: InsertPatient): Promise<Patient> {
     const [patient] = await db.insert(patients).values(insertPatient).returning();
-    return patient;
-  }
-
-  async createPatientAllowDuplicateEmail(insertPatient: InsertPatient): Promise<Patient> {
-    const email = insertPatient.email;
-    const atIdx = email.indexOf("@");
-    if (atIdx === -1) throw new Error("Invalid email");
-    const suffix = `+${Date.now()}`;
-    const dbEmail = email.slice(0, atIdx) + suffix + email.slice(atIdx);
-    const [patient] = await db.insert(patients).values({ ...insertPatient, email: dbEmail }).returning();
     return patient;
   }
 

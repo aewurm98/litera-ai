@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, jsonb, uniqueIndex, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -67,7 +67,7 @@ export const patients = pgTable("patients", {
   email: text("email").notNull(),
   phone: text("phone"),
   yearOfBirth: integer("year_of_birth").notNull(),
-  dateOfBirth: text("date_of_birth"),
+  dateOfBirth: date("date_of_birth", { mode: "string" }),
   pin: text("pin"),
   password: text("password"),
   preferredLanguage: text("preferred_language").notNull().default("en"),

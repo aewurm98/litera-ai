@@ -27,7 +27,7 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 - Enhanced TCM compliance: contact within 2 days, CPT 99495 (response within 14d), CPT 99496 (response within 7d), missing discharge date warnings
 
 ### Phase D - Full Date of Birth Support (Complete)
-- Added `dateOfBirth` (text, YYYY-MM-DD format) column to patients schema alongside existing `yearOfBirth`
+- `dateOfBirth` is a proper `date` column (mode: "string") in the patients schema alongside existing `yearOfBirth`
 - Backend: All patient CRUD endpoints (create, update, CSV import, send) accept `dateOfBirth`, auto-derive `yearOfBirth`
 - Frontend: Admin dashboard create/edit forms use date picker; display shows full DOB with yearOfBirth fallback
 - Seed data includes full DOB for all demo patients
@@ -45,7 +45,8 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 ### Phase F - DOB in Send Dialog, Password Recovery, Demo Email Flexibility (Complete)
 - Send Care Plan dialog: Replaced Year of Birth number input with Date of Birth date picker; sends `dateOfBirth` to backend
 - Paste/dictation flows: Updated to use DOB date picker instead of year input
-- Patient matching fix: In demo mode, same email can be used for different patients (matched by name+email). In production, existing patient records are fully updated when resending
+- Patient matching: Simple create-or-update by email (no duplicate patients); "Send Test to Me" creates a separate test patient to avoid conflicts
+- Demo reset preserves staff user accounts (passwords, recovery emails, roles); only refreshes patients and care plans
 - Staff password recovery: Added `recoveryEmail`, `passwordResetToken`, `passwordResetExpiry` fields to users table
 - Settings page: "Your Account" card now includes editable recovery email field
 - Login page: "Forgot password?" link navigates to password reset flow

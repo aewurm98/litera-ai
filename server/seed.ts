@@ -56,54 +56,76 @@ export async function seedDatabase(force: boolean = false) {
 }
 
 export async function resetDemoTenant() {
-  console.log("Resetting demo tenant data only...");
-
   const demoTenantList = await db.select().from(tenants).where(eq(tenants.isDemo, true));
+  const isDemoMode = process.env.DEMO_MODE === "true" || demoTenantList.length > 0;
+
+  if (!isDemoMode) {
+    console.log("Not in demo mode and no demo tenants found. Skipping reset.");
+    return;
+  }
+
+  console.log("Resetting demo tenant data only...");
 
   if (demoTenantList.length === 0) {
     console.log("No demo tenants found. Will create fresh demo data.");
-  } else {
-    const demoTenantIds = demoTenantList.map(t => t.id);
-    console.log(`Found ${demoTenantIds.length} demo tenant(s):`, demoTenantList.map(t => t.name).join(", "));
-
-    const demoPatientRows = await db.select({ id: patients.id }).from(patients).where(inArray(patients.tenantId, demoTenantIds));
-    const demoPatientIds = demoPatientRows.map(p => p.id);
-
-    const demoCarePlanRows = await db.select({ id: carePlans.id }).from(carePlans).where(inArray(carePlans.tenantId, demoTenantIds));
-    const demoCarePlanIds = demoCarePlanRows.map(cp => cp.id);
-
-    if (demoCarePlanIds.length > 0) {
-      await db.delete(chatMessages).where(inArray(chatMessages.carePlanId, demoCarePlanIds));
-      await db.delete(auditLogs).where(inArray(auditLogs.carePlanId, demoCarePlanIds));
-      await db.delete(checkIns).where(inArray(checkIns.carePlanId, demoCarePlanIds));
-      await db.delete(carePlans).where(inArray(carePlans.id, demoCarePlanIds));
-    }
-    await db.delete(auditLogs).where(
-      and(
-        inArray(auditLogs.userId, 
-          db.select({ id: users.id }).from(users).where(inArray(users.tenantId, demoTenantIds))
-        ),
-        eq(auditLogs.carePlanId, null as any)
-      )
-    );
-
-    if (demoPatientIds.length > 0) {
-      await db.delete(patients).where(inArray(patients.id, demoPatientIds));
-    }
-
-    await db.delete(users).where(inArray(users.tenantId, demoTenantIds));
-    await db.delete(tenants).where(inArray(tenants.id, demoTenantIds));
-
-    console.log("Deleted demo tenant data. Preserved non-demo tenants and super admin.");
+    await seedDemoData();
+    console.log("Demo tenant reset complete!");
+    return;
   }
 
-  await seedDemoData();
+  const demoTenantIds = demoTenantList.map(t => t.id);
+  console.log(`Found ${demoTenantIds.length} demo tenant(s):`, demoTenantList.map(t => t.name).join(", "));
+
+  const demoCarePlanRows = await db.select({ id: carePlans.id }).from(carePlans).where(inArray(carePlans.tenantId, demoTenantIds));
+  const demoCarePlanIds = demoCarePlanRows.map(cp => cp.id);
+
+  if (demoCarePlanIds.length > 0) {
+    await db.delete(chatMessages).where(inArray(chatMessages.carePlanId, demoCarePlanIds));
+    await db.delete(auditLogs).where(inArray(auditLogs.carePlanId, demoCarePlanIds));
+    await db.delete(checkIns).where(inArray(checkIns.carePlanId, demoCarePlanIds));
+    await db.delete(carePlans).where(inArray(carePlans.id, demoCarePlanIds));
+  }
+
+  await db.delete(auditLogs).where(
+    and(
+      inArray(auditLogs.userId, 
+        db.select({ id: users.id }).from(users).where(inArray(users.tenantId, demoTenantIds))
+      ),
+      eq(auditLogs.carePlanId, null as any)
+    )
+  );
+
+  const demoPatientRows = await db.select({ id: patients.id }).from(patients).where(inArray(patients.tenantId, demoTenantIds));
+  const demoPatientIds = demoPatientRows.map(p => p.id);
+  if (demoPatientIds.length > 0) {
+    await db.delete(patients).where(inArray(patients.id, demoPatientIds));
+  }
+
+  console.log("Deleted demo content (care plans, patients, check-ins, audit logs). Preserved users and tenants.");
+
+  const existingUsers = await db.select().from(users).where(inArray(users.tenantId, demoTenantIds));
+
+  const tenant1 = demoTenantList.find(t => t.slug === "riverside") || demoTenantList[0];
+  const tenant2 = demoTenantList.find(t => t.slug === "lakeside") || demoTenantList[1] || demoTenantList[0];
+  const clinician1 = existingUsers.find(u => u.username === "nurse");
+  const clinician2 = existingUsers.find(u => u.username === "lakeside_nurse");
+  const interpreter2 = existingUsers.find(u => u.username === "lakeside_interpreter");
+
+  if (!clinician1 || !clinician2 || !interpreter2) {
+    console.error("Could not find required demo users (nurse, lakeside_nurse, lakeside_interpreter). Falling back to full seed.");
+    await db.delete(users).where(inArray(users.tenantId, demoTenantIds));
+    await db.delete(tenants).where(inArray(tenants.id, demoTenantIds));
+    await seedDemoData();
+    console.log("Demo tenant reset complete (full reseed)!");
+    return;
+  }
+
+  await seedDemoContent(tenant1, tenant2, clinician1, clinician2, interpreter2);
   console.log("Demo tenant reset complete!");
 }
 
 async function seedDemoData() {
   const hashedPassword = await hashPassword("Password123!");
-  const hashedPin = await hashPassword("1234");
 
   // === TENANT 1: Riverside Community Health ===
   const [tenant1] = await db.insert(tenants).values({
@@ -198,6 +220,18 @@ async function seedDemoData() {
   }).returning();
 
   console.log("Created staff:", riversideAdmin.name, clinician1.name, interpreter1.name, lakesideAdmin.name, clinician2.name, interpreter2.name);
+
+  await seedDemoContent(tenant1, tenant2, clinician1, clinician2, interpreter2);
+}
+
+async function seedDemoContent(
+  tenant1: typeof tenants.$inferSelect,
+  tenant2: typeof tenants.$inferSelect,
+  clinician1: typeof users.$inferSelect,
+  clinician2: typeof users.$inferSelect,
+  interpreter2: typeof users.$inferSelect,
+) {
+  const hashedPin = await hashPassword("1234");
 
   // === Riverside Patients ===
   const [patient1] = await db.insert(patients).values({
@@ -838,9 +872,7 @@ async function seedDemoData() {
   console.log("\n=== SEED DATA SUMMARY ===");
   console.log("\n--- TENANT 1: Riverside Community Health ---");
   console.log("STAFF:");
-  console.log(`  Clinic Admin: riverside_admin / Password123! (${riversideAdmin.name})`);
   console.log(`  Clinician: nurse / Password123! (${clinician1.name})`);
-  console.log(`  Interpreter: riverside_interpreter / Password123! (${interpreter1.name})`);
   console.log("CARE PLANS:");
   console.log("  1. Rosa Martinez - SENT (Spanish, green check-in + pending 2nd)");
   console.log("  2. Nguyen Thi Lan - APPROVED (Vietnamese, ready to send)");
@@ -853,7 +885,6 @@ async function seedDemoData() {
 
   console.log("\n--- TENANT 2: Lakeside Family Medicine ---");
   console.log("STAFF:");
-  console.log(`  Clinic Admin: lakeside_admin / Password123! (${lakesideAdmin.name})`);
   console.log(`  Clinician: lakeside_nurse / Password123! (${clinician2.name})`);
   console.log(`  Interpreter: lakeside_interpreter / Password123! (${interpreter2.name})`);
   console.log("CARE PLANS:");

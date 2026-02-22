@@ -1413,39 +1413,19 @@ export async function registerRoutes(
       const lastName = extractLastName(name);
       const effectiveYob = dateOfBirth ? new Date(dateOfBirth).getFullYear() : yearOfBirth;
       
-      // Create or update patient (scoped by tenant)
-      // In demo mode, match by name+email to allow same email for different test patients
-      // In production, email is the unique identifier per tenant
       let patient: Patient | undefined;
       const existingByEmail = await storage.getPatientByEmail(email, tenantId);
       
       if (existingByEmail) {
-        const tenant = tenantId ? await storage.getTenant(tenantId) : null;
-        const isDemo = tenant?.isDemo || isDemoMode;
-        
-        if (isDemo && existingByEmail.name !== name) {
-          patient = await storage.createPatientAllowDuplicateEmail({
-            name,
-            lastName,
-            email,
-            phone,
-            yearOfBirth: effectiveYob,
-            dateOfBirth: dateOfBirth || null,
-            pin: await bcrypt.hash(patientPin, 10),
-            preferredLanguage,
-            tenantId,
-          });
-        } else {
-          patient = await storage.updatePatient(existingByEmail.id, {
-            name,
-            lastName,
-            yearOfBirth: effectiveYob,
-            dateOfBirth: dateOfBirth || null,
-            phone: phone || existingByEmail.phone,
-            preferredLanguage: preferredLanguage || existingByEmail.preferredLanguage,
-            pin: await bcrypt.hash(patientPin, 10),
-          });
-        }
+        patient = await storage.updatePatient(existingByEmail.id, {
+          name,
+          lastName,
+          yearOfBirth: effectiveYob,
+          dateOfBirth: dateOfBirth || null,
+          phone: phone || existingByEmail.phone,
+          preferredLanguage: preferredLanguage || existingByEmail.preferredLanguage,
+          pin: await bcrypt.hash(patientPin, 10),
+        });
       } else {
         patient = await storage.createPatient({
           name,
@@ -1817,15 +1797,11 @@ export async function registerRoutes(
       let isValid = false;
       
       if (isDemoMode) {
-        // Demo mode: validate full dateOfBirth when available; fall back to year comparison for legacy patients
         if (patient.dateOfBirth && dateOfBirth) {
           isValid = patient.dateOfBirth === dateOfBirth;
-        } else if (dateOfBirth && !patient.dateOfBirth) {
-          // Patient only has yearOfBirth — extract year from submitted DOB
-          const submittedYear = new Date(dateOfBirth).getFullYear();
-          isValid = patient.yearOfBirth === submittedYear;
         } else {
-          isValid = patient.yearOfBirth === yearOfBirth;
+          const submittedYear = dateOfBirth ? new Date(dateOfBirth).getFullYear() : yearOfBirth;
+          isValid = patient.yearOfBirth === submittedYear;
         }
       } else {
         // Production mode: require lastName + dateOfBirth + (PIN or password)
@@ -1851,15 +1827,12 @@ export async function registerRoutes(
         const patientLastName = (patient.lastName || extractLastName(patient.name)).toLowerCase();
         const providedLastName = lastName.toLowerCase().trim();
         const lastNameMatches = patientLastName === providedLastName;
-        // Validate full dateOfBirth when available; fall back to year comparison for legacy patients
         let dobMatches = false;
         if (patient.dateOfBirth && dateOfBirth) {
           dobMatches = patient.dateOfBirth === dateOfBirth;
-        } else if (dateOfBirth && !patient.dateOfBirth) {
-          const submittedYear = new Date(dateOfBirth).getFullYear();
-          dobMatches = patient.yearOfBirth === submittedYear;
         } else {
-          dobMatches = patient.yearOfBirth === yearOfBirth;
+          const submittedYear = dateOfBirth ? new Date(dateOfBirth).getFullYear() : yearOfBirth;
+          dobMatches = patient.yearOfBirth === submittedYear;
         }
         
         // Check PIN or password — both use bcrypt (inherently timing-safe)
@@ -2630,7 +2603,7 @@ ${contextText}`
 
   app.get("/api/invitations/:token", async (req: Request, res: Response) => {
     try {
-      const { token } = req.params;
+      const token = req.params.token as string;
       const invitation = await storage.getTeamInvitationByToken(token);
       if (!invitation) {
         return res.status(404).json({ error: "Invitation not found" });
@@ -2655,7 +2628,7 @@ ${contextText}`
 
   app.post("/api/invitations/:token/accept", async (req: Request, res: Response) => {
     try {
-      const { token } = req.params;
+      const token = req.params.token as string;
       const { name, username, password } = req.body;
       if (!name || !username || !password) {
         return res.status(400).json({ error: "Name, username, and password are required" });
@@ -2674,7 +2647,6 @@ ${contextText}`
       if (existingUser) {
         return res.status(400).json({ error: "Username already taken" });
       }
-      const bcrypt = await import("bcryptjs");
       const hashedPassword = await bcrypt.hash(password, 12);
 
       const user = await storage.createUser({
