@@ -1560,7 +1560,7 @@ export async function registerRoutes(
 
       const baseUrl = process.env.APP_URL
         || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "http://localhost:5000");
-      const accessLink = `${baseUrl}/p/${accessToken}`;
+      const accessLink = `${baseUrl}/p/${accessToken}?preview=1`;
 
       let emailSent = true;
       try {

@@ -527,7 +527,8 @@ export default function PatientPortal() {
   });
   
   const isAppDemoMode = envInfo?.isDemoMode ?? false;
-  const isClinicianPreview = (demoParam === "1" && isAppDemoMode) || !!previewToken;
+  const isPreviewMode = searchParams.get("preview") === "1";
+  const isClinicianPreview = (demoParam === "1" && isAppDemoMode) || !!previewToken || isPreviewMode;
   
   const [isVerified, setIsVerified] = useState(false);
   const [yearOfBirth, setYearOfBirth] = useState("");
@@ -616,8 +617,7 @@ export default function PatientPortal() {
     },
     onSuccess: (data) => {
       setIsVerified(true);
-      // Prompt for password setup if patient hasn't set one yet (first-time login with PIN)
-      if (!hasPatientPassword && !usePasswordLogin) {
+      if (!hasPatientPassword && !usePasswordLogin && !isClinicianPreview) {
         setShowPasswordSetup(true);
       }
       toast({ title: "Verified!", description: "You can now view your care plan" });
@@ -1467,9 +1467,9 @@ export default function PatientPortal() {
       </Dialog>
       
       {/* Demo Mode Banner */}
-      {isAppDemoMode && (
+      {(isClinicianPreview) && (
         <div className="bg-yellow-500 text-yellow-950 text-center py-2 px-4 text-sm font-medium">
-          Clinician Preview Mode - This is how patients see their care plan
+          Preview Mode — This is how patients see their care plan (read-only)
         </div>
       )}
       
@@ -1501,8 +1501,8 @@ export default function PatientPortal() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-4 pb-24">
-        {/* Check-in Prompt */}
-        {carePlan.checkIns && carePlan.checkIns.some(c => !c.respondedAt) && (
+        {/* Check-in Prompt (hidden in preview mode) */}
+        {!isClinicianPreview && carePlan.checkIns && carePlan.checkIns.some(c => !c.respondedAt) && (
           <Card className="border-primary bg-primary/5">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
