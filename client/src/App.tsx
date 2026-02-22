@@ -47,6 +47,7 @@ import {
   Building2,
   Key,
   Languages,
+  Check,
 } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
@@ -82,7 +83,16 @@ function PasswordChangeDialog() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [serverError, setServerError] = useState("");
   const { toast } = useToast();
+
+  const hasMinLength = newPassword.length >= 8;
+  const hasUppercase = /[A-Z]/.test(newPassword);
+  const hasLowercase = /[a-z]/.test(newPassword);
+  const hasNumber = /[0-9]/.test(newPassword);
+  const hasSpecial = /[^A-Za-z0-9]/.test(newPassword);
+  const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
+  const allValid = hasMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial && passwordsMatch;
   
   const changePasswordMutation = useMutation({
     mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
@@ -97,11 +107,7 @@ function PasswordChangeDialog() {
       handleOpenChange(false);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to change password",
-        variant: "destructive",
-      });
+      setServerError(error.message || "Failed to change password");
     },
   });
   
@@ -111,29 +117,23 @@ function PasswordChangeDialog() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setServerError("");
     }
   };
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "New passwords do not match",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (newPassword.length < 8) {
-      toast({
-        title: "Error",
-        description: "New password must be at least 8 characters",
-        variant: "destructive",
-      });
-      return;
-    }
+    setServerError("");
+    if (!allValid) return;
     changePasswordMutation.mutate({ currentPassword, newPassword });
   };
+
+  const CheckItem = ({ met, label }: { met: boolean; label: string }) => (
+    <div className={`flex items-center gap-1.5 text-xs ${met ? "text-green-600" : "text-muted-foreground"}`}>
+      {met ? <Check className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-muted-foreground/40 inline-block" />}
+      {label}
+    </div>
+  );
   
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -152,7 +152,7 @@ function PasswordChangeDialog() {
         <DialogHeader>
           <DialogTitle>Change Password</DialogTitle>
           <DialogDescription>
-            Enter your current password and choose a new password (minimum 8 characters).
+            Enter your current password and choose a new password.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
@@ -162,10 +162,13 @@ function PasswordChangeDialog() {
               id="current-password"
               type="password"
               value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
+              onChange={(e) => { setCurrentPassword(e.target.value); setServerError(""); }}
               required
               data-testid="input-current-password"
             />
+            {serverError && (
+              <p className="text-xs text-destructive">{serverError}</p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="new-password">New Password</Label>
@@ -175,9 +178,17 @@ function PasswordChangeDialog() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              minLength={8}
               data-testid="input-new-password"
             />
+            {newPassword.length > 0 && (
+              <div className="grid grid-cols-2 gap-1 mt-1">
+                <CheckItem met={hasMinLength} label="8+ characters" />
+                <CheckItem met={hasUppercase} label="Uppercase letter" />
+                <CheckItem met={hasLowercase} label="Lowercase letter" />
+                <CheckItem met={hasNumber} label="Number" />
+                <CheckItem met={hasSpecial} label="Special character" />
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirm-password">Confirm New Password</Label>
@@ -189,6 +200,12 @@ function PasswordChangeDialog() {
               required
               data-testid="input-confirm-password"
             />
+            {confirmPassword.length > 0 && !passwordsMatch && (
+              <p className="text-xs text-destructive">Passwords do not match</p>
+            )}
+            {passwordsMatch && (
+              <p className="text-xs text-green-600">Passwords match</p>
+            )}
           </div>
           <DialogFooter className="pt-4">
             <Button
@@ -201,7 +218,7 @@ function PasswordChangeDialog() {
             </Button>
             <Button
               type="submit"
-              disabled={changePasswordMutation.isPending}
+              disabled={changePasswordMutation.isPending || !allValid}
               data-testid="button-submit-password-change"
             >
               {changePasswordMutation.isPending ? "Changing..." : "Change Password"}

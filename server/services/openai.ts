@@ -60,12 +60,13 @@ After your inventory, output valid JSON with this exact structure:
 }
 
 CRITICAL RULES:
+- If the document is NOT a medical discharge summary or does NOT contain medical care instructions, set ALL fields to empty values (empty strings, empty arrays). Do NOT invent or hallucinate content. Set patientName to "" if no patient name is clearly identified in the document.
 - Preserve ALL medical information accurately. NEVER replace real data with [REDACTED] or placeholders.
 - The "warnings" field must contain EVERY warning sign, danger signal, or "call your doctor if" / "go to the ER if" statement found ANYWHERE in the document — even if it appears under medications, instructions, or in visually emphasized (red/bold) text.
 - The "instructions" field must consolidate ALL care instructions from the entire document, not just from a section labeled "Instructions".
 - Extract medications with exact dosages. If medication-specific warnings appear elsewhere in the document, include them in that medication's "instructions" field AND in the top-level "warnings" field.
 - For appointments: capture ALL scheduling details verbatim — who calls whom, timeframes, phone numbers, what to bring.
-- Extract the patient's full name from the document.`;
+- Extract the patient's full name from the document. If no patient name appears in the document, set patientName to "".`;
 
 // Extract structured content from discharge document
 export async function extractDischargeContent(text: string): Promise<ExtractedContent> {
@@ -82,7 +83,7 @@ export async function extractDischargeContent(text: string): Promise<ExtractedCo
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 8192,
   });
 
   const content = response.choices[0]?.message?.content || "{}";
@@ -115,7 +116,7 @@ export async function extractFromImage(base64Image: string): Promise<ExtractedCo
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 8192,
   });
 
   const content = response.choices[0]?.message?.content || "{}";
@@ -151,7 +152,7 @@ Output valid JSON with the same structure as input.`,
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 8192,
   });
 
   const content = response.choices[0]?.message?.content || "{}";
@@ -188,7 +189,7 @@ Output valid JSON with the same structure.`,
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 4096,
+    max_completion_tokens: 8192,
   });
 
   const translatedContent = JSON.parse(

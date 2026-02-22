@@ -12,7 +12,7 @@ import {
   simplifyContent, 
   translateContent 
 } from "./services/openai";
-import { sendCarePlanEmail, sendCheckInEmail } from "./services/resend";
+import { sendCarePlanEmail, sendCheckInEmail, getUncachableResendClient } from "./services/resend";
 import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
 import { isDemoMode } from "./index";
 
@@ -3102,6 +3102,37 @@ ${contextText}`
       console.error("Error sending pending check-ins:", error);
       res.status(500).json({ error: "Failed to send check-ins" });
     }
+  });
+
+  // Email diagnostic endpoint — checks if email service is configured and reachable
+  app.get("/api/admin/email-diagnostics", async (req: any, res) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const user = await storage.getUser(req.session.userId);
+    if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    const diagnostics: any = {
+      timestamp: new Date().toISOString(),
+      hasDirectApiKey: !!process.env.RESEND_API_KEY,
+      hasReplitConnector: !!(process.env.REPLIT_CONNECTORS_HOSTNAME),
+      fromEmail: process.env.RESEND_FROM_EMAIL || null,
+      appUrl: process.env.APP_URL || null,
+      clientReady: false,
+      testResult: null,
+    };
+
+    try {
+      const client = await getUncachableResendClient();
+      diagnostics.clientReady = !!client;
+      diagnostics.testResult = "Email client initialized successfully";
+    } catch (error: any) {
+      diagnostics.testResult = `Client init failed: ${error.message}`;
+    }
+
+    res.json(diagnostics);
   });
 
   return httpServer;

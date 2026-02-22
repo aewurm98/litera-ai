@@ -124,18 +124,39 @@ function MedicationsList({
   medications,
   title,
   columnId,
+  editable,
+  editValues,
+  onEdit,
 }: {
   medications?: SimplifiedMedication[] | null;
   title: string;
   columnId: string;
+  editable?: boolean;
+  editValues?: Record<string, string>;
+  onEdit?: (field: string, value: string) => void;
 }) {
   if (!medications || medications.length === 0) return null;
+
+  const getMedText = (med: SimplifiedMedication, index: number) => {
+    const key = `simplifiedMedications_${index}`;
+    if (editValues && key in editValues) return editValues[key];
+    const parts = [med.name];
+    if (med.dose) parts.push(`- ${med.dose}`);
+    if (med.frequency) parts.push(`| ${med.frequency}`);
+    if (med.instructions) parts.push(`| ${med.instructions}`);
+    return parts.join(" ");
+  };
+
+  const hasAnyEdits = editValues && medications.some((_, i) => `simplifiedMedications_${i}` in editValues);
 
   return (
     <div className="space-y-2">
       <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
         <Pill className="h-3 w-3" />
         {title}
+        {hasAnyEdits && (
+          <Badge variant="secondary" className="ml-auto text-[10px]">edited</Badge>
+        )}
       </Label>
       <div className="space-y-2">
         {medications.map((med, index) => (
@@ -144,24 +165,35 @@ function MedicationsList({
             className="bg-muted/50 rounded-lg p-3 border border-border/50"
             data-testid={`medication-${columnId}-${index}`}
           >
-            <div className="flex items-start justify-between gap-2 flex-wrap">
-              <span className="font-medium text-sm">{med.name}</span>
-              {med.dose && (
-                <Badge variant="outline" className="text-xs flex-shrink-0">
-                  {med.dose}
-                </Badge>
-              )}
-            </div>
-            {med.frequency && (
-              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3 flex-shrink-0" />
-                {med.frequency}
-              </div>
-            )}
-            {med.instructions && (
-              <p className="text-xs text-muted-foreground mt-1 italic">
-                {med.instructions}
-              </p>
+            {editable && onEdit ? (
+              <Textarea
+                className={`min-h-[40px] resize-none bg-background text-sm ${editable ? "border-primary/40" : ""}`}
+                value={getMedText(med, index)}
+                onChange={(e) => onEdit(`simplifiedMedications_${index}`, e.target.value)}
+                data-testid={`textarea-medication-${columnId}-${index}`}
+              />
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <span className="font-medium text-sm">{med.name}</span>
+                  {med.dose && (
+                    <Badge variant="outline" className="text-xs flex-shrink-0">
+                      {med.dose}
+                    </Badge>
+                  )}
+                </div>
+                {med.frequency && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3 flex-shrink-0" />
+                    {med.frequency}
+                  </div>
+                )}
+                {med.instructions && (
+                  <p className="text-xs text-muted-foreground mt-1 italic">
+                    {med.instructions}
+                  </p>
+                )}
+              </>
             )}
           </div>
         ))}
@@ -175,18 +207,44 @@ function AppointmentsList({
   appointments,
   title,
   columnId,
+  editable,
+  editValues,
+  onEdit,
 }: {
   appointments?: SimplifiedAppointment[] | null;
   title: string;
   columnId: string;
+  editable?: boolean;
+  editValues?: Record<string, string>;
+  onEdit?: (field: string, value: string) => void;
 }) {
   if (!appointments || appointments.length === 0) return null;
+
+  const getAptText = (apt: SimplifiedAppointment, index: number) => {
+    const key = `simplifiedAppointments_${index}`;
+    if (editValues && key in editValues) return editValues[key];
+    const parts = [];
+    if (apt.purpose) parts.push(apt.purpose);
+    if (apt.date) parts.push(`Date: ${apt.date}`);
+    if (apt.time) parts.push(`Time: ${apt.time}`);
+    if (apt.provider) parts.push(`Doctor: ${apt.provider}`);
+    if (apt.location) parts.push(`Location: ${apt.location}`);
+    if (apt.phone) parts.push(`Phone: ${apt.phone}`);
+    if (apt.schedulingInstructions) parts.push(`Note: ${apt.schedulingInstructions}`);
+    if (apt.itemsToBring) parts.push(`Bring: ${apt.itemsToBring}`);
+    return parts.join("\n");
+  };
+
+  const hasAnyEdits = editValues && appointments.some((_, i) => `simplifiedAppointments_${i}` in editValues);
 
   return (
     <div className="space-y-2">
       <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
         <Calendar className="h-3 w-3" />
         {title}
+        {hasAnyEdits && (
+          <Badge variant="secondary" className="ml-auto text-[10px]">edited</Badge>
+        )}
       </Label>
       <div className="space-y-2">
         {appointments.map((apt, index) => (
@@ -195,50 +253,61 @@ function AppointmentsList({
             className="bg-muted/50 rounded-lg p-3 border border-border/50"
             data-testid={`appointment-${columnId}-${index}`}
           >
-            {apt.purpose && (
-              <p className="font-medium text-sm">{apt.purpose}</p>
-            )}
-            <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
-              {apt.date && (
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3 flex-shrink-0" />
-                  {apt.date}
-                </span>
-              )}
-              {apt.time && (
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3 flex-shrink-0" />
-                  {apt.time}
-                </span>
-              )}
-              {apt.provider && (
-                <span className="flex items-center gap-1">
-                  <User className="h-3 w-3 flex-shrink-0" />
-                  {apt.provider}
-                </span>
-              )}
-            </div>
-            {apt.location && (
-              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                <MapPin className="h-3 w-3 flex-shrink-0" />
-                {apt.location}
-              </div>
-            )}
-            {apt.phone && (
-              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                {apt.phone}
-              </div>
-            )}
-            {apt.schedulingInstructions && (
-              <p className="text-xs text-muted-foreground mt-1 italic">
-                {apt.schedulingInstructions}
-              </p>
-            )}
-            {apt.itemsToBring && (
-              <p className="text-xs text-muted-foreground mt-1">
-                <span className="font-medium">Bring:</span> {apt.itemsToBring}
-              </p>
+            {editable && onEdit ? (
+              <Textarea
+                className={`min-h-[60px] resize-none bg-background text-sm ${editable ? "border-primary/40" : ""}`}
+                value={getAptText(apt, index)}
+                onChange={(e) => onEdit(`simplifiedAppointments_${index}`, e.target.value)}
+                data-testid={`textarea-appointment-${columnId}-${index}`}
+              />
+            ) : (
+              <>
+                {apt.purpose && (
+                  <p className="font-medium text-sm">{apt.purpose}</p>
+                )}
+                <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
+                  {apt.date && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3 flex-shrink-0" />
+                      {apt.date}
+                    </span>
+                  )}
+                  {apt.time && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3 flex-shrink-0" />
+                      {apt.time}
+                    </span>
+                  )}
+                  {apt.provider && (
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3 flex-shrink-0" />
+                      {apt.provider}
+                    </span>
+                  )}
+                </div>
+                {apt.location && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                    <MapPin className="h-3 w-3 flex-shrink-0" />
+                    {apt.location}
+                  </div>
+                )}
+                {apt.phone && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                    {apt.phone}
+                  </div>
+                )}
+                {apt.schedulingInstructions && (
+                  <p className="text-xs text-muted-foreground mt-1 italic">
+                    {apt.schedulingInstructions}
+                  </p>
+                )}
+                {apt.itemsToBring && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <span className="font-medium">Bring:</span> {apt.itemsToBring}
+                  </p>
+                )}
+              </>
             )}
           </div>
         ))}
@@ -652,7 +721,7 @@ export default function ClinicianDashboard() {
         `/api/care-plans/${data.carePlanId}/send`,
         data.patient,
       );
-      return res.json() as Promise<CarePlanWithPatient & { emailSent?: boolean }>;
+      return res.json() as Promise<CarePlanWithPatient & { emailSent?: boolean; emailError?: string }>;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
@@ -861,7 +930,15 @@ export default function ClinicianDashboard() {
       }
     };
 
-  // Pre-populate patient form when opening send dialog for care plan with existing patient
+  useEffect(() => {
+    if (selectedCarePlan) {
+      const lang = selectedCarePlan.patient?.preferredLanguage 
+        || selectedCarePlan.translatedLanguage 
+        || "";
+      setPatientLanguage(lang);
+    }
+  }, [selectedCarePlan?.id]);
+
   useEffect(() => {
     if (isSendDialogOpen && selectedCarePlan?.patient) {
       const patient = selectedCarePlan.patient;
@@ -1104,16 +1181,12 @@ export default function ClinicianDashboard() {
                 {selectedCarePlan.status === "draft" && (
                   <Button
                     onClick={() => {
-                      if (!patientLanguage) {
-                        toast({ title: "Please select a language first", variant: "destructive" });
-                        return;
-                      }
                       processMutation.mutate({
                         id: selectedCarePlan.id,
                         language: patientLanguage,
                       });
                     }}
-                    disabled={processingIds.has(selectedCarePlan.id)}
+                    disabled={processingIds.has(selectedCarePlan.id) || !patientLanguage}
                     data-testid="button-process"
                   >
                     {processingIds.has(selectedCarePlan.id) ? (
@@ -1121,7 +1194,7 @@ export default function ClinicianDashboard() {
                     ) : (
                       <RefreshCw className="h-4 w-4 mr-2" />
                     )}
-                    {patientLanguage === "en" ? "Simplify" : patientLanguage ? "Process & Translate" : "Select Language to Process"}
+                    {patientLanguage === "en" ? "Simplify" : patientLanguage ? "Process & Translate" : "Select Language First"}
                   </Button>
                 )}
                 {hasEdits && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en" && (selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
@@ -1142,6 +1215,10 @@ export default function ClinicianDashboard() {
                 {(selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
                   <Button
                     onClick={() => {
+                      if (hasEdits && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en") {
+                        toast({ title: "Please update the translation first", description: "Click 'Update Translation' to apply your edits before approving.", variant: "destructive" });
+                        return;
+                      }
                       if (selectedCarePlan.status === "interpreter_approved") {
                         approveMutation.mutate({ id: selectedCarePlan.id, clinicianEdits: hasEdits ? clinicianEdits : undefined });
                       } else if (interpreterReviewMode === "optional" && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en") {
@@ -1150,7 +1227,7 @@ export default function ClinicianDashboard() {
                         approveMutation.mutate({ id: selectedCarePlan.id, clinicianEdits: hasEdits ? clinicianEdits : undefined });
                       }
                     }}
-                    disabled={approveMutation.isPending || (!hasScrolledAll && selectedCarePlan.status === "pending_review")}
+                    disabled={approveMutation.isPending || (!hasScrolledAll && selectedCarePlan.status === "pending_review") || (hasEdits && selectedCarePlan.translatedLanguage !== "en")}
                     data-testid="button-approve"
                   >
                     {approveMutation.isPending ? (
@@ -1159,8 +1236,8 @@ export default function ClinicianDashboard() {
                       <Check className="h-4 w-4 mr-2" />
                     )}
                     {selectedCarePlan.status === "interpreter_approved" 
-                      ? (hasEdits ? "Save Edits & Final Approve" : "Final Approve") 
-                      : (hasEdits ? "Save Edits & Approve" : "Verify & Approve")}
+                      ? (hasEdits ? "Update Translation First" : "Final Approve") 
+                      : (hasEdits && selectedCarePlan.translatedLanguage !== "en" ? "Update Translation First" : hasEdits ? "Save Edits & Approve" : "Verify & Approve")}
                   </Button>
                 )}
                 {selectedCarePlan.status === "pending_review" && !hasScrolledAll && (
@@ -1494,6 +1571,9 @@ export default function ClinicianDashboard() {
                             medications={selectedCarePlan.simplifiedMedications}
                             title="Your Medicines"
                             columnId="simplified"
+                            editable={isEditable}
+                            editValues={clinicianEdits}
+                            onEdit={handleEditField}
                           />
                           <AppointmentsList
                             appointments={
@@ -1501,6 +1581,9 @@ export default function ClinicianDashboard() {
                             }
                             title="Your Appointments"
                             columnId="simplified"
+                            editable={isEditable}
+                            editValues={clinicianEdits}
+                            onEdit={handleEditField}
                           />
                           {selectedCarePlan.simplifiedInstructions && (
                             <div className="bg-muted/50 rounded-lg p-3 border">
@@ -1687,14 +1770,14 @@ export default function ClinicianDashboard() {
                         Select a language and click Process to continue
                       </p>
                       <div className="mt-4 flex items-center justify-center gap-2">
-                        <Label>Target Language:</Label>
+                        <Label className={!patientLanguage ? "text-primary font-semibold" : ""}>Target Language:</Label>
                         <Select
                           value={patientLanguage}
                           onValueChange={setPatientLanguage}
                           disabled={selectedCarePlan ? processingIds.has(selectedCarePlan.id) : false}
                         >
                           <SelectTrigger
-                            className="w-[180px]"
+                            className={`w-[200px] ${!patientLanguage ? "border-primary ring-2 ring-primary/30 animate-pulse" : ""}`}
                             data-testid="select-language"
                             disabled={selectedCarePlan ? processingIds.has(selectedCarePlan.id) : false}
                           >
@@ -1709,6 +1792,11 @@ export default function ClinicianDashboard() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {!patientLanguage && (
+                        <p className="text-xs text-primary mt-2 font-medium">
+                          Choose the patient's preferred language to begin processing
+                        </p>
+                      )}
                     </>
                   ) : (
                     <>
