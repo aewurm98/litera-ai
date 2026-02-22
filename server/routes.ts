@@ -238,14 +238,16 @@ const sendCarePlanSchema = z.object({
   preferredLanguage: z.string().min(2).max(5),
 });
 
-// Production patient verification requires lastName + yearOfBirth + PIN
-// Demo mode only requires yearOfBirth for backward compatibility
+// Production patient verification requires lastName + dateOfBirth + PIN
+// Demo mode only requires dateOfBirth (or yearOfBirth for legacy patients)
 const verifyPatientSchema = z.object({
-  yearOfBirth: z.number().int().min(1900).max(2100),
+  yearOfBirth: z.number().int().min(1900).max(2100).optional(),
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  lastName: z.string().optional(), // Required in production mode (unless using password)
-  pin: z.string().length(4).optional(), // 4-digit PIN, required in production mode (unless using password)
-  password: z.string().optional(), // Alternative to PIN for returning patients
+  lastName: z.string().optional(),
+  pin: z.string().length(4).optional(),
+  password: z.string().optional(),
+}).refine(data => data.dateOfBirth || data.yearOfBirth, {
+  message: "Either dateOfBirth or yearOfBirth is required",
 });
 
 const changePasswordSchema = z.object({
@@ -1678,8 +1680,8 @@ export async function registerRoutes(
   });
 
   // Verify patient access (with server-side rate limiting)
-  // In demo mode: only yearOfBirth required
-  // In production mode: lastName + yearOfBirth + PIN required
+  // In demo mode: only dateOfBirth (or yearOfBirth fallback) required
+  // In production mode: lastName + dateOfBirth + PIN required
   app.post("/api/patient/:token/verify", validateBody(verifyPatientSchema), async (req: Request, res: Response) => {
     try {
       const token = req.params.token as string;
@@ -1709,25 +1711,28 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Patient not found" });
       }
       
-      // In production mode, verify lastName + yearOfBirth + PIN
-      // In demo mode, only verify yearOfBirth for backward compatibility
+      // In production mode, verify lastName + dateOfBirth + PIN
+      // In demo mode, only verify dateOfBirth (or yearOfBirth fallback)
       let isValid = false;
       
       if (isDemoMode) {
-        // Demo mode: if patient has full dateOfBirth, validate it; otherwise year only
+        // Demo mode: validate full dateOfBirth when available; fall back to year comparison for legacy patients
         if (patient.dateOfBirth && dateOfBirth) {
           isValid = patient.dateOfBirth === dateOfBirth;
+        } else if (dateOfBirth && !patient.dateOfBirth) {
+          // Patient only has yearOfBirth — extract year from submitted DOB
+          const submittedYear = new Date(dateOfBirth).getFullYear();
+          isValid = patient.yearOfBirth === submittedYear;
         } else {
           isValid = patient.yearOfBirth === yearOfBirth;
         }
       } else {
-        // Production mode: require lastName + yearOfBirth + (PIN or password)
+        // Production mode: require lastName + dateOfBirth + (PIN or password)
         const hasPatientPassword = patient.password !== null && patient.password !== undefined;
         
-        // If patient has set a password, they can use either PIN or password
         if (!lastName) {
           return res.status(400).json({ 
-            error: "Last name and year of birth are required",
+            error: "Last name and date of birth are required",
             requiresFullAuth: true,
             hasPassword: hasPatientPassword
           });
@@ -1745,10 +1750,16 @@ export async function registerRoutes(
         const patientLastName = (patient.lastName || extractLastName(patient.name)).toLowerCase();
         const providedLastName = lastName.toLowerCase().trim();
         const lastNameMatches = patientLastName === providedLastName;
-        // If patient has full dateOfBirth and it was provided, validate it; otherwise year only
-        const yearMatches = (patient.dateOfBirth && dateOfBirth)
-          ? patient.dateOfBirth === dateOfBirth
-          : patient.yearOfBirth === yearOfBirth;
+        // Validate full dateOfBirth when available; fall back to year comparison for legacy patients
+        let dobMatches = false;
+        if (patient.dateOfBirth && dateOfBirth) {
+          dobMatches = patient.dateOfBirth === dateOfBirth;
+        } else if (dateOfBirth && !patient.dateOfBirth) {
+          const submittedYear = new Date(dateOfBirth).getFullYear();
+          dobMatches = patient.yearOfBirth === submittedYear;
+        } else {
+          dobMatches = patient.yearOfBirth === yearOfBirth;
+        }
         
         // Check PIN or password — both use bcrypt (inherently timing-safe)
         let credentialValid = false;
@@ -1760,7 +1771,7 @@ export async function registerRoutes(
             : false;
         }
         
-        isValid = lastNameMatches && yearMatches && credentialValid;
+        isValid = lastNameMatches && dobMatches && credentialValid;
       }
       
       if (!isValid) {
@@ -1837,7 +1848,8 @@ export async function registerRoutes(
           error: "Verification required",
           requiresVerification: true,
           translatedLanguage: carePlan.translatedLanguage,
-          requiresDateOfBirth: !!(patient?.dateOfBirth),
+          requiresDateOfBirth: true,
+          hasFullDateOfBirth: !!(patient?.dateOfBirth),
           hasPassword: !!(patient?.password),
         });
       }

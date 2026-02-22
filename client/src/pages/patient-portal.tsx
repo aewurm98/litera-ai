@@ -119,8 +119,9 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     callClinic: "Call Clinic",
     emergency911: "Emergency 911",
     verifyIdentity: "Verify Your Identity",
-    enterYearOfBirth: "Enter your year of birth to access your care plan",
-    yearOfBirthPlaceholder: "Year of Birth (e.g., 1980)",
+    enterDateOfBirth: "Enter your date of birth to access your care plan",
+    dateOfBirthLabel: "Date of Birth",
+    yearOfBirthFallback: "Year of Birth",
     verifyButton: "Verify",
     verifying: "Verifying...",
     attemptsRemaining: "attempts remaining",
@@ -179,8 +180,9 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     callClinic: "Llamar a la Clínica",
     emergency911: "Emergencia 911",
     verifyIdentity: "Verifique Su Identidad",
-    enterYearOfBirth: "Ingrese su año de nacimiento para acceder a su plan de cuidado",
-    yearOfBirthPlaceholder: "Año de Nacimiento (ej., 1980)",
+    enterDateOfBirth: "Ingrese su fecha de nacimiento para acceder a su plan de cuidado",
+    dateOfBirthLabel: "Fecha de Nacimiento",
+    yearOfBirthFallback: "Año de Nacimiento",
     verifyButton: "Verificar",
     verifying: "Verificando...",
     attemptsRemaining: "intentos restantes",
@@ -239,8 +241,9 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     callClinic: "致电诊所",
     emergency911: "紧急呼叫911",
     verifyIdentity: "验证您的身份",
-    enterYearOfBirth: "输入您的出生年份以访问您的护理计划",
-    yearOfBirthPlaceholder: "出生年份（例如，1980）",
+    enterDateOfBirth: "输入您的出生日期以访问您的护理计划",
+    dateOfBirthLabel: "出生日期",
+    yearOfBirthFallback: "出生年份",
     verifyButton: "验证",
     verifying: "验证中...",
     attemptsRemaining: "剩余尝试次数",
@@ -299,8 +302,9 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     callClinic: "Gọi Phòng Khám",
     emergency911: "Cấp Cứu 911",
     verifyIdentity: "Xác Minh Danh Tính",
-    enterYearOfBirth: "Nhập năm sinh của bạn để truy cập kế hoạch chăm sóc",
-    yearOfBirthPlaceholder: "Năm sinh (ví dụ: 1980)",
+    enterDateOfBirth: "Nhập ngày sinh của bạn để truy cập kế hoạch chăm sóc",
+    dateOfBirthLabel: "Ngày Sinh",
+    yearOfBirthFallback: "Năm Sinh",
     verifyButton: "Xác Minh",
     verifying: "Đang xác minh...",
     attemptsRemaining: "lần thử còn lại",
@@ -359,8 +363,9 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     callClinic: "اتصل بالعيادة",
     emergency911: "طوارئ 911",
     verifyIdentity: "تحقق من هويتك",
-    enterYearOfBirth: "أدخل سنة ميلادك للوصول إلى خطة الرعاية",
-    yearOfBirthPlaceholder: "سنة الميلاد (مثال: 1980)",
+    enterDateOfBirth: "أدخل تاريخ ميلادك للوصول إلى خطة الرعاية",
+    dateOfBirthLabel: "تاريخ الميلاد",
+    yearOfBirthFallback: "سنة الميلاد",
     verifyButton: "تحقق",
     verifying: "جاري التحقق...",
     attemptsRemaining: "محاولات متبقية",
@@ -419,8 +424,9 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     callClinic: "병원에 전화",
     emergency911: "응급 911",
     verifyIdentity: "신원 확인",
-    enterYearOfBirth: "케어 플랜에 접근하려면 출생 연도를 입력하세요",
-    yearOfBirthPlaceholder: "출생 연도 (예: 1980)",
+    enterDateOfBirth: "케어 플랜에 접근하려면 생년월일을 입력하세요",
+    dateOfBirthLabel: "생년월일",
+    yearOfBirthFallback: "출생 연도",
     verifyButton: "확인",
     verifying: "확인 중...",
     attemptsRemaining: "남은 시도 횟수",
@@ -479,8 +485,9 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     callClinic: "Tumawag sa Klinika",
     emergency911: "Emerhensya 911",
     verifyIdentity: "I-verify ang Iyong Pagkakakilanlan",
-    enterYearOfBirth: "Ilagay ang iyong taon ng kapanganakan para ma-access ang iyong plano ng pangangalaga",
-    yearOfBirthPlaceholder: "Taon ng Kapanganakan (hal., 1980)",
+    enterDateOfBirth: "Ilagay ang iyong petsa ng kapanganakan para ma-access ang iyong plano ng pangangalaga",
+    dateOfBirthLabel: "Petsa ng Kapanganakan",
+    yearOfBirthFallback: "Taon ng Kapanganakan",
     verifyButton: "I-verify",
     verifying: "Nag-ve-verify...",
     attemptsRemaining: "mga natitirang pagsubok",
@@ -525,7 +532,7 @@ export default function PatientPortal() {
   const [isVerified, setIsVerified] = useState(false);
   const [yearOfBirth, setYearOfBirth] = useState("");
   const [dateOfBirthInput, setDateOfBirthInput] = useState("");
-  const [requiresDateOfBirth, setRequiresDateOfBirth] = useState(false);
+  const [requiresDateOfBirth, setRequiresDateOfBirth] = useState(true);
   const [lastName, setLastName] = useState("");
   const [pin, setPin] = useState("");
   const [password, setPassword] = useState(""); // For returning patients with password
@@ -552,8 +559,8 @@ export default function PatientPortal() {
         .then(r => r.json())
         .then(data => {
           if (data.requiresVerification) {
-            if (data.requiresDateOfBirth) {
-              setRequiresDateOfBirth(true);
+            if (data.hasFullDateOfBirth === false) {
+              setRequiresDateOfBirth(false);
             }
             if (data.hasPassword) {
               setHasPatientPassword(true);
@@ -685,12 +692,14 @@ export default function PatientPortal() {
   const handleVerify = () => {
     if (isLocked || attemptsRemaining <= 0) return;
     
+    const dobYear = dateOfBirthInput ? parseInt(dateOfBirthInput.split("-")[0]) : parseInt(yearOfBirth);
+    
     if (requiresFullAuth || !isAppDemoMode) {
       const verificationData: { yearOfBirth: number; dateOfBirth?: string; lastName?: string; pin?: string; password?: string } = {
-        yearOfBirth: requiresDateOfBirth && dateOfBirthInput ? parseInt(dateOfBirthInput.split("-")[0]) : parseInt(yearOfBirth),
+        yearOfBirth: dobYear,
         lastName: lastName.trim(),
       };
-      if (requiresDateOfBirth && dateOfBirthInput) {
+      if (dateOfBirthInput) {
         verificationData.dateOfBirth = dateOfBirthInput;
       }
       if (usePasswordLogin && password.trim()) {
@@ -700,14 +709,10 @@ export default function PatientPortal() {
       }
       verifyMutation.mutate(verificationData);
     } else {
-      if (requiresDateOfBirth && dateOfBirthInput) {
-        verifyMutation.mutate({
-          yearOfBirth: parseInt(dateOfBirthInput.split("-")[0]),
-          dateOfBirth: dateOfBirthInput,
-        });
-      } else {
-        verifyMutation.mutate({ yearOfBirth: parseInt(yearOfBirth) });
-      }
+      verifyMutation.mutate({
+        yearOfBirth: dobYear,
+        ...(dateOfBirthInput ? { dateOfBirth: dateOfBirthInput } : {}),
+      });
     }
   };
   
@@ -1050,9 +1055,7 @@ export default function PatientPortal() {
             <CardDescription className="text-base">
               {showFullAuthFields 
                 ? "Please verify your identity to access your care instructions"
-                : requiresDateOfBirth
-                  ? "Please enter your date of birth to access your care instructions"
-                  : "Please enter your year of birth to access your care instructions"
+                : "Please enter your date of birth to access your care instructions"
               }
             </CardDescription>
           </CardHeader>
