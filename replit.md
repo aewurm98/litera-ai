@@ -32,7 +32,15 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 - Frontend: Admin dashboard create/edit forms use date picker; display shows full DOB with yearOfBirth fallback
 - Seed data includes full DOB for all demo patients
 - CSV import recognizes DOB headers: dateofbirth, date of birth, dob, date_of_birth, birthday
-- Patient portal verification still uses yearOfBirth (4-digit year) for authentication simplicity
+
+### Phase E - Pre-Publish Bug Fixes & UX Improvements (Complete)
+- View as Patient: Added to admin table view (ExternalLink icon per patient row); session-based auth bypass via `/api/admin/preview-access/:accessToken` so staff don't need to re-authenticate
+- Patient auth upgraded: Full date of birth verification (MM/DD/YYYY date picker) when patient has DOB stored; graceful fallback to year-only for legacy data
+- Stale care plan alerts: Now show patient name + diagnosis instead of truncated IDs
+- Role-based analytics: Interpreters see translation metrics only; clinicians see their own care plans' data (no TCM); admins see everything
+- Role-based settings: Added "Your Account" card; interpreter review mode read-only for non-admins; team invites admin-only (already was)
+- Chatbot UX: Larger bubble (w-16 h-16) with "Questions?" label; auto-expands on first portal visit; localStorage persistence to stay minimized after dismissal
+- Enriched seed data: Sickle Cell and Stroke care plans now have full medications, appointments, instructions, warnings
 
 ## System Architecture
 

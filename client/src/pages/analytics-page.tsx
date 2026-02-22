@@ -4,17 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, TrendingUp, CheckCircle, Activity, Users, FileText, ArrowRight, Calendar, AlertTriangle, Clock } from "lucide-react";
+import { BarChart3, TrendingUp, CheckCircle, Activity, Users, FileText, ArrowRight, Calendar, AlertTriangle, Clock, Languages } from "lucide-react";
 
 interface StaleCarePlan {
   id: string;
   patientId: string;
+  patientName: string;
+  diagnosis: string | null;
   status: string;
   createdAt: string;
   ageHours: number;
 }
 
 interface AnalyticsData {
+  userRole: string;
   statusCounts: Record<string, number>;
   pipeline: {
     uploaded: number;
@@ -29,15 +32,19 @@ interface AnalyticsData {
     green: number;
     yellow: number;
     red: number;
-  };
+  } | null;
   tcm: {
     totalPatientsSent: number;
     eligible99495: number;
     eligible99496: number;
     contactWithin2Days: number;
     missingDischargeDate: number;
+  } | null;
+  staleCarePlans: StaleCarePlan[] | null;
+  interpreterMetrics?: {
+    pendingReview: number;
+    approved: number;
   };
-  staleCarePlans: StaleCarePlan[];
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -202,7 +209,11 @@ export default function AnalyticsPage() {
     );
   }
 
-  const { statusCounts, pipeline, checkIns, tcm } = data;
+  const isInterpreter = data.userRole === "interpreter";
+  const isClinician = data.userRole === "clinician";
+  const isAdmin = data.userRole === "admin" || data.userRole === "super_admin";
+
+  const { statusCounts, pipeline } = data;
 
   return (
     <div className="p-6 space-y-6" data-testid="analytics-page">
@@ -228,167 +239,229 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card data-testid="card-status-funnel">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              Care Plan Funnel
-            </CardTitle>
-            <Badge variant="outline" className="text-xs">
-              {Object.values(statusCounts).reduce((a, b) => a + b, 0)} total
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            <StatusFunnel statusCounts={statusCounts} />
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-status-counts">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              Care Plans by Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <StatusBar statusCounts={statusCounts} />
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-pipeline">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              Processing Pipeline
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3">
-              <PipelineStage label="Uploaded" count={pipeline.uploaded} total={pipeline.uploaded} icon={<FileText className="h-4 w-4" />} />
-              <PipelineStage label="Simplified" count={pipeline.simplified} total={pipeline.uploaded} icon={<CheckCircle className="h-4 w-4" />} />
-              <PipelineStage label="Translated" count={pipeline.translated} total={pipeline.uploaded} icon={<Activity className="h-4 w-4" />} />
-              <PipelineStage label="Sent to Patient" count={pipeline.sentToPatient} total={pipeline.uploaded} icon={<Users className="h-4 w-4" />} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-checkins">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              Check-in Response Rates
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Scheduled</p>
-                  <p className="text-2xl font-bold" data-testid="text-total-checkins">{checkIns.total}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Response Rate</p>
-                  <p className="text-2xl font-bold" data-testid="text-response-rate">{checkIns.responseRate}%</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {[
-                  { label: "Doing Well", key: "green" as const, color: "bg-green-500", count: checkIns.green },
-                  { label: "Has Questions", key: "yellow" as const, color: "bg-yellow-500", count: checkIns.yellow },
-                  { label: "Needs Help", key: "red" as const, color: "bg-red-500", count: checkIns.red },
-                ].map((item) => {
-                  const pct = checkIns.responded > 0 ? Math.round((item.count / checkIns.responded) * 100) : 0;
-                  return (
-                    <div key={item.key} className="flex items-center gap-3" data-testid={`checkin-${item.key}`}>
-                      <div className={`w-3 h-3 rounded-full ${item.color} shrink-0`} />
-                      <span className="text-sm text-muted-foreground flex-1">{item.label}</span>
-                      <span className="text-sm font-medium" data-testid={`checkin-count-${item.key}`}>{item.count}</span>
-                      <Badge variant="secondary" className="text-xs w-12 justify-center">{pct}%</Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-tcm" className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-              TCM Compliance Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-3 rounded-md bg-muted/50" data-testid="tcm-total-sent">
-                <p className="text-sm text-muted-foreground">Patients Sent</p>
-                <p className="text-2xl font-bold">{tcm.totalPatientsSent}</p>
-              </div>
-              <div className="p-3 rounded-md bg-muted/50" data-testid="tcm-contact-2day">
-                <p className="text-sm text-muted-foreground">Contact within 2 Days</p>
-                <p className="text-xs text-muted-foreground mb-1">Post-discharge contact</p>
-                <p className="text-lg font-semibold">{tcm.contactWithin2Days}</p>
-              </div>
-              <div className="p-3 rounded-md bg-muted/50" data-testid="tcm-99495">
-                <p className="text-sm text-muted-foreground">CPT 99495 Eligible</p>
-                <p className="text-xs text-muted-foreground mb-1">Contact + response within 14d</p>
-                <p className="text-lg font-semibold">{tcm.eligible99495}</p>
-              </div>
-              <div className="p-3 rounded-md bg-muted/50" data-testid="tcm-99496">
-                <p className="text-sm text-muted-foreground">CPT 99496 Eligible</p>
-                <p className="text-xs text-muted-foreground mb-1">Contact + response within 7d</p>
-                <p className="text-lg font-semibold">{tcm.eligible99496}</p>
-              </div>
-            </div>
-            {tcm.missingDischargeDate > 0 && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-3 flex items-center gap-1" data-testid="tcm-missing-dates">
-                <AlertTriangle className="h-3 w-3" />
-                {tcm.missingDischargeDate} care plan(s) missing discharge date - TCM eligibility cannot be calculated.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {data.staleCarePlans && data.staleCarePlans.length > 0 && (
-          <Card data-testid="card-stale-alerts" className="lg:col-span-2 border-amber-200 dark:border-amber-800">
+      {isInterpreter && data.interpreterMetrics && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card data-testid="card-interpreter-metrics">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap text-amber-700 dark:text-amber-400">
-                <AlertTriangle className="h-4 w-4" />
-                Stale Care Plans
+              <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
+                <Languages className="h-4 w-4 text-muted-foreground" />
+                Translation Review
               </CardTitle>
-              <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
-                {data.staleCarePlans.length} needing attention
-              </Badge>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground mb-3">
-                Care plans stuck in draft (&gt;48h), pending review, or approved (&gt;72h) without being sent.
-              </p>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {data.staleCarePlans.map((plan) => {
-                  const statusLabel = STATUS_CONFIG[plan.status]?.label || plan.status;
-                  const ageDays = Math.floor(plan.ageHours / 24);
-                  const ageRemainder = plan.ageHours % 24;
-                  const ageText = ageDays > 0 ? `${ageDays}d ${ageRemainder}h` : `${plan.ageHours}h`;
-                  return (
-                    <div key={plan.id} className="flex items-center justify-between p-2 rounded bg-amber-50 dark:bg-amber-950/20 text-sm" data-testid={`stale-plan-${plan.id}`}>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-3.5 w-3.5 text-amber-600" />
-                        <span className="font-mono text-xs text-muted-foreground">{plan.id.slice(0, 8)}</span>
-                        <Badge variant="secondary" className="text-xs">{statusLabel}</Badge>
-                      </div>
-                      <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">{ageText} old</span>
-                    </div>
-                  );
-                })}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-muted/50" data-testid="interpreter-pending-review">
+                  <div className="text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-muted-foreground">Plans Awaiting Your Review</p>
+                    <p className="text-2xl font-bold" data-testid="text-pending-review-count">{data.interpreterMetrics.pendingReview}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-md bg-muted/50" data-testid="interpreter-approved">
+                  <div className="text-muted-foreground">
+                    <CheckCircle className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-muted-foreground">Plans You've Approved</p>
+                    <p className="text-2xl font-bold" data-testid="text-approved-count">{data.interpreterMetrics.approved}</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
-        )}
-      </div>
+
+          <Card data-testid="card-translation-pipeline">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                Translation Pipeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3 p-3 rounded-md bg-muted/50" data-testid="pipeline-translated">
+                <div className="text-muted-foreground">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-muted-foreground">Total Translated</p>
+                  <p className="text-2xl font-bold" data-testid="text-translated-count">{pipeline.translated}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {!isInterpreter && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card data-testid="card-status-funnel">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                Care Plan Funnel
+              </CardTitle>
+              <Badge variant="outline" className="text-xs">
+                {Object.values(statusCounts).reduce((a, b) => a + b, 0)} total
+              </Badge>
+            </CardHeader>
+            <CardContent>
+              <StatusFunnel statusCounts={statusCounts} />
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-status-counts">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Care Plans by Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StatusBar statusCounts={statusCounts} />
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-pipeline">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                Processing Pipeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                <PipelineStage label="Uploaded" count={pipeline.uploaded} total={pipeline.uploaded} icon={<FileText className="h-4 w-4" />} />
+                <PipelineStage label="Simplified" count={pipeline.simplified} total={pipeline.uploaded} icon={<CheckCircle className="h-4 w-4" />} />
+                <PipelineStage label="Translated" count={pipeline.translated} total={pipeline.uploaded} icon={<Activity className="h-4 w-4" />} />
+                <PipelineStage label="Sent to Patient" count={pipeline.sentToPatient} total={pipeline.uploaded} icon={<Users className="h-4 w-4" />} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {data.checkIns && (
+            <Card data-testid="card-checkins">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                  Check-in Response Rates
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Scheduled</p>
+                      <p className="text-2xl font-bold" data-testid="text-total-checkins">{data.checkIns.total}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Response Rate</p>
+                      <p className="text-2xl font-bold" data-testid="text-response-rate">{data.checkIns.responseRate}%</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {[
+                      { label: "Doing Well", key: "green" as const, color: "bg-green-500", count: data.checkIns.green },
+                      { label: "Has Questions", key: "yellow" as const, color: "bg-yellow-500", count: data.checkIns.yellow },
+                      { label: "Needs Help", key: "red" as const, color: "bg-red-500", count: data.checkIns.red },
+                    ].map((item) => {
+                      const pct = data.checkIns!.responded > 0 ? Math.round((item.count / data.checkIns!.responded) * 100) : 0;
+                      return (
+                        <div key={item.key} className="flex items-center gap-3" data-testid={`checkin-${item.key}`}>
+                          <div className={`w-3 h-3 rounded-full ${item.color} shrink-0`} />
+                          <span className="text-sm text-muted-foreground flex-1">{item.label}</span>
+                          <span className="text-sm font-medium" data-testid={`checkin-count-${item.key}`}>{item.count}</span>
+                          <Badge variant="secondary" className="text-xs w-12 justify-center">{pct}%</Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && data.tcm && (
+            <Card data-testid="card-tcm" className="lg:col-span-2">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap">
+                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                  TCM Compliance Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-3 rounded-md bg-muted/50" data-testid="tcm-total-sent">
+                    <p className="text-sm text-muted-foreground">Patients Sent</p>
+                    <p className="text-2xl font-bold">{data.tcm.totalPatientsSent}</p>
+                  </div>
+                  <div className="p-3 rounded-md bg-muted/50" data-testid="tcm-contact-2day">
+                    <p className="text-sm text-muted-foreground">Contact within 2 Days</p>
+                    <p className="text-xs text-muted-foreground mb-1">Post-discharge contact</p>
+                    <p className="text-lg font-semibold">{data.tcm.contactWithin2Days}</p>
+                  </div>
+                  <div className="p-3 rounded-md bg-muted/50" data-testid="tcm-99495">
+                    <p className="text-sm text-muted-foreground">CPT 99495 Eligible</p>
+                    <p className="text-xs text-muted-foreground mb-1">Contact + response within 14d</p>
+                    <p className="text-lg font-semibold">{data.tcm.eligible99495}</p>
+                  </div>
+                  <div className="p-3 rounded-md bg-muted/50" data-testid="tcm-99496">
+                    <p className="text-sm text-muted-foreground">CPT 99496 Eligible</p>
+                    <p className="text-xs text-muted-foreground mb-1">Contact + response within 7d</p>
+                    <p className="text-lg font-semibold">{data.tcm.eligible99496}</p>
+                  </div>
+                </div>
+                {data.tcm.missingDischargeDate > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-3 flex items-center gap-1" data-testid="tcm-missing-dates">
+                    <AlertTriangle className="h-3 w-3" />
+                    {data.tcm.missingDischargeDate} care plan(s) missing discharge date - TCM eligibility cannot be calculated.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {data.staleCarePlans && data.staleCarePlans.length > 0 && (
+            <Card data-testid="card-stale-alerts" className="lg:col-span-2 border-amber-200 dark:border-amber-800">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                <CardTitle className="text-base font-medium flex items-center gap-2 flex-wrap text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-4 w-4" />
+                  Stale Care Plans
+                </CardTitle>
+                <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
+                  {data.staleCarePlans.length} needing attention
+                </Badge>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Care plans stuck in draft (&gt;48h), pending review, or approved (&gt;72h) without being sent.
+                </p>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {data.staleCarePlans.map((plan) => {
+                    const statusLabel = STATUS_CONFIG[plan.status]?.label || plan.status;
+                    const ageDays = Math.floor(plan.ageHours / 24);
+                    const ageRemainder = plan.ageHours % 24;
+                    const ageText = ageDays > 0 ? `${ageDays}d ${ageRemainder}h` : `${plan.ageHours}h`;
+                    return (
+                      <div key={plan.id} className="flex items-center justify-between p-2 rounded bg-amber-50 dark:bg-amber-950/20 text-sm" data-testid={`stale-plan-${plan.id}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                          <span className="font-medium truncate">{plan.patientName}</span>
+                          <Badge variant="secondary" className="text-xs shrink-0">{statusLabel}</Badge>
+                          {plan.diagnosis && <span className="text-xs text-muted-foreground truncate max-w-[180px] hidden sm:inline">{plan.diagnosis}</span>}
+                        </div>
+                        <span className="text-xs text-amber-700 dark:text-amber-400 font-medium shrink-0 ml-2">{ageText} old</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }

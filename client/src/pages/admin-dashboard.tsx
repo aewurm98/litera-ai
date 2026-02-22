@@ -113,7 +113,17 @@ type EnrichedPatient = {
   lastCarePlanStatus: string | null;
   lastCarePlanDate: string | null;
   isTestPatient: boolean;
+  latestAccessToken: string | null;
 };
+
+async function viewAsPatient(accessToken: string) {
+  try {
+    await fetch(`/api/admin/preview-access/${accessToken}`, { method: "POST", credentials: "include" });
+    window.open(`/p/${accessToken}`, "_blank");
+  } catch {
+    window.open(`/p/${accessToken}`, "_blank");
+  }
+}
 
 function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPatient; getStatusBadge: (status: string) => JSX.Element }) {
   const [showDemographics, setShowDemographics] = useState(false);
@@ -221,7 +231,7 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
             variant="outline"
             size="sm"
             className="w-full"
-            onClick={() => window.open(`/p/${latestCarePlan.accessToken}?demo=1`, "_blank")}
+            onClick={() => viewAsPatient(latestCarePlan.accessToken!)}
             data-testid="button-admin-view-as-patient"
           >
             <ExternalLink className="h-4 w-4 mr-2" />
@@ -266,7 +276,7 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => window.open(`/p/${cp.accessToken}?demo=1`, "_blank")}
+                          onClick={() => viewAsPatient(cp.accessToken!)}
                           title="View as Patient"
                           data-testid={`button-view-care-plan-${cp.id}`}
                         >
@@ -982,6 +992,17 @@ export default function AdminDashboard() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+                            {patient.latestAccessToken && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => viewAsPatient(patient.latestAccessToken!)}
+                                title="View as Patient"
+                                data-testid={`button-view-as-patient-${patient.id}`}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"

@@ -1009,18 +1009,13 @@ export default function ClinicianDashboard() {
   const handleViewAsPatient = async () => {
     if (!selectedCarePlan?.accessToken || !selectedCarePlan?.id) return;
     try {
-      const res = await fetch(`/api/care-plans/${selectedCarePlan.id}/demo-token`, {
+      await fetch(`/api/admin/preview-access/${selectedCarePlan.accessToken}`, {
         method: "POST",
         credentials: "include",
       });
-      const data = await res.json();
-      if (data.demoToken) {
-        window.open(`/p/${selectedCarePlan.accessToken}?preview=${data.demoToken}`, "_blank");
-      } else {
-        window.open(`/p/${selectedCarePlan.accessToken}?demo=1`, "_blank");
-      }
+      window.open(`/p/${selectedCarePlan.accessToken}`, "_blank");
     } catch {
-      window.open(`/p/${selectedCarePlan.accessToken}?demo=1`, "_blank");
+      window.open(`/p/${selectedCarePlan.accessToken}`, "_blank");
     }
   };
 

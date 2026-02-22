@@ -242,6 +242,7 @@ const sendCarePlanSchema = z.object({
 // Demo mode only requires yearOfBirth for backward compatibility
 const verifyPatientSchema = z.object({
   yearOfBirth: z.number().int().min(1900).max(2100),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   lastName: z.string().optional(), // Required in production mode (unless using password)
   pin: z.string().length(4).optional(), // 4-digit PIN, required in production mode (unless using password)
   password: z.string().optional(), // Alternative to PIN for returning patients
@@ -1682,7 +1683,7 @@ export async function registerRoutes(
   app.post("/api/patient/:token/verify", validateBody(verifyPatientSchema), async (req: Request, res: Response) => {
     try {
       const token = req.params.token as string;
-      const { yearOfBirth, lastName, pin, password } = req.body;
+      const { yearOfBirth, dateOfBirth, lastName, pin, password } = req.body;
 
       // Check if locked out
       if (checkVerificationLock(token)) {
@@ -1713,8 +1714,12 @@ export async function registerRoutes(
       let isValid = false;
       
       if (isDemoMode) {
-        // Demo mode: only year of birth required
-        isValid = patient.yearOfBirth === yearOfBirth;
+        // Demo mode: if patient has full dateOfBirth, validate it; otherwise year only
+        if (patient.dateOfBirth && dateOfBirth) {
+          isValid = patient.dateOfBirth === dateOfBirth;
+        } else {
+          isValid = patient.yearOfBirth === yearOfBirth;
+        }
       } else {
         // Production mode: require lastName + yearOfBirth + (PIN or password)
         const hasPatientPassword = patient.password !== null && patient.password !== undefined;
@@ -1740,7 +1745,10 @@ export async function registerRoutes(
         const patientLastName = (patient.lastName || extractLastName(patient.name)).toLowerCase();
         const providedLastName = lastName.toLowerCase().trim();
         const lastNameMatches = patientLastName === providedLastName;
-        const yearMatches = patient.yearOfBirth === yearOfBirth;
+        // If patient has full dateOfBirth and it was provided, validate it; otherwise year only
+        const yearMatches = (patient.dateOfBirth && dateOfBirth)
+          ? patient.dateOfBirth === dateOfBirth
+          : patient.yearOfBirth === yearOfBirth;
         
         // Check PIN or password — both use bcrypt (inherently timing-safe)
         let credentialValid = false;
@@ -1824,10 +1832,12 @@ export async function registerRoutes(
       // server-side to prevent direct API access bypassing the verify step.
       const isVerified = req.session.verifiedTokens?.[token] === true;
       if (!isVerified) {
+        const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
         return res.status(403).json({
           error: "Verification required",
           requiresVerification: true,
           translatedLanguage: carePlan.translatedLanguage,
+          requiresDateOfBirth: !!(patient?.dateOfBirth),
         });
       }
 
@@ -2575,6 +2585,25 @@ ${contextText}`
     }
   });
 
+  // ============= Admin Preview Access (auth bypass for staff viewing patient portal) =============
+  app.post("/api/admin/preview-access/:accessToken", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const accessToken = req.params.accessToken as string;
+      const carePlan = await storage.getCarePlanByToken(accessToken);
+      if (!carePlan) {
+        return res.status(404).json({ error: "Care plan not found" });
+      }
+      if (req.session.tenantId && carePlan.tenantId !== req.session.tenantId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      req.session.verifiedTokens = { ...(req.session.verifiedTokens || {}), [accessToken]: true };
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error setting preview access:", error);
+      res.status(500).json({ error: "Failed to set preview access" });
+    }
+  });
+
   // ============= Patient CRUD Endpoints =============
 
   app.get("/api/admin/patients", requireAdminAuth, async (req: Request, res: Response) => {
@@ -2601,6 +2630,7 @@ ${contextText}`
             lastCarePlanStatus: lastCarePlan?.status || null,
             lastCarePlanDate: lastCarePlan?.createdAt || null,
             isTestPatient: patient.isTestPatient || false,
+            latestAccessToken: lastCarePlan?.accessToken || null,
           };
         })
       );
@@ -3317,7 +3347,7 @@ ${contextText}`
       const daysParam = parseInt(req.query.days as string) || 0;
 
       const { db } = await import("./db");
-      const { carePlans, checkIns } = await import("@shared/schema");
+      const { carePlans, checkIns, patients } = await import("@shared/schema");
       const { eq, sql, isNotNull, inArray, and: drizzleAnd, gte } = await import("drizzle-orm");
 
       const conditions = [];
@@ -3454,21 +3484,112 @@ ${contextText}`
       const now = new Date();
       const staleDraftThresholdMs = 48 * 60 * 60 * 1000;
       const staleReviewThresholdMs = 72 * 60 * 60 * 1000;
-      const staleCarePlans = allPlans.filter(plan => {
+      const staleCarePlansFiltered = allPlans.filter(plan => {
         const age = now.getTime() - new Date(plan.createdAt).getTime();
         if (plan.status === "draft" && age > staleDraftThresholdMs) return true;
         if (plan.status === "pending_review" && age > staleReviewThresholdMs) return true;
         if (plan.status === "approved" && age > staleReviewThresholdMs) return true;
         return false;
-      }).map(plan => ({
+      });
+
+      // Fetch patient names for stale care plans
+      const stalePatientIds = staleCarePlansFiltered.map(p => p.patientId).filter(Boolean);
+      let patientNameMap = new Map<string, string>();
+      if (stalePatientIds.length > 0) {
+        const stalePatients = await db.select({ id: patients.id, name: patients.name }).from(patients).where(inArray(patients.id, stalePatientIds));
+        patientNameMap = new Map(stalePatients.map(p => [p.id, p.name]));
+      }
+
+      const staleCarePlans = staleCarePlansFiltered.map(plan => ({
         id: plan.id,
         patientId: plan.patientId,
+        patientName: patientNameMap.get(plan.patientId) || 'Unknown',
+        diagnosis: plan.diagnosis || null,
         status: plan.status,
         createdAt: plan.createdAt,
         ageHours: Math.round((now.getTime() - new Date(plan.createdAt).getTime()) / (60 * 60 * 1000)),
       }));
 
+      if (userRole === "interpreter") {
+        const interpreterStatusCounts: Record<string, number> = {
+          interpreter_review: statusCounts["interpreter_review"] || 0,
+          interpreter_approved: statusCounts["interpreter_approved"] || 0,
+        };
+        res.json({
+          userRole,
+          statusCounts: interpreterStatusCounts,
+          pipeline: {
+            uploaded: 0,
+            simplified: 0,
+            translated,
+            sentToPatient: 0,
+          },
+          checkIns: null,
+          tcm: null,
+          staleCarePlans: [],
+          interpreterMetrics: {
+            pendingReview: statusCounts["interpreter_review"] || 0,
+            approved: statusCounts["interpreter_approved"] || 0,
+          },
+        });
+        return;
+      }
+
+      if (userRole === "clinician") {
+        const clinicianPlans = allPlans.filter(p => p.clinicianId === req.session.userId);
+        const clinicianStatusCounts: Record<string, number> = {};
+        for (const status of ["draft", "pending_review", "interpreter_review", "interpreter_approved", "approved", "sent", "completed"]) {
+          clinicianStatusCounts[status] = 0;
+        }
+        let clinicianSimplified = 0;
+        let clinicianTranslated = 0;
+        let clinicianSentToPatient = 0;
+        const clinicianPlanIds: string[] = [];
+
+        for (const plan of clinicianPlans) {
+          clinicianStatusCounts[plan.status] = (clinicianStatusCounts[plan.status] || 0) + 1;
+          if (plan.simplifiedDiagnosis) clinicianSimplified++;
+          if (plan.translatedLanguage) clinicianTranslated++;
+          if (plan.status === "sent" || plan.status === "completed") clinicianSentToPatient++;
+          clinicianPlanIds.push(plan.id);
+        }
+
+        const clinicianCheckIns = allCheckIns.filter(c => clinicianPlanIds.includes(c.carePlanId));
+        const clinicianTotalCheckIns = clinicianCheckIns.length;
+        const clinicianRespondedCheckIns = clinicianCheckIns.filter(c => c.respondedAt !== null);
+        const clinicianResponded = clinicianRespondedCheckIns.length;
+        const clinicianResponseRate = clinicianTotalCheckIns > 0 ? Math.round((clinicianResponded / clinicianTotalCheckIns) * 100) : 0;
+        const clinicianGreen = clinicianRespondedCheckIns.filter(c => c.response === "green").length;
+        const clinicianYellow = clinicianRespondedCheckIns.filter(c => c.response === "yellow").length;
+        const clinicianRed = clinicianRespondedCheckIns.filter(c => c.response === "red").length;
+
+        const clinicianStale = staleCarePlans.filter(sp => clinicianPlanIds.includes(sp.id));
+
+        res.json({
+          userRole,
+          statusCounts: clinicianStatusCounts,
+          pipeline: {
+            uploaded: clinicianPlans.length,
+            simplified: clinicianSimplified,
+            translated: clinicianTranslated,
+            sentToPatient: clinicianSentToPatient,
+          },
+          checkIns: {
+            total: clinicianTotalCheckIns,
+            responded: clinicianResponded,
+            responseRate: clinicianResponseRate,
+            green: clinicianGreen,
+            yellow: clinicianYellow,
+            red: clinicianRed,
+          },
+          tcm: null,
+          staleCarePlans: clinicianStale,
+        });
+        return;
+      }
+
       res.json({
+        userRole,
         statusCounts,
         pipeline: {
           uploaded: allPlans.length,

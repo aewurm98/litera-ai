@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Settings, Building2, Shield, Loader2, UserPlus, Mail, Clock } from "lucide-react";
+import { Settings, Building2, Shield, Loader2, UserPlus, Mail, Clock, User } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 
@@ -35,6 +35,8 @@ export default function SettingsPage() {
   });
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  const isClinician = user?.role === "clinician";
+  const isInterpreter = user?.role === "interpreter";
 
   useEffect(() => {
     if (user?.tenant?.interpreterReviewMode) {
@@ -120,6 +122,25 @@ export default function SettingsPage() {
                 <Badge variant="default" data-testid="badge-demo-mode">Production</Badge>
               )}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Your Account
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase">Name</Label>
+            <p className="text-sm font-medium" data-testid="text-account-name">{user.name}</p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase">Role</Label>
+            <Badge variant="secondary" className="capitalize" data-testid="badge-account-role">{user.role}</Badge>
           </div>
         </CardContent>
       </Card>

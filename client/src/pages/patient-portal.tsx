@@ -524,6 +524,8 @@ export default function PatientPortal() {
   
   const [isVerified, setIsVerified] = useState(false);
   const [yearOfBirth, setYearOfBirth] = useState("");
+  const [dateOfBirthInput, setDateOfBirthInput] = useState("");
+  const [requiresDateOfBirth, setRequiresDateOfBirth] = useState(false);
   const [lastName, setLastName] = useState("");
   const [pin, setPin] = useState("");
   const [password, setPassword] = useState(""); // For returning patients with password
@@ -543,6 +545,22 @@ export default function PatientPortal() {
       }
     }
   }, [isEnvLoading, envInfo, demoParam]);
+
+  useEffect(() => {
+    if (token && !isVerified) {
+      fetch(`/api/patient/${token}`, { credentials: "include" })
+        .then(r => r.json())
+        .then(data => {
+          if (data.requiresVerification && data.requiresDateOfBirth) {
+            setRequiresDateOfBirth(true);
+          }
+          if (!data.requiresVerification && !data.error) {
+            setIsVerified(true);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [token, isVerified]);
 
   useEffect(() => {
     if (previewToken && token) {
@@ -571,7 +589,7 @@ export default function PatientPortal() {
 
   // Verify patient identity mutation
   const verifyMutation = useMutation({
-    mutationFn: async (verificationData: { yearOfBirth: number; lastName?: string; pin?: string; password?: string }) => {
+    mutationFn: async (verificationData: { yearOfBirth: number; dateOfBirth?: string; lastName?: string; pin?: string; password?: string }) => {
       const response = await fetch(`/api/patient/${token}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -661,13 +679,14 @@ export default function PatientPortal() {
   const handleVerify = () => {
     if (isLocked || attemptsRemaining <= 0) return;
     
-    // In production mode (requiresFullAuth), send lastName + yearOfBirth + (PIN or password)
-    // In demo mode, only send yearOfBirth
     if (requiresFullAuth || !isAppDemoMode) {
-      const verificationData: { yearOfBirth: number; lastName?: string; pin?: string; password?: string } = {
-        yearOfBirth: parseInt(yearOfBirth),
+      const verificationData: { yearOfBirth: number; dateOfBirth?: string; lastName?: string; pin?: string; password?: string } = {
+        yearOfBirth: requiresDateOfBirth && dateOfBirthInput ? parseInt(dateOfBirthInput.split("-")[0]) : parseInt(yearOfBirth),
         lastName: lastName.trim(),
       };
+      if (requiresDateOfBirth && dateOfBirthInput) {
+        verificationData.dateOfBirth = dateOfBirthInput;
+      }
       if (usePasswordLogin && password.trim()) {
         verificationData.password = password.trim();
       } else {
@@ -675,7 +694,14 @@ export default function PatientPortal() {
       }
       verifyMutation.mutate(verificationData);
     } else {
-      verifyMutation.mutate({ yearOfBirth: parseInt(yearOfBirth) });
+      if (requiresDateOfBirth && dateOfBirthInput) {
+        verifyMutation.mutate({
+          yearOfBirth: parseInt(dateOfBirthInput.split("-")[0]),
+          dateOfBirth: dateOfBirthInput,
+        });
+      } else {
+        verifyMutation.mutate({ yearOfBirth: parseInt(yearOfBirth) });
+      }
     }
   };
   
@@ -996,11 +1022,15 @@ export default function PatientPortal() {
   const showFullAuthFields = !isAppDemoMode || requiresFullAuth;
   
   // Validation for form submit - supports both PIN and password login
+  const birthFieldValid = requiresDateOfBirth
+    ? dateOfBirthInput.length === 10
+    : yearOfBirth.length === 4;
+  
   const isFormValid = showFullAuthFields 
-    ? yearOfBirth.length === 4 && lastName.trim().length > 0 && (
+    ? birthFieldValid && lastName.trim().length > 0 && (
         usePasswordLogin ? password.trim().length >= 1 : pin.length === 4
       )
-    : yearOfBirth.length === 4;
+    : birthFieldValid;
   
   if (!isVerified) {
     return (
@@ -1014,7 +1044,9 @@ export default function PatientPortal() {
             <CardDescription className="text-base">
               {showFullAuthFields 
                 ? "Please verify your identity to access your care instructions"
-                : "Please enter your year of birth to access your care instructions"
+                : requiresDateOfBirth
+                  ? "Please enter your date of birth to access your care instructions"
+                  : "Please enter your year of birth to access your care instructions"
               }
             </CardDescription>
           </CardHeader>
@@ -1035,18 +1067,35 @@ export default function PatientPortal() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="yob" className="text-base">Year of Birth</Label>
-              <Input
-                id="yob"
-                type="number"
-                placeholder="e.g., 1956"
-                value={yearOfBirth}
-                onChange={(e) => setYearOfBirth(e.target.value)}
-                className="text-center text-2xl h-14"
-                maxLength={4}
-                disabled={isLocked}
-                data-testid="input-verify-yob"
-              />
+              {requiresDateOfBirth ? (
+                <>
+                  <Label htmlFor="dob" className="text-base">Date of Birth</Label>
+                  <Input
+                    id="dob"
+                    type="date"
+                    value={dateOfBirthInput}
+                    onChange={(e) => setDateOfBirthInput(e.target.value)}
+                    className="text-center text-lg h-14"
+                    disabled={isLocked}
+                    data-testid="input-verify-dob"
+                  />
+                </>
+              ) : (
+                <>
+                  <Label htmlFor="yob" className="text-base">Year of Birth</Label>
+                  <Input
+                    id="yob"
+                    type="number"
+                    placeholder="e.g., 1956"
+                    value={yearOfBirth}
+                    onChange={(e) => setYearOfBirth(e.target.value)}
+                    className="text-center text-2xl h-14"
+                    maxLength={4}
+                    disabled={isLocked}
+                    data-testid="input-verify-yob"
+                  />
+                </>
+              )}
             </div>
             {showFullAuthFields && (
               <div className="space-y-2">

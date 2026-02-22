@@ -74,7 +74,12 @@ interface CarePlanChatbotProps {
 }
 
 export default function CarePlanChatbot({ apiEndpoint, language, carePlanContext, bottomOffset = "6" }: CarePlanChatbotProps) {
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('litera_chat_dismissed') !== 'true';
+    }
+    return false;
+  });
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -119,14 +124,33 @@ export default function CarePlanChatbot({ apiEndpoint, language, carePlanContext
 
   return (
     <>
-      <button
-        onClick={() => setChatOpen(!chatOpen)}
-        className={`fixed right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg z-50 print:hidden`}
-        style={{ bottom: `${parseInt(bottomOffset) * 4}px` }}
-        data-testid="button-chat-toggle"
-      >
-        {chatOpen ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
-      </button>
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed right-6 flex items-center gap-2 rounded-full bg-primary text-primary-foreground shadow-lg z-50 print:hidden group hover:shadow-xl transition-shadow"
+          style={{ bottom: `${parseInt(bottomOffset) * 4}px` }}
+          data-testid="button-chat-toggle"
+        >
+          <div className="relative w-16 h-16 rounded-full flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full bg-primary/30 animate-ping" />
+            <MessageCircle className="h-7 w-7 relative z-10" />
+          </div>
+          <span className="pr-4 text-sm font-medium hidden sm:inline">Questions?</span>
+        </button>
+      )}
+      {chatOpen && (
+        <button
+          onClick={() => {
+            setChatOpen(false);
+            localStorage.setItem('litera_chat_dismissed', 'true');
+          }}
+          className="fixed right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg z-50 print:hidden"
+          style={{ bottom: `${parseInt(bottomOffset) * 4}px` }}
+          data-testid="button-chat-close"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      )}
 
       {chatOpen && (
         <div
@@ -138,7 +162,10 @@ export default function CarePlanChatbot({ apiEndpoint, language, carePlanContext
               <MessageCircle className="h-5 w-5 text-primary" />
               <h3 className="font-semibold">{getChatTranslation(uiLang, "chatTitle")}</h3>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setChatOpen(false)} data-testid="button-chat-close">
+            <Button variant="ghost" size="icon" onClick={() => {
+              setChatOpen(false);
+              localStorage.setItem('litera_chat_dismissed', 'true');
+            }} data-testid="button-chat-close-panel">
               <X className="h-4 w-4" />
             </Button>
           </div>
