@@ -114,7 +114,7 @@ async function testAuthSecurity() {
   });
 
   // 1c. Successful login resets the counter
-  const goodLogin = await req("POST", "/api/auth/login", { username: "nurse", password: "password123" });
+  const goodLogin = await req("POST", "/api/auth/login", { username: "nurse", password: "Password123!" });
   log({
     category: CAT,
     name: "Valid login succeeds and resets counter",
@@ -146,7 +146,7 @@ async function testAuthSecurity() {
   // 1f. Login with XSS payload
   const xssLogin = await req("POST", "/api/auth/login", {
     username: '<script>alert("xss")</script>',
-    password: "password123",
+    password: "Password123!",
   });
   log({
     category: CAT,
@@ -174,9 +174,9 @@ async function testAuthSecurity() {
 async function testRoleEscalation() {
   const CAT = "ROLE_ESCALATION";
 
-  const clinicianCookie = await login("nurse", "password123");
-  const interpreterCookie = await login("riverside_interpreter", "password123");
-  const adminCookie = await login("riverside_admin", "password123");
+  const clinicianCookie = await login("nurse", "Password123!");
+  const interpreterCookie = await login("riverside_interpreter", "Password123!");
+  const adminCookie = await login("riverside_admin", "Password123!");
 
   // 2a. Clinician tries admin endpoints
   const adminEndpoints = [
@@ -247,8 +247,8 @@ async function testRoleEscalation() {
 async function testCrossTenantIsolation() {
   const CAT = "TENANT_ISOLATION";
 
-  const riversideCookie = await login("nurse", "password123");
-  const lakesideCookie = await login("lakeside_nurse", "password123");
+  const riversideCookie = await login("nurse", "Password123!");
+  const lakesideCookie = await login("lakeside_nurse", "Password123!");
 
   // 3a. Get Riverside care plans
   const riversidePlans = await req("GET", "/api/care-plans", undefined, { cookies: riversideCookie });
@@ -283,8 +283,8 @@ async function testCrossTenantIsolation() {
   }
 
   // 3c. Admin isolation — Riverside admin shouldn't see Lakeside patients
-  const riversideAdminCookie = await login("riverside_admin", "password123");
-  const lakesideAdminCookie = await login("lakeside_admin", "password123");
+  const riversideAdminCookie = await login("riverside_admin", "Password123!");
+  const lakesideAdminCookie = await login("lakeside_admin", "Password123!");
 
   const rPatients = await req("GET", "/api/admin/patients", undefined, { cookies: riversideAdminCookie });
   const lPatients = await req("GET", "/api/admin/patients", undefined, { cookies: lakesideAdminCookie });
@@ -302,8 +302,8 @@ async function testCrossTenantIsolation() {
   }
 
   // 3d. Interpreter isolation
-  const rInterpCookie = await login("riverside_interpreter", "password123");
-  const lInterpCookie = await login("lakeside_interpreter", "password123");
+  const rInterpCookie = await login("riverside_interpreter", "Password123!");
+  const lInterpCookie = await login("lakeside_interpreter", "Password123!");
 
   const rQueue = await req("GET", "/api/interpreter/queue", undefined, { cookies: rInterpCookie });
   const lQueue = await req("GET", "/api/interpreter/queue", undefined, { cookies: lInterpCookie });
@@ -322,7 +322,7 @@ async function testCrossTenantIsolation() {
 
 async function testInputValidation() {
   const CAT = "INPUT_VALIDATION";
-  const cookie = await login("riverside_admin", "password123");
+  const cookie = await login("riverside_admin", "Password123!");
 
   // 4a. XSS in patient name
   const xssPatient = await req(
@@ -428,7 +428,7 @@ async function testInputValidation() {
   }
 
   // 4f. Change password with empty strings
-  const clinicianCookie = await login("nurse", "password123");
+  const clinicianCookie = await login("nurse", "Password123!");
   const emptyPw = await req("POST", "/api/auth/change-password", { currentPassword: "", newPassword: "" }, { cookies: clinicianCookie });
   log({
     category: CAT,
@@ -479,7 +479,7 @@ async function testPatientPortal() {
 
   // 5b. Verify with wrong year of birth — only 1 attempt (stay under 3-attempt limit)
   // First we need a valid token — get one from the care plans
-  const clinicianCookie = await login("nurse", "password123");
+  const clinicianCookie = await login("nurse", "Password123!");
   const plans = await req("GET", "/api/care-plans", undefined, { cookies: clinicianCookie });
   const sentPlan = Array.isArray(plans.body) ? plans.body.find((p: any) => p.status === "sent" && p.accessToken) : null;
 
@@ -534,7 +534,7 @@ async function testPatientPortal() {
 
   // 5f. Set patient password without verified session
   const unauthedSetPw = await req("POST", "/api/patient/fake-token/set-password", {
-    password: "newpassword123",
+    password: "NewPassword123!",
   });
   log({
     category: CAT,
@@ -551,9 +551,9 @@ async function testPatientPortal() {
 async function testInterpreterWorkflow() {
   const CAT = "INTERPRETER_WORKFLOW";
 
-  const rInterpCookie = await login("riverside_interpreter", "password123");
-  const lInterpCookie = await login("lakeside_interpreter", "password123");
-  const clinicianCookie = await login("nurse", "password123");
+  const rInterpCookie = await login("riverside_interpreter", "Password123!");
+  const lInterpCookie = await login("lakeside_interpreter", "Password123!");
+  const clinicianCookie = await login("nurse", "Password123!");
 
   // 6a. Get care plans in interpreter_review status
   const queue = await req("GET", "/api/interpreter/queue", undefined, { cookies: rInterpCookie });
@@ -773,7 +773,7 @@ async function testAIRedTeaming() {
 
 async function testStatusTransitions() {
   const CAT = "STATUS_TRANSITIONS";
-  const cookie = await login("nurse", "password123");
+  const cookie = await login("nurse", "Password123!");
 
   const plans = await req("GET", "/api/care-plans", undefined, { cookies: cookie });
   if (!Array.isArray(plans.body)) {
@@ -904,7 +904,7 @@ async function testInternalEndpoints() {
 
 async function testCSVImport() {
   const CAT = "CSV_IMPORT";
-  const cookie = await login("riverside_admin", "password123");
+  const cookie = await login("riverside_admin", "Password123!");
 
   // 10a. Import with no file
   const noFile = await req("POST", "/api/admin/patients/import", undefined, { cookies: cookie });

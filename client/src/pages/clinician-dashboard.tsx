@@ -137,17 +137,15 @@ function MedicationsList({
 }) {
   if (!medications || medications.length === 0) return null;
 
-  const getMedText = (med: SimplifiedMedication, index: number) => {
-    const key = `simplifiedMedications_${index}`;
+  const getFieldVal = (index: number, field: string, original: string) => {
+    const key = `simplifiedMedications_${index}_${field}`;
     if (editValues && key in editValues) return editValues[key];
-    const parts = [med.name];
-    if (med.dose) parts.push(`- ${med.dose}`);
-    if (med.frequency) parts.push(`| ${med.frequency}`);
-    if (med.instructions) parts.push(`| ${med.instructions}`);
-    return parts.join(" ");
+    return original || "";
   };
 
-  const hasAnyEdits = editValues && medications.some((_, i) => `simplifiedMedications_${i}` in editValues);
+  const hasAnyEdits = editValues && medications.some((_, i) => 
+    ["name", "dose", "frequency", "instructions"].some(f => `simplifiedMedications_${i}_${f}` in editValues!)
+  );
 
   return (
     <div className="space-y-2">
@@ -165,35 +163,63 @@ function MedicationsList({
             className="bg-muted/50 rounded-lg p-3 border border-border/50"
             data-testid={`medication-${columnId}-${index}`}
           >
-            {editable && onEdit ? (
-              <Textarea
-                className={`min-h-[40px] resize-none bg-background text-sm ${editable ? "border-primary/40" : ""}`}
-                value={getMedText(med, index)}
-                onChange={(e) => onEdit(`simplifiedMedications_${index}`, e.target.value)}
-                data-testid={`textarea-medication-${columnId}-${index}`}
-              />
-            ) : (
-              <>
-                <div className="flex items-start justify-between gap-2 flex-wrap">
-                  <span className="font-medium text-sm">{med.name}</span>
-                  {med.dose && (
-                    <Badge variant="outline" className="text-xs flex-shrink-0">
-                      {med.dose}
-                    </Badge>
-                  )}
-                </div>
-                {med.frequency && (
-                  <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3 flex-shrink-0" />
-                    {med.frequency}
-                  </div>
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              {editable && onEdit ? (
+                <input
+                  className="font-medium text-sm bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 min-w-0 focus:border-primary"
+                  value={getFieldVal(index, "name", med.name)}
+                  onChange={(e) => onEdit(`simplifiedMedications_${index}_name`, e.target.value)}
+                  data-testid={`input-med-name-${columnId}-${index}`}
+                />
+              ) : (
+                <span className="font-medium text-sm">{med.name}</span>
+              )}
+              {(med.dose || editable) && (
+                editable && onEdit ? (
+                  <input
+                    className="text-xs bg-transparent border-b border-dashed border-primary/40 outline-none w-24 text-right focus:border-primary"
+                    value={getFieldVal(index, "dose", med.dose || "")}
+                    onChange={(e) => onEdit(`simplifiedMedications_${index}_dose`, e.target.value)}
+                    placeholder="dose"
+                    data-testid={`input-med-dose-${columnId}-${index}`}
+                  />
+                ) : med.dose ? (
+                  <Badge variant="outline" className="text-xs flex-shrink-0">
+                    {med.dose}
+                  </Badge>
+                ) : null
+              )}
+            </div>
+            {(med.frequency || editable) && (
+              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 flex-shrink-0" />
+                {editable && onEdit ? (
+                  <input
+                    className="bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 text-xs focus:border-primary"
+                    value={getFieldVal(index, "frequency", med.frequency || "")}
+                    onChange={(e) => onEdit(`simplifiedMedications_${index}_frequency`, e.target.value)}
+                    placeholder="frequency"
+                    data-testid={`input-med-freq-${columnId}-${index}`}
+                  />
+                ) : (
+                  med.frequency
                 )}
-                {med.instructions && (
-                  <p className="text-xs text-muted-foreground mt-1 italic">
-                    {med.instructions}
-                  </p>
-                )}
-              </>
+              </div>
+            )}
+            {(med.instructions || editable) && (
+              editable && onEdit ? (
+                <input
+                  className="text-xs text-muted-foreground mt-1 italic bg-transparent border-b border-dashed border-primary/40 outline-none w-full focus:border-primary"
+                  value={getFieldVal(index, "instructions", med.instructions || "")}
+                  onChange={(e) => onEdit(`simplifiedMedications_${index}_instructions`, e.target.value)}
+                  placeholder="instructions"
+                  data-testid={`input-med-instr-${columnId}-${index}`}
+                />
+              ) : med.instructions ? (
+                <p className="text-xs text-muted-foreground mt-1 italic">
+                  {med.instructions}
+                </p>
+              ) : null
             )}
           </div>
         ))}
@@ -220,22 +246,42 @@ function AppointmentsList({
 }) {
   if (!appointments || appointments.length === 0) return null;
 
-  const getAptText = (apt: SimplifiedAppointment, index: number) => {
-    const key = `simplifiedAppointments_${index}`;
+  const getFieldVal = (index: number, field: string, original: string) => {
+    const key = `simplifiedAppointments_${index}_${field}`;
     if (editValues && key in editValues) return editValues[key];
-    const parts = [];
-    if (apt.purpose) parts.push(apt.purpose);
-    if (apt.date) parts.push(`Date: ${apt.date}`);
-    if (apt.time) parts.push(`Time: ${apt.time}`);
-    if (apt.provider) parts.push(`Doctor: ${apt.provider}`);
-    if (apt.location) parts.push(`Location: ${apt.location}`);
-    if (apt.phone) parts.push(`Phone: ${apt.phone}`);
-    if (apt.schedulingInstructions) parts.push(`Note: ${apt.schedulingInstructions}`);
-    if (apt.itemsToBring) parts.push(`Bring: ${apt.itemsToBring}`);
-    return parts.join("\n");
+    return original || "";
   };
 
-  const hasAnyEdits = editValues && appointments.some((_, i) => `simplifiedAppointments_${i}` in editValues);
+  const aptFields = ["purpose", "date", "time", "provider", "location", "phone", "schedulingInstructions", "itemsToBring"];
+  const hasAnyEdits = editValues && appointments.some((_, i) =>
+    aptFields.some(f => `simplifiedAppointments_${i}_${f}` in editValues!)
+  );
+
+  const EditableField = ({ index, field, original, icon: Icon, placeholder, bold }: {
+    index: number; field: string; original: string; icon?: any; placeholder: string; bold?: boolean;
+  }) => {
+    if (!editable || !onEdit) {
+      if (!original) return null;
+      return (
+        <div className={`flex items-center gap-1 ${bold ? "font-medium text-sm" : "text-xs text-muted-foreground"} ${!bold ? "mt-1" : ""}`}>
+          {Icon && <Icon className="h-3 w-3 flex-shrink-0" />}
+          {original}
+        </div>
+      );
+    }
+    return (
+      <div className={`flex items-center gap-1 ${!bold ? "mt-1" : ""}`}>
+        {Icon && <Icon className="h-3 w-3 flex-shrink-0 text-muted-foreground" />}
+        <input
+          className={`bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 text-xs focus:border-primary ${bold ? "font-medium text-sm" : "text-muted-foreground"}`}
+          value={getFieldVal(index, field, original)}
+          onChange={(e) => onEdit(`simplifiedAppointments_${index}_${field}`, e.target.value)}
+          placeholder={placeholder}
+          data-testid={`input-apt-${field}-${columnId}-${index}`}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-2">
@@ -253,61 +299,19 @@ function AppointmentsList({
             className="bg-muted/50 rounded-lg p-3 border border-border/50"
             data-testid={`appointment-${columnId}-${index}`}
           >
-            {editable && onEdit ? (
-              <Textarea
-                className={`min-h-[60px] resize-none bg-background text-sm ${editable ? "border-primary/40" : ""}`}
-                value={getAptText(apt, index)}
-                onChange={(e) => onEdit(`simplifiedAppointments_${index}`, e.target.value)}
-                data-testid={`textarea-appointment-${columnId}-${index}`}
-              />
-            ) : (
-              <>
-                {apt.purpose && (
-                  <p className="font-medium text-sm">{apt.purpose}</p>
-                )}
-                <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
-                  {apt.date && (
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3 flex-shrink-0" />
-                      {apt.date}
-                    </span>
-                  )}
-                  {apt.time && (
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3 flex-shrink-0" />
-                      {apt.time}
-                    </span>
-                  )}
-                  {apt.provider && (
-                    <span className="flex items-center gap-1">
-                      <User className="h-3 w-3 flex-shrink-0" />
-                      {apt.provider}
-                    </span>
-                  )}
-                </div>
-                {apt.location && (
-                  <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                    <MapPin className="h-3 w-3 flex-shrink-0" />
-                    {apt.location}
-                  </div>
-                )}
-                {apt.phone && (
-                  <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                    {apt.phone}
-                  </div>
-                )}
-                {apt.schedulingInstructions && (
-                  <p className="text-xs text-muted-foreground mt-1 italic">
-                    {apt.schedulingInstructions}
-                  </p>
-                )}
-                {apt.itemsToBring && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <span className="font-medium">Bring:</span> {apt.itemsToBring}
-                  </p>
-                )}
-              </>
+            <EditableField index={index} field="purpose" original={apt.purpose || ""} placeholder="purpose" bold />
+            <div className="flex flex-wrap gap-3 mt-1">
+              <EditableField index={index} field="date" original={apt.date || ""} icon={Calendar} placeholder="date" />
+              <EditableField index={index} field="time" original={apt.time || ""} icon={Clock} placeholder="time" />
+              <EditableField index={index} field="provider" original={apt.provider || ""} icon={User} placeholder="doctor" />
+            </div>
+            <EditableField index={index} field="location" original={apt.location || ""} icon={MapPin} placeholder="location" />
+            <EditableField index={index} field="phone" original={apt.phone || ""} icon={ExternalLink} placeholder="phone" />
+            {(apt.schedulingInstructions || editable) && (
+              <EditableField index={index} field="schedulingInstructions" original={apt.schedulingInstructions || ""} placeholder="scheduling notes" />
+            )}
+            {(apt.itemsToBring || editable) && (
+              <EditableField index={index} field="itemsToBring" original={apt.itemsToBring || ""} placeholder="items to bring" />
             )}
           </div>
         ))}
@@ -396,7 +400,10 @@ export default function ClinicianDashboard() {
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   const [clinicianEdits, setClinicianEdits] = useState<Record<string, string>>({});
-  const isEditable = selectedCarePlan?.status === "pending_review" || selectedCarePlan?.status === "interpreter_approved";
+  const [postApprovalEditMode, setPostApprovalEditMode] = useState(false);
+  const isPreApprovalEditable = selectedCarePlan?.status === "pending_review" || selectedCarePlan?.status === "interpreter_approved";
+  const isPostApproval = selectedCarePlan?.status === "approved" || selectedCarePlan?.status === "sent";
+  const isEditable = isPreApprovalEditable || (isPostApproval && postApprovalEditMode);
   const hasEdits = Object.keys(clinicianEdits).length > 0;
 
   const getEditValue = (field: string, original: string | null | undefined) => {
@@ -405,7 +412,18 @@ export default function ClinicianDashboard() {
   };
 
   const handleEditField = (field: string, value: string) => {
-    const originalValue = (selectedCarePlan as any)?.[field] || "";
+    let originalValue = "";
+    const medMatch = field.match(/^simplifiedMedications_(\d+)_(\w+)$/);
+    const aptMatch = field.match(/^simplifiedAppointments_(\d+)_(\w+)$/);
+    if (medMatch) {
+      const meds = selectedCarePlan?.simplifiedMedications as SimplifiedMedication[] | undefined;
+      originalValue = (meds?.[parseInt(medMatch[1])] as any)?.[medMatch[2]] || "";
+    } else if (aptMatch) {
+      const apts = selectedCarePlan?.simplifiedAppointments as SimplifiedAppointment[] | undefined;
+      originalValue = (apts?.[parseInt(aptMatch[1])] as any)?.[aptMatch[2]] || "";
+    } else {
+      originalValue = (selectedCarePlan as any)?.[field] || "";
+    }
     if (value === originalValue) {
       const next = { ...clinicianEdits };
       delete next[field];
@@ -456,6 +474,7 @@ export default function ClinicianDashboard() {
   // Check if all content is visible without scrolling
   useEffect(() => {
     setClinicianEdits({});
+    setPostApprovalEditMode(false);
   }, [selectedCarePlan?.id]);
 
   useEffect(() => {
@@ -932,12 +951,20 @@ export default function ClinicianDashboard() {
 
   useEffect(() => {
     if (selectedCarePlan) {
-      const lang = selectedCarePlan.patient?.preferredLanguage 
+      let lang = selectedCarePlan.patient?.preferredLanguage 
         || selectedCarePlan.translatedLanguage 
         || "";
+      if (!lang && selectedCarePlan.extractedPatientName && existingPatients.length > 0) {
+        const matchedPatient = existingPatients.find(
+          (p) => p.name.toLowerCase() === selectedCarePlan.extractedPatientName?.toLowerCase()
+        );
+        if (matchedPatient?.preferredLanguage) {
+          lang = matchedPatient.preferredLanguage;
+        }
+      }
       setPatientLanguage(lang);
     }
-  }, [selectedCarePlan?.id]);
+  }, [selectedCarePlan?.id, existingPatients]);
 
   useEffect(() => {
     if (isSendDialogOpen && selectedCarePlan?.patient) {
@@ -1252,10 +1279,63 @@ export default function ClinicianDashboard() {
                     Awaiting Interpreter Review
                   </Badge>
                 )}
-                {selectedCarePlan.status === "approved" && (
+                {isPostApproval && !postApprovalEditMode && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setPostApprovalEditMode(true)}
+                    data-testid="button-post-approval-edit"
+                  >
+                    <PenLine className="h-4 w-4 mr-2" />
+                    Make Edits
+                  </Button>
+                )}
+                {isPostApproval && postApprovalEditMode && (
+                  <>
+                    {hasEdits && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => retranslateMutation.mutate({ id: selectedCarePlan.id, edits: clinicianEdits })}
+                        disabled={retranslateMutation.isPending}
+                        data-testid="button-retranslate-post"
+                      >
+                        {retranslateMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Languages className="h-4 w-4 mr-2" />
+                        )}
+                        Update Translation
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => {
+                        if (hasEdits && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en") {
+                          toast({ title: "Please update the translation first", description: "Click 'Update Translation' to apply your edits before re-approving.", variant: "destructive" });
+                          return;
+                        }
+                        approveMutation.mutate({ id: selectedCarePlan.id, clinicianEdits: hasEdits ? clinicianEdits : undefined });
+                      }}
+                      disabled={approveMutation.isPending || !hasEdits || (hasEdits && selectedCarePlan.translatedLanguage !== "en" && !!selectedCarePlan.translatedLanguage)}
+                      data-testid="button-reapprove"
+                    >
+                      {approveMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4 mr-2" />
+                      )}
+                      Save Edits & Re-Approve
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => { setPostApprovalEditMode(false); setClinicianEdits({}); }}
+                      data-testid="button-cancel-post-edit"
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                )}
+                {selectedCarePlan.status === "approved" && !postApprovalEditMode && (
                   <Button
                     onClick={() => {
-                      // Pre-fill form with patient data or extracted data
                       if (selectedCarePlan.patient) {
                         setPatientName(selectedCarePlan.patient.name || "");
                         setPatientEmail(selectedCarePlan.patient.email || "");
@@ -1340,11 +1420,13 @@ export default function ClinicianDashboard() {
             selectedCarePlan.status === "sent" ||
             selectedCarePlan.status === "completed" ? (
               <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 relative">
-                {/* FIX APPLIED: 
-                    1. overflow-x-auto on parent 
-                    2. flex row for children with min-w-[350px]
-                */}
-                <div className="flex h-full gap-4">
+                {postApprovalEditMode && (
+                  <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-md flex items-center gap-2 text-sm text-amber-800">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                    <span>Editing mode — changes will update the patient's care plan. Save & re-approve when done.</span>
+                  </div>
+                )}
+                <div className={`flex ${postApprovalEditMode ? "h-[calc(100%-44px)]" : "h-full"} gap-4`}>
                   {/* Original Column */}
                   <Card className="flex-1 min-w-[350px] flex flex-col overflow-hidden">
                     <CardHeader className="pb-2 flex-shrink-0">

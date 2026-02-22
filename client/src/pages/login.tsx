@@ -122,24 +122,24 @@ export default function Login() {
                 <p className="text-xs font-medium text-foreground">Riverside Community Health</p>
                 <div className="p-2 bg-background rounded border">
                   <p className="font-medium text-foreground">Clinician (Maria Chen, RN):</p>
-                  <p className="font-mono text-xs">nurse / password123</p>
+                  <p className="font-mono text-xs">nurse / Password123!</p>
                 </div>
                 <div className="p-2 bg-background rounded border">
                   <p className="font-medium text-foreground">Interpreter (Luis Reyes, CMI):</p>
-                  <p className="font-mono text-xs">riverside_interpreter / password123</p>
+                  <p className="font-mono text-xs">riverside_interpreter / Password123!</p>
                 </div>
                 <p className="text-xs font-medium text-foreground mt-2">Lakeside Family Medicine</p>
                 <div className="p-2 bg-background rounded border">
                   <p className="font-medium text-foreground">Clinician (Sarah Kim, NP):</p>
-                  <p className="font-mono text-xs">lakeside_nurse / password123</p>
+                  <p className="font-mono text-xs">lakeside_nurse / Password123!</p>
                 </div>
                 <div className="p-2 bg-background rounded border">
                   <p className="font-medium text-foreground">Interpreter (Nadia Hassan, CMI):</p>
-                  <p className="font-mono text-xs">lakeside_interpreter / password123</p>
+                  <p className="font-mono text-xs">lakeside_interpreter / Password123!</p>
                 </div>
                 <div className="p-2 bg-background rounded border">
                   <p className="font-medium text-foreground">Super Admin (Angela Torres):</p>
-                  <p className="font-mono text-xs">admin / password123</p>
+                  <p className="font-mono text-xs">admin / Password123!</p>
                 </div>
               </div>
               <Button

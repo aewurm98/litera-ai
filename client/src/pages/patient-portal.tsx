@@ -670,23 +670,16 @@ export default function PatientPortal() {
     }
   };
   
+  const pwHasMinLength = newPassword.length >= 8;
+  const pwHasUppercase = /[A-Z]/.test(newPassword);
+  const pwHasLowercase = /[a-z]/.test(newPassword);
+  const pwHasNumber = /[0-9]/.test(newPassword);
+  const pwHasSpecial = /[^A-Za-z0-9]/.test(newPassword);
+  const pwMatch = newPassword === confirmPassword && confirmPassword.length > 0;
+  const pwAllValid = pwHasMinLength && pwHasUppercase && pwHasLowercase && pwHasNumber && pwHasSpecial && pwMatch;
+
   const handleSetPassword = () => {
-    if (newPassword !== confirmPassword) {
-      toast({ 
-        title: "Passwords don't match", 
-        description: "Please make sure your passwords match",
-        variant: "destructive" 
-      });
-      return;
-    }
-    if (newPassword.length < 8) {
-      toast({ 
-        title: "Password too short", 
-        description: "Password must be at least 8 characters",
-        variant: "destructive" 
-      });
-      return;
-    }
+    if (!pwAllValid) return;
     setPasswordMutation.mutate({ password: newPassword });
   };
 
@@ -1340,7 +1333,7 @@ export default function PatientPortal() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="new-password">New Password (at least 8 characters)</Label>
+              <Label htmlFor="new-password">New Password</Label>
               <Input
                 id="new-password"
                 type="password"
@@ -1349,6 +1342,22 @@ export default function PatientPortal() {
                 placeholder="Enter new password"
                 data-testid="input-set-password"
               />
+              {newPassword.length > 0 && (
+                <div className="grid grid-cols-2 gap-1 mt-1">
+                  {[
+                    { met: pwHasMinLength, label: "8+ characters" },
+                    { met: pwHasUppercase, label: "Uppercase letter" },
+                    { met: pwHasLowercase, label: "Lowercase letter" },
+                    { met: pwHasNumber, label: "Number" },
+                    { met: pwHasSpecial, label: "Special character" },
+                  ].map(({ met, label }) => (
+                    <div key={label} className={`flex items-center gap-1.5 text-xs ${met ? "text-green-600" : "text-muted-foreground"}`}>
+                      {met ? <Check className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-muted-foreground/40 inline-block" />}
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-new-password">Confirm Password</Label>
@@ -1360,6 +1369,12 @@ export default function PatientPortal() {
                 placeholder="Confirm password"
                 data-testid="input-confirm-set-password"
               />
+              {confirmPassword.length > 0 && !pwMatch && (
+                <p className="text-xs text-destructive">Passwords do not match</p>
+              )}
+              {pwMatch && (
+                <p className="text-xs text-green-600">Passwords match</p>
+              )}
             </div>
           </div>
           <div className="flex justify-between gap-3">
@@ -1372,7 +1387,7 @@ export default function PatientPortal() {
             </Button>
             <Button
               onClick={handleSetPassword}
-              disabled={setPasswordMutation.isPending}
+              disabled={setPasswordMutation.isPending || !pwAllValid}
               data-testid="button-create-password"
             >
               {setPasswordMutation.isPending ? (

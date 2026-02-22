@@ -261,7 +261,12 @@ const checkInResponseSchema = z.object({
 });
 
 const setPatientPasswordSchema = z.object({
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Must contain at least one special character"),
 });
 
 // ============= Session-based Auth Middleware =============
@@ -949,10 +954,50 @@ export async function registerRoutes(
       }
 
       const { edits } = req.body || {};
+
+      let updatedMeds = carePlan.simplifiedMedications || [];
+      let updatedApts = carePlan.simplifiedAppointments || [];
+      if (edits && typeof edits === "object") {
+        const medEdits: Record<number, Record<string, string>> = {};
+        const aptEdits: Record<number, Record<string, string>> = {};
+        for (const [key, value] of Object.entries(edits)) {
+          const medMatch = key.match(/^simplifiedMedications_(\d+)_(\w+)$/);
+          if (medMatch) {
+            const idx = parseInt(medMatch[1]);
+            if (!medEdits[idx]) medEdits[idx] = {};
+            medEdits[idx][medMatch[2]] = String(value);
+          }
+          const aptMatch = key.match(/^simplifiedAppointments_(\d+)_(\w+)$/);
+          if (aptMatch) {
+            const idx = parseInt(aptMatch[1]);
+            if (!aptEdits[idx]) aptEdits[idx] = {};
+            aptEdits[idx][aptMatch[2]] = String(value);
+          }
+        }
+        if (Object.keys(medEdits).length > 0 && Array.isArray(updatedMeds)) {
+          updatedMeds = [...(updatedMeds as any[])];
+          for (const [idx, fields] of Object.entries(medEdits)) {
+            const i = parseInt(idx);
+            if (i < updatedMeds.length) {
+              (updatedMeds as any[])[i] = { ...(updatedMeds as any[])[i], ...fields };
+            }
+          }
+        }
+        if (Object.keys(aptEdits).length > 0 && Array.isArray(updatedApts)) {
+          updatedApts = [...(updatedApts as any[])];
+          for (const [idx, fields] of Object.entries(aptEdits)) {
+            const i = parseInt(idx);
+            if (i < updatedApts.length) {
+              (updatedApts as any[])[i] = { ...(updatedApts as any[])[i], ...fields };
+            }
+          }
+        }
+      }
+
       const simplifiedData = {
         diagnosis: edits?.simplifiedDiagnosis || carePlan.simplifiedDiagnosis || "",
-        medications: carePlan.simplifiedMedications || [],
-        appointments: carePlan.simplifiedAppointments || [],
+        medications: updatedMeds,
+        appointments: updatedApts,
         instructions: edits?.simplifiedInstructions || carePlan.simplifiedInstructions || "",
         warnings: edits?.simplifiedWarnings || carePlan.simplifiedWarnings || "",
       };
@@ -976,6 +1021,8 @@ export async function registerRoutes(
         if (edits.simplifiedInstructions !== undefined) updateData.simplifiedInstructions = edits.simplifiedInstructions;
         if (edits.simplifiedWarnings !== undefined) updateData.simplifiedWarnings = edits.simplifiedWarnings;
       }
+      if (updatedMeds !== carePlan.simplifiedMedications) updateData.simplifiedMedications = updatedMeds;
+      if (updatedApts !== carePlan.simplifiedAppointments) updateData.simplifiedAppointments = updatedApts;
 
       // Reset status to require re-approval after re-translation
       if (carePlan.status === "interpreter_approved" || carePlan.status === "approved" || carePlan.status === "sent") {
@@ -1030,7 +1077,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const approvableStatuses = ["pending_review", "interpreter_approved", "draft"];
+      const approvableStatuses = ["pending_review", "interpreter_approved", "draft", "approved", "sent"];
       if (!approvableStatuses.includes(carePlan.status)) {
         return res.status(400).json({ error: `Care plan cannot be approved — current status is "${carePlan.status}".` });
       }
@@ -1053,6 +1100,10 @@ export async function registerRoutes(
       if (carePlan.status === "interpreter_approved") {
         newStatus = "approved";
       }
+      // For post-approval edits, preserve current status
+      if (carePlan.status === "approved" || carePlan.status === "sent") {
+        newStatus = carePlan.status;
+      }
 
       const updateData: any = {
         status: newStatus,
@@ -1063,16 +1114,56 @@ export async function registerRoutes(
       const clinicianEdits = req.body?.clinicianEdits;
       const editedFields: Record<string, { before: string; after: string }> = {};
       if (clinicianEdits && typeof clinicianEdits === "object") {
-        const allowedFields = [
-          "simplifiedDiagnosis", "simplifiedInstructions", "simplifiedWarnings",
-          "simplifiedMedications", "simplifiedAppointments",
-        ];
-        for (const field of allowedFields) {
+        const textFields = ["simplifiedDiagnosis", "simplifiedInstructions", "simplifiedWarnings"];
+        for (const field of textFields) {
           if (clinicianEdits[field] !== undefined && clinicianEdits[field] !== (carePlan as any)[field]) {
             const sanitized = stripHtml(String(clinicianEdits[field]));
             editedFields[field] = { before: (carePlan as any)[field] || "", after: sanitized };
             updateData[field] = sanitized;
           }
+        }
+
+        const medEdits: Record<number, Record<string, string>> = {};
+        const aptEdits: Record<number, Record<string, string>> = {};
+        for (const [key, value] of Object.entries(clinicianEdits)) {
+          const medMatch = key.match(/^simplifiedMedications_(\d+)_(\w+)$/);
+          if (medMatch) {
+            const idx = parseInt(medMatch[1]);
+            if (!medEdits[idx]) medEdits[idx] = {};
+            medEdits[idx][medMatch[2]] = stripHtml(String(value));
+          }
+          const aptMatch = key.match(/^simplifiedAppointments_(\d+)_(\w+)$/);
+          if (aptMatch) {
+            const idx = parseInt(aptMatch[1]);
+            if (!aptEdits[idx]) aptEdits[idx] = {};
+            aptEdits[idx][aptMatch[2]] = stripHtml(String(value));
+          }
+        }
+
+        if (Object.keys(medEdits).length > 0) {
+          const meds = Array.isArray(carePlan.simplifiedMedications) 
+            ? [...(carePlan.simplifiedMedications as any[])] : [];
+          for (const [idx, fields] of Object.entries(medEdits)) {
+            const i = parseInt(idx);
+            if (i < meds.length) {
+              meds[i] = { ...meds[i], ...fields };
+            }
+          }
+          editedFields.simplifiedMedications = { before: JSON.stringify(carePlan.simplifiedMedications), after: JSON.stringify(meds) };
+          updateData.simplifiedMedications = meds;
+        }
+
+        if (Object.keys(aptEdits).length > 0) {
+          const apts = Array.isArray(carePlan.simplifiedAppointments)
+            ? [...(carePlan.simplifiedAppointments as any[])] : [];
+          for (const [idx, fields] of Object.entries(aptEdits)) {
+            const i = parseInt(idx);
+            if (i < apts.length) {
+              apts[i] = { ...apts[i], ...fields };
+            }
+          }
+          editedFields.simplifiedAppointments = { before: JSON.stringify(carePlan.simplifiedAppointments), after: JSON.stringify(apts) };
+          updateData.simplifiedAppointments = apts;
         }
       }
 

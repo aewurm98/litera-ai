@@ -37,7 +37,7 @@ export async function seedDatabase(force: boolean = false) {
   await db.delete(users);
   await db.delete(tenants);
 
-  const hashedPassword = await hashPassword("password123");
+  const hashedPassword = await hashPassword("Password123!");
 
   const [admin1] = await db.insert(users).values({
     username: "admin",
@@ -102,7 +102,7 @@ export async function resetDemoTenant() {
 }
 
 async function seedDemoData() {
-  const hashedPassword = await hashPassword("password123");
+  const hashedPassword = await hashPassword("Password123!");
   const hashedPin = await hashPassword("1234");
 
   // === TENANT 1: Riverside Community Health ===
@@ -810,9 +810,9 @@ async function seedDemoData() {
   console.log("\n=== SEED DATA SUMMARY ===");
   console.log("\n--- TENANT 1: Riverside Community Health ---");
   console.log("STAFF:");
-  console.log(`  Clinic Admin: riverside_admin / password123 (${riversideAdmin.name})`);
-  console.log(`  Clinician: nurse / password123 (${clinician1.name})`);
-  console.log(`  Interpreter: riverside_interpreter / password123 (${interpreter1.name})`);
+  console.log(`  Clinic Admin: riverside_admin / Password123! (${riversideAdmin.name})`);
+  console.log(`  Clinician: nurse / Password123! (${clinician1.name})`);
+  console.log(`  Interpreter: riverside_interpreter / Password123! (${interpreter1.name})`);
   console.log("CARE PLANS:");
   console.log("  1. Rosa Martinez - SENT (Spanish, green check-in + pending 2nd)");
   console.log("  2. Nguyen Thi Lan - APPROVED (Vietnamese, ready to send)");
@@ -825,9 +825,9 @@ async function seedDemoData() {
 
   console.log("\n--- TENANT 2: Lakeside Family Medicine ---");
   console.log("STAFF:");
-  console.log(`  Clinic Admin: lakeside_admin / password123 (${lakesideAdmin.name})`);
-  console.log(`  Clinician: lakeside_nurse / password123 (${clinician2.name})`);
-  console.log(`  Interpreter: lakeside_interpreter / password123 (${interpreter2.name})`);
+  console.log(`  Clinic Admin: lakeside_admin / Password123! (${lakesideAdmin.name})`);
+  console.log(`  Clinician: lakeside_nurse / Password123! (${clinician2.name})`);
+  console.log(`  Interpreter: lakeside_interpreter / Password123! (${interpreter2.name})`);
   console.log("CARE PLANS:");
   console.log("  1. Aisha Rahman - SENT (Arabic, yellow alert check-in)");
   console.log("  2. Pedro Gutierrez - APPROVED (Spanish, ready to send)");
@@ -840,7 +840,7 @@ async function seedDemoData() {
   console.log(`  Arjun Sharma: /p/${tokenArjun} (YOB: 2020)`);
 
   console.log("\n--- PLATFORM ADMIN ---");
-  console.log("  Super Admin: admin / password123 (Angela Torres)");
+  console.log("  Super Admin: admin / Password123! (Angela Torres)");
   console.log("\n=========================\n");
 }
 

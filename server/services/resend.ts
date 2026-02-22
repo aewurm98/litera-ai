@@ -4,6 +4,7 @@ let connectionSettings: any;
 
 async function getCredentials(): Promise<{ apiKey: string; fromEmail: string }> {
   if (process.env.RESEND_API_KEY) {
+    console.log("[Resend] Using direct RESEND_API_KEY");
     return {
       apiKey: process.env.RESEND_API_KEY,
       fromEmail: process.env.RESEND_FROM_EMAIL || "Litera Health <care@litera.health>",
@@ -18,31 +19,58 @@ async function getCredentials(): Promise<{ apiKey: string; fromEmail: string }> 
       : null;
 
   if (!xReplitToken || !hostname) {
+    console.error("[Resend] Missing connector env vars:", {
+      hasHostname: !!hostname,
+      hasReplIdentity: !!process.env.REPL_IDENTITY,
+      hasWebReplRenewal: !!process.env.WEB_REPL_RENEWAL,
+    });
     throw new Error(
       "Email service not configured. Set RESEND_API_KEY for direct Resend access, " +
       "or ensure Replit connector environment variables are available."
     );
   }
 
-  connectionSettings = await fetch(
-    "https://" + hostname + "/api/v2/connection?include_secrets=true&connector_names=resend",
-    {
+  console.log("[Resend] Fetching credentials from Replit connector...");
+  const connectorUrl = `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=resend`;
+  
+  try {
+    const response = await fetch(connectorUrl, {
       headers: {
         Accept: "application/json",
         X_REPLIT_TOKEN: xReplitToken,
       },
-    }
-  )
-    .then((res) => res.json())
-    .then((data) => data.items?.[0]);
+    });
 
-  if (!connectionSettings || !connectionSettings.settings.api_key) {
-    throw new Error("Resend not connected");
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Resend] Connector API returned ${response.status}: ${errorText}`);
+      throw new Error(`Connector API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    connectionSettings = data.items?.[0];
+
+    if (!connectionSettings) {
+      console.error("[Resend] No connection found in connector response:", JSON.stringify(data));
+      throw new Error("Resend not connected — no connection items returned from connector API");
+    }
+
+    if (!connectionSettings.settings?.api_key) {
+      console.error("[Resend] Connection found but no api_key in settings:", 
+        JSON.stringify({ hasSettings: !!connectionSettings.settings, settingKeys: Object.keys(connectionSettings.settings || {}) }));
+      throw new Error("Resend connection found but api_key is missing from settings");
+    }
+
+    console.log("[Resend] Credentials obtained successfully, from_email:", connectionSettings.settings.from_email);
+    return {
+      apiKey: connectionSettings.settings.api_key,
+      fromEmail: connectionSettings.settings.from_email,
+    };
+  } catch (error: any) {
+    if (error.message.includes("Resend")) throw error;
+    console.error("[Resend] Failed to fetch connector credentials:", error.message);
+    throw new Error(`Failed to fetch Resend credentials from connector: ${error.message}`);
   }
-  return {
-    apiKey: connectionSettings.settings.api_key,
-    fromEmail: connectionSettings.settings.from_email,
-  };
 }
 
 // WARNING: Never cache this client.
@@ -62,11 +90,13 @@ export async function sendCarePlanEmail(
   accessLink: string,
   pin?: string
 ) {
-  try {
-    const { client, fromEmail } = await getUncachableResendClient();
-    
-    // Build PIN section for production mode (when PIN is provided)
-    const pinSection = pin ? `
+  console.log(`[Resend] === Starting care plan email send ===`);
+  console.log(`[Resend] To: ${toEmail}, Patient: ${patientName}`);
+  console.log(`[Resend] Access link: ${accessLink}`);
+  
+  const { client, fromEmail } = await getUncachableResendClient();
+  
+  const pinSection = pin ? `
   <div style="background: #dbeafe; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
     <p style="margin: 0 0 8px; color: #1e40af; font-size: 14px; font-weight: 600;">
       Your Secure Access PIN
@@ -80,11 +110,13 @@ export async function sendCarePlanEmail(
   </div>
 ` : '';
 
-    const verificationInstructions = pin 
-      ? `<strong>Important:</strong> You will need to verify your identity by entering your last name, year of birth, and the PIN shown above.`
-      : `<strong>Important:</strong> You will need to verify your identity by entering your year of birth.`;
-    
-    console.log(`[Resend] Sending care plan email to: ${toEmail}, from: ${fromEmail}`);
+  const verificationInstructions = pin 
+    ? `<strong>Important:</strong> You will need to verify your identity by entering your last name, year of birth, and the PIN shown above.`
+    : `<strong>Important:</strong> You will need to verify your identity by entering your year of birth.`;
+  
+  console.log(`[Resend] Sending email from: ${fromEmail}`);
+  
+  try {
     const result = await client.emails.send({
       from: fromEmail,
       to: toEmail,
@@ -141,10 +173,19 @@ export async function sendCarePlanEmail(
     });
     
     console.log(`[Resend] Care plan email sent successfully:`, JSON.stringify(result));
+    
+    if (result?.error) {
+      console.error(`[Resend] API returned error in result:`, JSON.stringify(result.error));
+      throw new Error(`Resend API error: ${JSON.stringify(result.error)}`);
+    }
+    
     return result;
   } catch (error: any) {
-    console.error("Failed to send care plan email:", error?.message || error);
-    if (error?.statusCode) console.error(`[Resend] Status code: ${error.statusCode}`);
+    console.error(`[Resend] === Email send FAILED ===`);
+    console.error(`[Resend] Error type: ${error?.constructor?.name}`);
+    console.error(`[Resend] Error message: ${error?.message}`);
+    console.error(`[Resend] Status code: ${error?.statusCode}`);
+    console.error(`[Resend] Full error:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
     throw error;
   }
 }
@@ -155,13 +196,15 @@ export async function sendCheckInEmail(
   accessLink: string,
   attemptNumber: number
 ) {
+  console.log(`[Resend] Sending check-in email to: ${toEmail}`);
+  
+  const { client, fromEmail } = await getUncachableResendClient();
+  
+  const subject = attemptNumber === 1 
+    ? `${patientName}, how are you feeling today?`
+    : `${patientName}, we haven't heard from you`;
+  
   try {
-    const { client, fromEmail } = await getUncachableResendClient();
-    
-    const subject = attemptNumber === 1 
-      ? `${patientName}, how are you feeling today?`
-      : `${patientName}, we haven't heard from you`;
-    
     const result = await client.emails.send({
       from: fromEmail,
       to: toEmail,
@@ -207,9 +250,15 @@ export async function sendCheckInEmail(
       `,
     });
     
+    if (result?.error) {
+      console.error(`[Resend] Check-in email API returned error:`, JSON.stringify(result.error));
+      throw new Error(`Resend API error: ${JSON.stringify(result.error)}`);
+    }
+    
+    console.log(`[Resend] Check-in email sent successfully:`, JSON.stringify(result));
     return result;
-  } catch (error) {
-    console.error("Failed to send check-in email:", error);
+  } catch (error: any) {
+    console.error(`[Resend] Check-in email send FAILED:`, error?.message || error);
     throw error;
   }
 }

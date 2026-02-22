@@ -23,8 +23,8 @@ const ROLE_CONFIG: Record<RoleTab, {
     icon: Stethoscope,
     description: "Upload discharge documents, process AI simplification and translation, send care plans to patients.",
     credentials: [
-      { label: "Maria Chen, RN (Riverside)", username: "nurse", password: "password123" },
-      { label: "Sarah Kim, NP (Lakeside)", username: "lakeside_nurse", password: "password123" },
+      { label: "Maria Chen, RN (Riverside)", username: "nurse", password: "Password123!" },
+      { label: "Sarah Kim, NP (Lakeside)", username: "lakeside_nurse", password: "Password123!" },
     ],
   },
   admin: {
@@ -32,8 +32,8 @@ const ROLE_CONFIG: Record<RoleTab, {
     icon: LayoutDashboard,
     description: "Manage patient roster, view alerts, export TCM billing data, configure tenant settings.",
     credentials: [
-      { label: "Angela Torres (Super Admin)", username: "admin", password: "password123" },
-      { label: "James Wright (Riverside Admin)", username: "riverside_admin", password: "password123" },
+      { label: "Angela Torres (Super Admin)", username: "admin", password: "Password123!" },
+      { label: "James Wright (Riverside Admin)", username: "riverside_admin", password: "Password123!" },
     ],
   },
   interpreter: {
@@ -41,8 +41,8 @@ const ROLE_CONFIG: Record<RoleTab, {
     icon: Languages,
     description: "Review AI-generated translations, edit content, approve or request changes before care plans reach patients.",
     credentials: [
-      { label: "Luis Reyes, CMI (Riverside)", username: "riverside_interpreter", password: "password123" },
-      { label: "Nadia Hassan, CMI (Lakeside)", username: "lakeside_interpreter", password: "password123" },
+      { label: "Luis Reyes, CMI (Riverside)", username: "riverside_interpreter", password: "Password123!" },
+      { label: "Nadia Hassan, CMI (Lakeside)", username: "lakeside_interpreter", password: "Password123!" },
     ],
   },
   patient: {
