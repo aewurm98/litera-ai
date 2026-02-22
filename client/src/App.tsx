@@ -62,6 +62,7 @@ import ExperimentComprehension from "@/pages/experiment-comprehension";
 import ExperimentLoginDemo from "@/pages/experiment-login-demo";
 import ExperimentInterpreter from "@/pages/experiment-interpreter";
 import AcceptInvite from "@/pages/accept-invite";
+import ResetPassword from "@/pages/reset-password";
 
 interface User {
   id: string;
@@ -621,6 +622,10 @@ function Router() {
       return <Redirect to="/dashboard" />;
     }
     return <Login />;
+  }
+
+  if (location === "/reset-password") {
+    return <ResetPassword />;
   }
 
   if (error || !user) {

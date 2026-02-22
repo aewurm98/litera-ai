@@ -12,8 +12,8 @@ import {
   simplifyContent, 
   translateContent 
 } from "./services/openai";
-import { sendCarePlanEmail, sendCheckInEmail, sendTeamInviteEmail, getUncachableResendClient } from "./services/resend";
-import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
+import { sendCarePlanEmail, sendCheckInEmail, sendTeamInviteEmail, sendPasswordResetEmail, getUncachableResendClient } from "./services/resend";
+import { SUPPORTED_LANGUAGES, insertPatientSchema, type Patient } from "@shared/schema";
 import { isDemoMode } from "./index";
 
 // Helper to generate a 4-digit PIN for patient verification
@@ -623,6 +623,8 @@ export async function registerRoutes(
       ? req.session.userRoles
       : [req.session.userRole!];
 
+    const currentUser = await storage.getUser(req.session.userId);
+
     res.json({
       id: req.session.userId,
       name: req.session.userName,
@@ -630,9 +632,78 @@ export async function registerRoutes(
       roles,
       tenantId: req.session.tenantId,
       tenant: tenant ? { id: tenant.id, name: tenant.name, slug: tenant.slug, isDemo: tenant.isDemo, interpreterReviewMode: tenant.interpreterReviewMode } : null,
+      recoveryEmail: currentUser?.recoveryEmail || null,
     });
   });
   
+  // ============= Recovery Email & Password Reset =============
+
+  app.patch("/api/auth/recovery-email", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const schema = z.object({ recoveryEmail: z.string().email() });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Please enter a valid email address" });
+    }
+    const updated = await storage.updateUser(req.session.userId, { recoveryEmail: parsed.data.recoveryEmail });
+    if (!updated) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json({ recoveryEmail: updated.recoveryEmail });
+  });
+
+  app.post("/api/auth/forgot-password", async (req: Request, res: Response) => {
+    const schema = z.object({ email: z.string().email() });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.json({ message: "If an account with that recovery email exists, a reset link has been sent." });
+    }
+
+    const user = await storage.getUserByRecoveryEmail(parsed.data.email);
+    if (!user) {
+      return res.json({ message: "If an account with that recovery email exists, a reset link has been sent." });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiry = new Date(Date.now() + 60 * 60 * 1000);
+    await storage.updateUser(user.id, { passwordResetToken: token, passwordResetExpiry: expiry });
+
+    const appUrl = process.env.APP_URL || `https://${req.get("host")}`;
+    const resetLink = `${appUrl}/reset-password?token=${token}`;
+
+    try {
+      await sendPasswordResetEmail(parsed.data.email, user.name, resetLink);
+    } catch (err) {
+      console.error("[Auth] Failed to send password reset email:", err);
+    }
+
+    res.json({ message: "If an account with that recovery email exists, a reset link has been sent." });
+  });
+
+  app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
+    const schema = z.object({
+      token: z.string().min(1),
+      newPassword: z.string().min(6, "Password must be at least 6 characters"),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid request" });
+    }
+
+    const user = await storage.getUserByResetToken(parsed.data.token);
+    if (!user || !user.passwordResetExpiry || user.passwordResetExpiry < new Date()) {
+      return res.status(400).json({ error: "This reset link has expired or is invalid. Please request a new one." });
+    }
+
+    const hashed = await bcrypt.hash(parsed.data.newPassword, 10);
+    await storage.updateUserPassword(user.id, hashed);
+    await storage.updateUser(user.id, { passwordResetToken: null as any, passwordResetExpiry: null as any });
+
+    res.json({ message: "Password has been reset successfully. You can now log in." });
+  });
+
   // ============= Tenant Settings API =============
 
   app.patch("/api/tenant/settings", requireAdminAuth, async (req: Request, res: Response) => {
@@ -798,6 +869,7 @@ export async function registerRoutes(
         patientName: z.string().optional(),
         patientEmail: z.string().email().optional(),
         patientYearOfBirth: z.number().int().min(1900).max(2100).optional(),
+        patientDateOfBirth: z.string().optional(),
         preferredLanguage: z.string().optional(),
       });
       const parsed = textSchema.safeParse(req.body);
@@ -805,7 +877,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Validation failed", details: parsed.error.errors });
       }
 
-      const { text, method, existingPatientId, patientName: inputPatientName, patientEmail: inputPatientEmail, patientYearOfBirth: inputYob, preferredLanguage: inputLang } = parsed.data;
+      const { text, method, existingPatientId, patientName: inputPatientName, patientEmail: inputPatientEmail, patientYearOfBirth: inputYob, patientDateOfBirth: inputDob, preferredLanguage: inputLang } = parsed.data;
       const clinicianId = (req as any).clinicianId || "clinician-1";
       const tenantId = req.session.tenantId;
 
@@ -818,14 +890,16 @@ export async function registerRoutes(
         if (existingPatient && existingPatient.tenantId === tenantId) {
           matchedPatientId = existingPatient.id;
         }
-      } else if (inputPatientName && inputPatientEmail && inputYob) {
+      } else if (inputPatientName && inputPatientEmail && (inputYob || inputDob)) {
+        const effectiveYob = inputDob ? new Date(inputDob).getFullYear() : inputYob!;
         let patient = await storage.getPatientByEmail(inputPatientEmail, tenantId);
         if (!patient) {
           patient = await storage.createPatient({
             name: inputPatientName,
             email: inputPatientEmail,
             phone: null,
-            yearOfBirth: inputYob,
+            yearOfBirth: effectiveYob,
+            dateOfBirth: inputDob || null,
             preferredLanguage: inputLang || "en",
             tenantId: tenantId!,
             pin: null,
@@ -1340,8 +1414,39 @@ export async function registerRoutes(
       const effectiveYob = dateOfBirth ? new Date(dateOfBirth).getFullYear() : yearOfBirth;
       
       // Create or update patient (scoped by tenant)
-      let patient = await storage.getPatientByEmail(email, tenantId);
-      if (!patient) {
+      // In demo mode, match by name+email to allow same email for different test patients
+      // In production, email is the unique identifier per tenant
+      let patient: Patient | undefined;
+      const existingByEmail = await storage.getPatientByEmail(email, tenantId);
+      
+      if (existingByEmail) {
+        const tenant = tenantId ? await storage.getTenant(tenantId) : null;
+        const isDemo = tenant?.isDemo || isDemoMode;
+        
+        if (isDemo && existingByEmail.name !== name) {
+          patient = await storage.createPatientAllowDuplicateEmail({
+            name,
+            lastName,
+            email,
+            phone,
+            yearOfBirth: effectiveYob,
+            dateOfBirth: dateOfBirth || null,
+            pin: await bcrypt.hash(patientPin, 10),
+            preferredLanguage,
+            tenantId,
+          });
+        } else {
+          patient = await storage.updatePatient(existingByEmail.id, {
+            name,
+            lastName,
+            yearOfBirth: effectiveYob,
+            dateOfBirth: dateOfBirth || null,
+            phone: phone || existingByEmail.phone,
+            preferredLanguage: preferredLanguage || existingByEmail.preferredLanguage,
+            pin: await bcrypt.hash(patientPin, 10),
+          });
+        }
+      } else {
         patient = await storage.createPatient({
           name,
           lastName,
@@ -1352,11 +1457,6 @@ export async function registerRoutes(
           pin: await bcrypt.hash(patientPin, 10),
           preferredLanguage,
           tenantId,
-        });
-      } else {
-        // Update patient lastName but preserve existing PIN
-        patient = await storage.updatePatient(patient.id, {
-          lastName,
         });
       }
 
@@ -1451,9 +1551,10 @@ export async function registerRoutes(
       }
 
       const { email: requestedEmail } = req.body || {};
+      const recoveryEmail = user.recoveryEmail;
       const testEmail = requestedEmail && typeof requestedEmail === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requestedEmail)
         ? requestedEmail
-        : `test+${user.username}@litera.health`;
+        : recoveryEmail || `test+${user.username}@litera.health`;
       const testName = `Test Patient (${user.name})`;
       const testLastName = "Test";
       const testYob = 2000;

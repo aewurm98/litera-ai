@@ -35,11 +35,14 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").notNull().default("clinician"), // Primary role: clinician, interpreter, admin, super_admin
-  roles: text("roles").array().notNull().default(sql`ARRAY[]::text[]`), // All assigned roles for multi-role access
+  role: text("role").notNull().default("clinician"),
+  roles: text("roles").array().notNull().default(sql`ARRAY[]::text[]`),
   name: text("name").notNull(),
-  languages: text("languages").array(), // Language codes interpreter specializes in (e.g., ["es", "fr"])
+  languages: text("languages").array(),
   tenantId: varchar("tenant_id").references(() => tenants.id),
+  recoveryEmail: text("recovery_email"),
+  passwordResetToken: text("password_reset_token"),
+  passwordResetExpiry: timestamp("password_reset_expiry"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -50,6 +53,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   name: true,
   languages: true,
   tenantId: true,
+  recoveryEmail: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

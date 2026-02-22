@@ -337,3 +337,57 @@ export async function sendTeamInviteEmail(
     throw error;
   }
 }
+
+export async function sendPasswordResetEmail(
+  toEmail: string,
+  userName: string,
+  resetLink: string,
+): Promise<any> {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+
+    const result = await client.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      subject: "Litera.ai — Password Reset",
+      html: `
+<!DOCTYPE html>
+<html>
+<body style="margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f1f5f9;">
+  <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <span style="font-size: 24px; font-weight: 700; color: #1e40af;">Litera.ai</span>
+    </div>
+    <h2 style="margin: 0 0 16px; font-size: 20px; color: #0f172a;">Password Reset</h2>
+    <p style="margin: 0 0 16px; color: #475569;">
+      Hi <strong>${userName}</strong>, we received a request to reset your password.
+    </p>
+    <p style="margin: 0 0 24px; color: #475569;">
+      Click the button below to set a new password. This link expires in 1 hour.
+    </p>
+    <div style="text-align: center; margin-bottom: 24px;">
+      <a href="${resetLink}" style="display: inline-block; background: #1e40af; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+        Reset Password
+      </a>
+    </div>
+    <p style="margin: 0; color: #94a3b8; font-size: 13px;">
+      If you didn't request this, you can safely ignore this email.
+    </p>
+  </div>
+</body>
+</html>
+      `,
+    });
+
+    if (result?.error) {
+      console.error(`[Resend] Password reset email API returned error:`, JSON.stringify(result.error));
+      throw new Error(`Resend API error: ${JSON.stringify(result.error)}`);
+    }
+
+    console.log(`[Resend] Password reset email sent to ${toEmail}`);
+    return result;
+  } catch (error: any) {
+    console.error(`[Resend] Password reset email send FAILED:`, error?.message || error);
+    throw error;
+  }
+}

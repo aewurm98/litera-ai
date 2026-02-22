@@ -42,6 +42,17 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 - Chatbot UX: Larger bubble (w-16 h-16) with "Questions?" label; auto-expands on first portal visit; localStorage persistence to stay minimized after dismissal
 - Enriched seed data: Sickle Cell and Stroke care plans now have full medications, appointments, instructions, warnings
 
+### Phase F - DOB in Send Dialog, Password Recovery, Demo Email Flexibility (Complete)
+- Send Care Plan dialog: Replaced Year of Birth number input with Date of Birth date picker; sends `dateOfBirth` to backend
+- Paste/dictation flows: Updated to use DOB date picker instead of year input
+- Patient matching fix: In demo mode, same email can be used for different patients (matched by name+email). In production, existing patient records are fully updated when resending
+- Staff password recovery: Added `recoveryEmail`, `passwordResetToken`, `passwordResetExpiry` fields to users table
+- Settings page: "Your Account" card now includes editable recovery email field
+- Login page: "Forgot password?" link navigates to password reset flow
+- Password reset page (`/reset-password`): Request reset via recovery email, 1-hour token expiry, set new password
+- "Send Test to Me" now uses staff member's recovery email as default destination (falls back to generated address)
+- Fixed DOM nesting warning: Badge in settings page now wrapped in `div` instead of `p`
+
 ## System Architecture
 
 Litera.ai is built with a clear separation between its frontend, backend, and shared components.

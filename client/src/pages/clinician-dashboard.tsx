@@ -123,6 +123,14 @@ function isValidYearOfBirth(year: string): boolean {
   return !isNaN(yearNum) && yearNum >= 1900 && yearNum <= new Date().getFullYear();
 }
 
+function isValidDateOfBirth(dob: string): boolean {
+  if (!dob) return false;
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return false;
+  const year = d.getFullYear();
+  return year >= 1900 && year <= new Date().getFullYear();
+}
+
 // Helper component to render medications in a structured format
 function MedicationsList({
   medications,
@@ -397,7 +405,7 @@ export default function ClinicianDashboard() {
   const [showTextPatientFields, setShowTextPatientFields] = useState(false);
   const [textPatientName, setTextPatientName] = useState("");
   const [textPatientEmail, setTextPatientEmail] = useState("");
-  const [textPatientYob, setTextPatientYob] = useState("");
+  const [textPatientDob, setTextPatientDob] = useState("");
   const [textPatientLang, setTextPatientLang] = useState("en");
   const [isRecording, setIsRecording] = useState(false);
   const [dictationText, setDictationText] = useState("");
@@ -449,14 +457,14 @@ export default function ClinicianDashboard() {
   const [patientName, setPatientName] = useState("");
   const [patientEmail, setPatientEmail] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
-  const [patientYearOfBirth, setPatientYearOfBirth] = useState("");
+  const [patientDateOfBirth, setPatientDateOfBirth] = useState("");
   const [patientLanguage, setPatientLanguage] = useState("");
   
   // Form validation state (touched fields)
   const [formTouched, setFormTouched] = useState({
     name: false,
     email: false,
-    yearOfBirth: false,
+    dateOfBirth: false,
   });
   
   // Validation errors
@@ -467,14 +475,14 @@ export default function ClinicianDashboard() {
       : formTouched.email && !isValidEmail(patientEmail) 
         ? "Please enter a valid email address" 
         : "",
-    yearOfBirth: formTouched.yearOfBirth && !patientYearOfBirth.trim()
-      ? "Year of birth is required"
-      : formTouched.yearOfBirth && !isValidYearOfBirth(patientYearOfBirth)
-        ? "Please enter a valid year (1900-present)"
+    dateOfBirth: formTouched.dateOfBirth && !patientDateOfBirth
+      ? "Date of birth is required"
+      : formTouched.dateOfBirth && !isValidDateOfBirth(patientDateOfBirth)
+        ? "Please enter a valid date of birth"
         : "",
   };
   
-  const hasFormErrors = formErrors.name || formErrors.email || formErrors.yearOfBirth;
+  const hasFormErrors = formErrors.name || formErrors.email || formErrors.dateOfBirth;
 
   // Sort and filter state
   const [sortBy, setSortBy] = useState<"name" | "status" | "date">("date");
@@ -597,7 +605,7 @@ export default function ClinicianDashboard() {
     setShowTextPatientFields(false);
     setTextPatientName("");
     setTextPatientEmail("");
-    setTextPatientYob("");
+    setTextPatientDob("");
     setTextPatientLang("en");
   };
 
@@ -606,10 +614,10 @@ export default function ClinicianDashboard() {
       const body: Record<string, any> = { text, method };
       if (textInputPatientId) {
         body.existingPatientId = textInputPatientId;
-      } else if (textPatientName && textPatientEmail && textPatientYob) {
+      } else if (textPatientName && textPatientEmail && textPatientDob) {
         body.patientName = textPatientName;
         body.patientEmail = textPatientEmail;
-        body.patientYearOfBirth = parseInt(textPatientYob);
+        body.patientDateOfBirth = textPatientDob;
         body.preferredLanguage = textPatientLang;
       }
       const response = await apiRequest("POST", "/api/care-plans/from-text", body);
@@ -920,9 +928,9 @@ export default function ClinicianDashboard() {
     setPatientName("");
     setPatientEmail("");
     setPatientPhone("");
-    setPatientYearOfBirth("");
+    setPatientDateOfBirth("");
     setPatientLanguage("");
-    setFormTouched({ name: false, email: false, yearOfBirth: false });
+    setFormTouched({ name: false, email: false, dateOfBirth: false });
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -963,11 +971,9 @@ export default function ClinicianDashboard() {
   const handleSendToPatient = () => {
     if (!selectedCarePlan) return;
     
-    // Mark all fields as touched to show any validation errors
-    setFormTouched({ name: true, email: true, yearOfBirth: true });
+    setFormTouched({ name: true, email: true, dateOfBirth: true });
     
-    // Validate before submitting
-    if (!patientName.trim() || !isValidEmail(patientEmail) || !isValidYearOfBirth(patientYearOfBirth) || !patientLanguage) {
+    if (!patientName.trim() || !isValidEmail(patientEmail) || !isValidDateOfBirth(patientDateOfBirth) || !patientLanguage) {
       if (!patientLanguage) {
         toast({ title: "Please select a language", variant: "destructive" });
       }
@@ -980,7 +986,8 @@ export default function ClinicianDashboard() {
         name: patientName,
         email: patientEmail,
         phone: patientPhone || undefined,
-        yearOfBirth: parseInt(patientYearOfBirth),
+        dateOfBirth: patientDateOfBirth,
+        yearOfBirth: new Date(patientDateOfBirth).getFullYear(),
         preferredLanguage: patientLanguage,
       },
     });
@@ -1056,7 +1063,7 @@ export default function ClinicianDashboard() {
       setPatientName(patient.name);
       setPatientEmail(patient.email);
       setPatientPhone(patient.phone || "");
-      setPatientYearOfBirth(patient.yearOfBirth?.toString() || "");
+      setPatientDateOfBirth(patient.dateOfBirth || "");
       setPatientLanguage(
         patient.preferredLanguage ||
           selectedCarePlan.translatedLanguage ||
@@ -1498,19 +1505,19 @@ export default function ClinicianDashboard() {
                         setPatientName(selectedCarePlan.patient.name || "");
                         setPatientEmail(selectedCarePlan.patient.email || "");
                         setPatientPhone(selectedCarePlan.patient.phone || "");
-                        setPatientYearOfBirth(selectedCarePlan.patient.yearOfBirth?.toString() || "");
+                        setPatientDateOfBirth(selectedCarePlan.patient.dateOfBirth || "");
                         setPatientLanguage(selectedCarePlan.patient.preferredLanguage || selectedCarePlan.translatedLanguage || "");
                       } else if (selectedCarePlan.extractedPatientName) {
                         setPatientName(selectedCarePlan.extractedPatientName);
                         setPatientEmail("");
                         setPatientPhone("");
-                        setPatientYearOfBirth("");
+                        setPatientDateOfBirth("");
                         setPatientLanguage(selectedCarePlan.translatedLanguage || "");
                       } else {
                         setPatientName("");
                         setPatientEmail("");
                         setPatientPhone("");
-                        setPatientYearOfBirth("");
+                        setPatientDateOfBirth("");
                         setPatientLanguage(selectedCarePlan.translatedLanguage || "");
                       }
                       setIsSendDialogOpen(true);
@@ -2297,7 +2304,7 @@ export default function ClinicianDashboard() {
                     <Select value={textInputPatientId} onValueChange={(id) => {
                       setTextInputPatientId(id);
                       const p = existingPatients.find(pt => pt.id === id);
-                      if (p) { setTextPatientName(p.name); setTextPatientEmail(p.email); setTextPatientYob(String(p.yearOfBirth)); setTextPatientLang(p.preferredLanguage || "en"); }
+                      if (p) { setTextPatientName(p.name); setTextPatientEmail(p.email); setTextPatientDob(p.dateOfBirth || ""); setTextPatientLang(p.preferredLanguage || "en"); }
                     }}>
                       <SelectTrigger data-testid="select-dictate-patient"><SelectValue placeholder="Select existing patient..." /></SelectTrigger>
                       <SelectContent>{existingPatients.map((p) => (<SelectItem key={p.id} value={p.id}>{p.name} ({p.email})</SelectItem>))}</SelectContent>
@@ -2307,7 +2314,7 @@ export default function ClinicianDashboard() {
                     <div className="grid grid-cols-2 gap-2">
                       <Input placeholder="Patient name" value={textPatientName} onChange={(e) => setTextPatientName(e.target.value)} data-testid="input-dictate-patient-name" />
                       <Input placeholder="Email" type="email" value={textPatientEmail} onChange={(e) => setTextPatientEmail(e.target.value)} data-testid="input-dictate-patient-email" />
-                      <Input placeholder="Year of birth" type="number" value={textPatientYob} onChange={(e) => setTextPatientYob(e.target.value)} data-testid="input-dictate-patient-yob" />
+                      <Input type="date" max={new Date().toISOString().split("T")[0]} min="1900-01-01" value={textPatientDob} onChange={(e) => setTextPatientDob(e.target.value)} data-testid="input-dictate-patient-dob" />
                       <Select value={textPatientLang} onValueChange={setTextPatientLang}>
                         <SelectTrigger data-testid="select-dictate-patient-lang"><SelectValue /></SelectTrigger>
                         <SelectContent>{SUPPORTED_LANGUAGES.map((lang) => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}</SelectContent>
@@ -2357,7 +2364,7 @@ export default function ClinicianDashboard() {
                     <Select value={textInputPatientId} onValueChange={(id) => {
                       setTextInputPatientId(id);
                       const p = existingPatients.find(pt => pt.id === id);
-                      if (p) { setTextPatientName(p.name); setTextPatientEmail(p.email); setTextPatientYob(String(p.yearOfBirth)); setTextPatientLang(p.preferredLanguage || "en"); }
+                      if (p) { setTextPatientName(p.name); setTextPatientEmail(p.email); setTextPatientDob(p.dateOfBirth || ""); setTextPatientLang(p.preferredLanguage || "en"); }
                     }}>
                       <SelectTrigger data-testid="select-paste-patient"><SelectValue placeholder="Select existing patient..." /></SelectTrigger>
                       <SelectContent>{existingPatients.map((p) => (<SelectItem key={p.id} value={p.id}>{p.name} ({p.email})</SelectItem>))}</SelectContent>
@@ -2367,7 +2374,7 @@ export default function ClinicianDashboard() {
                     <div className="grid grid-cols-2 gap-2">
                       <Input placeholder="Patient name" value={textPatientName} onChange={(e) => setTextPatientName(e.target.value)} data-testid="input-paste-patient-name" />
                       <Input placeholder="Email" type="email" value={textPatientEmail} onChange={(e) => setTextPatientEmail(e.target.value)} data-testid="input-paste-patient-email" />
-                      <Input placeholder="Year of birth" type="number" value={textPatientYob} onChange={(e) => setTextPatientYob(e.target.value)} data-testid="input-paste-patient-yob" />
+                      <Input type="date" max={new Date().toISOString().split("T")[0]} min="1900-01-01" value={textPatientDob} onChange={(e) => setTextPatientDob(e.target.value)} data-testid="input-paste-patient-dob" />
                       <Select value={textPatientLang} onValueChange={setTextPatientLang}>
                         <SelectTrigger data-testid="select-paste-patient-lang"><SelectValue /></SelectTrigger>
                         <SelectContent>{SUPPORTED_LANGUAGES.map((lang) => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}</SelectContent>
@@ -2414,9 +2421,9 @@ export default function ClinicianDashboard() {
                       setPatientName(p.name);
                       setPatientEmail(p.email);
                       setPatientPhone(p.phone || "");
-                      setPatientYearOfBirth(p.yearOfBirth.toString());
+                      setPatientDateOfBirth(p.dateOfBirth || "");
                       setPatientLanguage(p.preferredLanguage || "en");
-                      setFormTouched({ name: true, email: true, yearOfBirth: true });
+                      setFormTouched({ name: true, email: true, dateOfBirth: true });
                     }
                   }}
                 >
@@ -2481,21 +2488,22 @@ export default function ClinicianDashboard() {
               
             </div>
             <div className="space-y-2">
-              <Label htmlFor="patient-yob" className={formErrors.yearOfBirth ? "text-destructive" : ""}>
-                Year of Birth {formErrors.yearOfBirth && <span className="text-xs font-normal">*</span>}
+              <Label htmlFor="patient-dob" className={formErrors.dateOfBirth ? "text-destructive" : ""}>
+                Date of Birth {formErrors.dateOfBirth && <span className="text-xs font-normal">*</span>}
               </Label>
               <Input
-                id="patient-yob"
-                type="number"
-                placeholder="e.g., 1956"
-                value={patientYearOfBirth}
-                onChange={(e) => setPatientYearOfBirth(e.target.value)}
-                onBlur={() => setFormTouched(prev => ({ ...prev, yearOfBirth: true }))}
-                className={formErrors.yearOfBirth ? "border-destructive focus-visible:ring-destructive" : ""}
-                data-testid="input-patient-yob"
+                id="patient-dob"
+                type="date"
+                max={new Date().toISOString().split("T")[0]}
+                min="1900-01-01"
+                value={patientDateOfBirth}
+                onChange={(e) => setPatientDateOfBirth(e.target.value)}
+                onBlur={() => setFormTouched(prev => ({ ...prev, dateOfBirth: true }))}
+                className={formErrors.dateOfBirth ? "border-destructive focus-visible:ring-destructive" : ""}
+                data-testid="input-patient-dob"
               />
-              {formErrors.yearOfBirth && (
-                <p className="text-xs text-destructive">{formErrors.yearOfBirth}</p>
+              {formErrors.dateOfBirth && (
+                <p className="text-xs text-destructive">{formErrors.dateOfBirth}</p>
               )}
             </div>
             <div className="space-y-2">
@@ -2547,7 +2555,7 @@ export default function ClinicianDashboard() {
               disabled={
                 !patientName ||
                 !patientEmail ||
-                !patientYearOfBirth ||
+                !patientDateOfBirth ||
                 sendMutation.isPending
               }
               data-testid="button-send-confirm"

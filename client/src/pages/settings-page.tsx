@@ -17,6 +17,7 @@ type UserData = {
   name: string;
   role: string;
   tenantId?: string | null;
+  recoveryEmail?: string | null;
   tenant?: {
     id: string;
     name: string;
@@ -29,6 +30,8 @@ type UserData = {
 export default function SettingsPage() {
   const { toast } = useToast();
   const [interpreterReviewMode, setInterpreterReviewMode] = useState("");
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [recoveryEmailEditing, setRecoveryEmailEditing] = useState(false);
 
   const { data: user, isLoading } = useQuery<UserData>({
     queryKey: ["/api/auth/me"],
@@ -43,6 +46,12 @@ export default function SettingsPage() {
       setInterpreterReviewMode(user.tenant.interpreterReviewMode);
     }
   }, [user?.tenant?.interpreterReviewMode]);
+
+  useEffect(() => {
+    if (user?.recoveryEmail) {
+      setRecoveryEmail(user.recoveryEmail);
+    }
+  }, [user?.recoveryEmail]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: { interpreterReviewMode: string }) => {
@@ -61,6 +70,21 @@ export default function SettingsPage() {
   const handleSave = () => {
     saveMutation.mutate({ interpreterReviewMode });
   };
+
+  const saveRecoveryEmailMutation = useMutation({
+    mutationFn: async (data: { recoveryEmail: string }) => {
+      const res = await apiRequest("PATCH", "/api/auth/recovery-email", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      setRecoveryEmailEditing(false);
+      toast({ title: "Recovery email saved" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -140,7 +164,40 @@ export default function SettingsPage() {
           </div>
           <div>
             <Label className="text-xs text-muted-foreground uppercase">Role</Label>
-            <p className="mt-1"><Badge variant="secondary" className="capitalize" data-testid="badge-account-role">{user.role}</Badge></p>
+            <div className="mt-1"><Badge variant="secondary" className="capitalize" data-testid="badge-account-role">{user.role}</Badge></div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground uppercase">Recovery Email</Label>
+            <p className="text-xs text-muted-foreground mb-1">Used for password resets and "Send Test to Me"</p>
+            {recoveryEmailEditing ? (
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="your.email@example.com"
+                  value={recoveryEmail}
+                  onChange={(e) => setRecoveryEmail(e.target.value)}
+                  className="flex-1"
+                  data-testid="input-recovery-email"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => saveRecoveryEmailMutation.mutate({ recoveryEmail })}
+                  disabled={!recoveryEmail || saveRecoveryEmailMutation.isPending}
+                  data-testid="button-save-recovery-email"
+                >
+                  {saveRecoveryEmailMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setRecoveryEmailEditing(false); setRecoveryEmail(user.recoveryEmail || ""); }}>Cancel</Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium" data-testid="text-recovery-email">{user.recoveryEmail || "Not set"}</span>
+                <Button size="sm" variant="ghost" onClick={() => setRecoveryEmailEditing(true)} data-testid="button-edit-recovery-email">
+                  <Mail className="h-3 w-3 mr-1" />
+                  {user.recoveryEmail ? "Edit" : "Add"}
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -114,6 +114,11 @@ export default function Login() {
               Sign In
             </Button>
           </form>
+          <div className="mt-2 text-center">
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate("/reset-password")} data-testid="link-forgot-password">
+              Forgot password?
+            </Button>
+          </div>
 
           {isDemoMode && (
             <div className="mt-6 p-4 bg-muted rounded-lg">

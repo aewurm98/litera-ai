@@ -24,6 +24,7 @@ export interface IStorage {
   findPatientByName(name: string, tenantId?: string): Promise<Patient | undefined>;
   getAllPatients(tenantId?: string): Promise<Patient[]>;
   createPatient(patient: InsertPatient): Promise<Patient>;
+  createPatientAllowDuplicateEmail(patient: InsertPatient): Promise<Patient>;
   updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined>;
   updatePatientPassword(id: string, hashedPassword: string): Promise<void>;
   deletePatient(id: string): Promise<boolean>;
@@ -61,7 +62,9 @@ export interface IStorage {
   clearAllData(): Promise<void>;
   
   getAllUsers(tenantId?: string): Promise<User[]>;
-  updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId' | 'languages'>>): Promise<User | undefined>;
+  updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId' | 'languages' | 'recoveryEmail' | 'passwordResetToken' | 'passwordResetExpiry'>>): Promise<User | undefined>;
+  getUserByRecoveryEmail(email: string): Promise<User | undefined>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   
   getAllTenants(): Promise<Tenant[]>;
@@ -141,6 +144,16 @@ export class DatabaseStorage implements IStorage {
 
   async createPatient(insertPatient: InsertPatient): Promise<Patient> {
     const [patient] = await db.insert(patients).values(insertPatient).returning();
+    return patient;
+  }
+
+  async createPatientAllowDuplicateEmail(insertPatient: InsertPatient): Promise<Patient> {
+    const email = insertPatient.email;
+    const atIdx = email.indexOf("@");
+    if (atIdx === -1) throw new Error("Invalid email");
+    const suffix = `+${Date.now()}`;
+    const dbEmail = email.slice(0, atIdx) + suffix + email.slice(atIdx);
+    const [patient] = await db.insert(patients).values({ ...insertPatient, email: dbEmail }).returning();
     return patient;
   }
 
@@ -344,8 +357,18 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(users).orderBy(users.name);
   }
 
-  async updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId' | 'languages'>>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<Pick<User, 'name' | 'role' | 'tenantId' | 'languages' | 'recoveryEmail' | 'passwordResetToken' | 'passwordResetExpiry'>>): Promise<User | undefined> {
     const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return user || undefined;
+  }
+
+  async getUserByRecoveryEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.recoveryEmail, email));
+    return user || undefined;
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.passwordResetToken, token));
     return user || undefined;
   }
 
