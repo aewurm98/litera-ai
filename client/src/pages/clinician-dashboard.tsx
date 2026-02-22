@@ -72,6 +72,7 @@ import {
   Type,
   Mail,
   Copy,
+  Save,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
@@ -705,6 +706,29 @@ export default function ClinicianDashboard() {
     },
   });
 
+  const saveDraftMutation = useMutation({
+    mutationFn: async ({ id, edits }: { id: string; edits: Record<string, string> }) => {
+      const res = await apiRequest("POST", `/api/care-plans/${id}/save-draft`, { edits });
+      return res.json() as Promise<CarePlanWithPatient>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
+      setSelectedCarePlan(data);
+      setClinicianEdits({});
+      toast({
+        title: "Draft saved",
+        description: "Your edits have been saved. Translation has not been updated yet.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to save draft",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Approve mutation
   const approveMutation = useMutation({
     mutationFn: async ({ id, skipInterpreterReview, overrideJustification, clinicianEdits }: { id: string; skipInterpreterReview?: boolean; overrideJustification?: string; clinicianEdits?: Record<string, string> }) => {
@@ -1243,6 +1267,21 @@ export default function ClinicianDashboard() {
                     {patientLanguage === "en" ? "Simplify" : patientLanguage ? "Process & Translate" : "Select Language First"}
                   </Button>
                 )}
+                {hasEdits && (selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
+                  <Button
+                    variant="outline"
+                    onClick={() => saveDraftMutation.mutate({ id: selectedCarePlan.id, edits: clinicianEdits })}
+                    disabled={saveDraftMutation.isPending}
+                    data-testid="button-save-draft"
+                  >
+                    {saveDraftMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    Save Draft
+                  </Button>
+                )}
                 {hasEdits && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en" && (selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
                   <Button
                     variant="outline"
@@ -1310,6 +1349,21 @@ export default function ClinicianDashboard() {
                 )}
                 {isPostApproval && postApprovalEditMode && (
                   <>
+                    {hasEdits && (
+                      <Button
+                        variant="outline"
+                        onClick={() => saveDraftMutation.mutate({ id: selectedCarePlan.id, edits: clinicianEdits })}
+                        disabled={saveDraftMutation.isPending}
+                        data-testid="button-save-draft-post"
+                      >
+                        {saveDraftMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4 mr-2" />
+                        )}
+                        Save Draft
+                      </Button>
+                    )}
                     {hasEdits && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en" && (
                       <Button
                         variant="outline"

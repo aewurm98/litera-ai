@@ -7,7 +7,7 @@ async function getCredentials(): Promise<{ apiKey: string; fromEmail: string }> 
     console.log("[Resend] Using direct RESEND_API_KEY");
     return {
       apiKey: process.env.RESEND_API_KEY,
-      fromEmail: process.env.RESEND_FROM_EMAIL || "Litera Health <care@litera.health>",
+      fromEmail: process.env.RESEND_FROM_EMAIL || "Litera Health <onboarding@resend.dev>",
     };
   }
 
@@ -79,7 +79,7 @@ export async function getUncachableResendClient() {
   const { apiKey, fromEmail } = await getCredentials();
   return {
     client: new Resend(apiKey),
-    fromEmail: fromEmail || "Litera Health <care@litera.health>",
+    fromEmail: fromEmail || "Litera Health <onboarding@resend.dev>",
   };
 }
 

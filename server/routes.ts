@@ -934,6 +934,91 @@ export async function registerRoutes(
   });
 
   // Re-translate care plan after clinician edits
+  app.post("/api/care-plans/:id/save-draft", requireClinicianAuth, async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const tenantId = req.session.tenantId;
+
+      const carePlan = await storage.getCarePlan(id);
+      if (!carePlan) {
+        return res.status(404).json({ error: "Care plan not found" });
+      }
+      if (tenantId && carePlan.tenantId !== tenantId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { edits } = req.body || {};
+      if (!edits || typeof edits !== "object" || Object.keys(edits).length === 0) {
+        return res.status(400).json({ error: "No edits provided" });
+      }
+
+      const updateData: any = {};
+
+      let updatedMeds = carePlan.simplifiedMedications || [];
+      let updatedApts = carePlan.simplifiedAppointments || [];
+      const medEdits: Record<number, Record<string, string>> = {};
+      const aptEdits: Record<number, Record<string, string>> = {};
+
+      for (const [key, value] of Object.entries(edits)) {
+        const medMatch = key.match(/^simplifiedMedications_(\d+)_(\w+)$/);
+        if (medMatch) {
+          const idx = parseInt(medMatch[1]);
+          if (!medEdits[idx]) medEdits[idx] = {};
+          medEdits[idx][medMatch[2]] = String(value);
+          continue;
+        }
+        const aptMatch = key.match(/^simplifiedAppointments_(\d+)_(\w+)$/);
+        if (aptMatch) {
+          const idx = parseInt(aptMatch[1]);
+          if (!aptEdits[idx]) aptEdits[idx] = {};
+          aptEdits[idx][aptMatch[2]] = String(value);
+          continue;
+        }
+        if (["simplifiedDiagnosis", "simplifiedInstructions", "simplifiedWarnings"].includes(key)) {
+          updateData[key] = String(value);
+        }
+      }
+
+      if (Object.keys(medEdits).length > 0 && Array.isArray(updatedMeds)) {
+        updatedMeds = [...(updatedMeds as any[])];
+        for (const [idx, fields] of Object.entries(medEdits)) {
+          const i = parseInt(idx);
+          if (i < updatedMeds.length) {
+            (updatedMeds as any[])[i] = { ...(updatedMeds as any[])[i], ...fields };
+          }
+        }
+        updateData.simplifiedMedications = updatedMeds;
+      }
+      if (Object.keys(aptEdits).length > 0 && Array.isArray(updatedApts)) {
+        updatedApts = [...(updatedApts as any[])];
+        for (const [idx, fields] of Object.entries(aptEdits)) {
+          const i = parseInt(idx);
+          if (i < updatedApts.length) {
+            (updatedApts as any[])[i] = { ...(updatedApts as any[])[i], ...fields };
+          }
+        }
+        updateData.simplifiedAppointments = updatedApts;
+      }
+
+      const updated = await storage.updateCarePlan(id, updateData);
+
+      await storage.createAuditLog({
+        carePlanId: id,
+        userId: clinicianId,
+        action: "draft_saved",
+        details: { editedFields: Object.keys(edits) },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error saving draft edits:", error);
+      res.status(500).json({ error: "Failed to save draft. Please try again." });
+    }
+  });
+
   app.post("/api/care-plans/:id/retranslate", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
