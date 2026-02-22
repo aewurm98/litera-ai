@@ -26,6 +26,14 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 - Stale care plan alerts (draft >48h, pending_review/approved >72h)
 - Enhanced TCM compliance: contact within 2 days, CPT 99495 (response within 14d), CPT 99496 (response within 7d), missing discharge date warnings
 
+### Phase D - Full Date of Birth Support (Complete)
+- Added `dateOfBirth` (text, YYYY-MM-DD format) column to patients schema alongside existing `yearOfBirth`
+- Backend: All patient CRUD endpoints (create, update, CSV import, send) accept `dateOfBirth`, auto-derive `yearOfBirth`
+- Frontend: Admin dashboard create/edit forms use date picker; display shows full DOB with yearOfBirth fallback
+- Seed data includes full DOB for all demo patients
+- CSV import recognizes DOB headers: dateofbirth, date of birth, dob, date_of_birth, birthday
+- Patient portal verification still uses yearOfBirth (4-digit year) for authentication simplicity
+
 ## System Architecture
 
 Litera.ai is built with a clear separation between its frontend, backend, and shared components.

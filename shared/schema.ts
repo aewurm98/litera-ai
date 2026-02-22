@@ -63,7 +63,8 @@ export const patients = pgTable("patients", {
   email: text("email").notNull(),
   phone: text("phone"),
   yearOfBirth: integer("year_of_birth").notNull(),
-  pin: text("pin"),  // bcrypt hash stored here; original length-4 constraint removed
+  dateOfBirth: text("date_of_birth"),
+  pin: text("pin"),
   password: text("password"),
   preferredLanguage: text("preferred_language").notNull().default("en"),
   isTestPatient: boolean("is_test_patient").notNull().default(false),

@@ -517,7 +517,7 @@ export default function ClinicianDashboard() {
     staleTime: 1000 * 30,
   });
 
-  type SimplePatient = { id: string; name: string; lastName: string | null; email: string; phone: string | null; yearOfBirth: number; preferredLanguage: string };
+  type SimplePatient = { id: string; name: string; lastName: string | null; email: string; phone: string | null; yearOfBirth: number; dateOfBirth: string | null; preferredLanguage: string };
   const { data: existingPatients = [] } = useQuery<SimplePatient[]>({
     queryKey: ["/api/patients"],
     staleTime: 1000 * 30,

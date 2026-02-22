@@ -202,45 +202,45 @@ async function seedDemoData() {
   // === Riverside Patients ===
   const [patient1] = await db.insert(patients).values({
     name: "Rosa Martinez", email: "rosa.martinez@example.com", phone: "+1-555-0101",
-    yearOfBirth: 1956, preferredLanguage: "es", lastName: "Martinez", pin: hashedPin, tenantId: tenant1.id,
+    yearOfBirth: 1956, dateOfBirth: "1956-03-14", preferredLanguage: "es", lastName: "Martinez", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
   const [patient2] = await db.insert(patients).values({
     name: "Nguyen Thi Lan", email: "nguyen.lan@example.com", phone: "+1-555-0102",
-    yearOfBirth: 1968, preferredLanguage: "vi", lastName: "Lan", pin: hashedPin, tenantId: tenant1.id,
+    yearOfBirth: 1968, dateOfBirth: "1968-08-22", preferredLanguage: "vi", lastName: "Lan", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
   const [patient3] = await db.insert(patients).values({
     name: "Wei Zhang", email: "wei.zhang@example.com", phone: "+1-555-0103",
-    yearOfBirth: 1975, preferredLanguage: "zh", lastName: "Zhang", pin: hashedPin, tenantId: tenant1.id,
+    yearOfBirth: 1975, dateOfBirth: "1975-11-05", preferredLanguage: "zh", lastName: "Zhang", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
   const [patient6] = await db.insert(patients).values({
     name: "Amadou Diallo", email: "amadou.diallo@example.com", phone: "+1-555-0106",
-    yearOfBirth: 1985, preferredLanguage: "fr", lastName: "Diallo", pin: hashedPin, tenantId: tenant1.id,
+    yearOfBirth: 1985, dateOfBirth: "1985-06-17", preferredLanguage: "fr", lastName: "Diallo", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
   const [patient8] = await db.insert(patients).values({
     name: "Olga Petrov", email: "olga.petrov@example.com", phone: "+1-555-0108",
-    yearOfBirth: 1948, preferredLanguage: "ru", lastName: "Petrov", pin: hashedPin, tenantId: tenant1.id,
+    yearOfBirth: 1948, dateOfBirth: "1948-01-30", preferredLanguage: "ru", lastName: "Petrov", pin: hashedPin, tenantId: tenant1.id,
   }).returning();
 
   // === Lakeside Patients ===
   const [patient4] = await db.insert(patients).values({
     name: "Fatima Al-Hassan", email: "fatima.alhassan@example.com", phone: "+1-555-0104",
-    yearOfBirth: 1990, preferredLanguage: "ar", lastName: "Al-Hassan", pin: hashedPin, tenantId: tenant2.id,
+    yearOfBirth: 1990, dateOfBirth: "1990-04-12", preferredLanguage: "ar", lastName: "Al-Hassan", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
   const [patient5] = await db.insert(patients).values({
     name: "Aisha Rahman", email: "aisha.rahman@example.com", phone: "+1-555-0105",
-    yearOfBirth: 1978, preferredLanguage: "ar", lastName: "Rahman", pin: hashedPin, tenantId: tenant2.id,
+    yearOfBirth: 1978, dateOfBirth: "1978-09-28", preferredLanguage: "ar", lastName: "Rahman", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
   const [patient7] = await db.insert(patients).values({
     name: "Arjun Sharma", email: "arjun.sharma@example.com", phone: "+1-555-0107",
-    yearOfBirth: 2020, preferredLanguage: "hi", lastName: "Sharma", pin: hashedPin, tenantId: tenant2.id,
+    yearOfBirth: 2020, dateOfBirth: "2020-12-03", preferredLanguage: "hi", lastName: "Sharma", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
   const [patient9] = await db.insert(patients).values({
     name: "Pedro Gutierrez", email: "pedro.gutierrez@example.com", phone: "+1-555-0109",
-    yearOfBirth: 1975, preferredLanguage: "es", lastName: "Gutierrez", pin: hashedPin, tenantId: tenant2.id,
+    yearOfBirth: 1975, dateOfBirth: "1975-07-21", preferredLanguage: "es", lastName: "Gutierrez", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
   const [patient10] = await db.insert(patients).values({
     name: "Tran Van Duc", email: "tran.duc@example.com", phone: "+1-555-0110",
-    yearOfBirth: 1960, preferredLanguage: "vi", lastName: "Duc", pin: hashedPin, tenantId: tenant2.id,
+    yearOfBirth: 1960, dateOfBirth: "1960-02-09", preferredLanguage: "vi", lastName: "Duc", pin: hashedPin, tenantId: tenant2.id,
   }).returning();
 
   console.log("Created demo patients");

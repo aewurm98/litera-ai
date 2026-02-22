@@ -94,6 +94,7 @@ type EnrichedPatient = {
   email: string;
   phone: string | null;
   yearOfBirth: number;
+  dateOfBirth: string | null;
   preferredLanguage: string;
   tenantId: string | null;
   createdAt: string;
@@ -190,8 +191,8 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
               <p data-testid="text-patient-detail-name">{patient.name}</p>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground uppercase">Year of Birth</Label>
-              <p data-testid="text-patient-detail-yob">{patient.yearOfBirth}</p>
+              <Label className="text-xs text-muted-foreground uppercase">Date of Birth</Label>
+              <p data-testid="text-patient-detail-yob">{patient.dateOfBirth || patient.yearOfBirth}</p>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground uppercase">Last Name (Auth)</Label>
@@ -285,8 +286,8 @@ export default function AdminDashboard() {
   const [isPatientDetailDialogOpen, setIsPatientDetailDialogOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<EnrichedPatient | null>(null);
   const [patientSearchQuery, setPatientSearchQuery] = useState("");
-  const [newPatientForm, setNewPatientForm] = useState({ name: "", email: "", phone: "", yearOfBirth: "", preferredLanguage: "en" });
-  const [editPatientForm, setEditPatientForm] = useState<{ id: string; name: string; email: string; phone: string; yearOfBirth: string; preferredLanguage: string }>({ id: "", name: "", email: "", phone: "", yearOfBirth: "", preferredLanguage: "en" });
+  const [newPatientForm, setNewPatientForm] = useState({ name: "", email: "", phone: "", dateOfBirth: "", preferredLanguage: "en" });
+  const [editPatientForm, setEditPatientForm] = useState<{ id: string; name: string; email: string; phone: string; dateOfBirth: string; preferredLanguage: string }>({ id: "", name: "", email: "", phone: "", dateOfBirth: "", preferredLanguage: "en" });
   const [importFile, setImportFile] = useState<File | null>(null);
 
   // Fetch environment info to determine if we're in demo mode
@@ -493,19 +494,25 @@ export default function AdminDashboard() {
   // Create patient mutation
   const createPatientMutation = useMutation({
     mutationFn: async (data: typeof newPatientForm) => {
-      return apiRequest("POST", "/api/admin/patients", {
+      const payload: any = {
         name: data.name,
         email: data.email,
         phone: data.phone || null,
-        yearOfBirth: parseInt(data.yearOfBirth),
         preferredLanguage: data.preferredLanguage,
-      });
+      };
+      if (data.dateOfBirth) {
+        payload.dateOfBirth = data.dateOfBirth;
+        payload.yearOfBirth = new Date(data.dateOfBirth).getFullYear();
+      } else {
+        payload.yearOfBirth = 1970;
+      }
+      return apiRequest("POST", "/api/admin/patients", payload);
     },
     onSuccess: () => {
       toast({ title: "Patient created successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/patients"] });
       setIsCreatePatientDialogOpen(false);
-      setNewPatientForm({ name: "", email: "", phone: "", yearOfBirth: "", preferredLanguage: "en" });
+      setNewPatientForm({ name: "", email: "", phone: "", dateOfBirth: "", preferredLanguage: "en" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -515,13 +522,17 @@ export default function AdminDashboard() {
   // Update patient mutation
   const updatePatientMutation = useMutation({
     mutationFn: async (data: typeof editPatientForm) => {
-      return apiRequest("PATCH", `/api/admin/patients/${data.id}`, {
+      const payload: any = {
         name: data.name,
         email: data.email,
         phone: data.phone || null,
-        yearOfBirth: parseInt(data.yearOfBirth),
         preferredLanguage: data.preferredLanguage,
-      });
+      };
+      if (data.dateOfBirth) {
+        payload.dateOfBirth = data.dateOfBirth;
+        payload.yearOfBirth = new Date(data.dateOfBirth).getFullYear();
+      }
+      return apiRequest("PATCH", `/api/admin/patients/${data.id}`, payload);
     },
     onSuccess: () => {
       toast({ title: "Patient updated successfully" });
@@ -917,7 +928,7 @@ export default function AdminDashboard() {
                                 <Badge variant="outline" className="ml-2 text-[10px] py-0 px-1.5 border-orange-300 text-orange-600 bg-orange-50">TEST</Badge>
                               )}
                             </p>
-                            <p className="text-sm text-muted-foreground">Year of Birth: {patient.yearOfBirth}</p>
+                            <p className="text-sm text-muted-foreground">DOB: {patient.dateOfBirth || patient.yearOfBirth}</p>
                           </div>
                         </TableCell>
                         <TableCell>{patient.email}</TableCell>
@@ -955,7 +966,7 @@ export default function AdminDashboard() {
                                   name: patient.name,
                                   email: patient.email,
                                   phone: patient.phone || "",
-                                  yearOfBirth: String(patient.yearOfBirth),
+                                  dateOfBirth: patient.dateOfBirth || "",
                                   preferredLanguage: patient.preferredLanguage,
                                 });
                                 setIsEditPatientDialogOpen(true);
@@ -1078,7 +1089,7 @@ export default function AdminDashboard() {
                                       name: patient.name,
                                       email: patient.email,
                                       phone: patient.phone || "",
-                                      yearOfBirth: String(patient.yearOfBirth),
+                                      dateOfBirth: patient.dateOfBirth || "",
                                       preferredLanguage: patient.preferredLanguage,
                                     });
                                     setIsEditPatientDialogOpen(true);
@@ -1666,14 +1677,14 @@ export default function AdminDashboard() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="patient-yob">Year of Birth</Label>
+              <Label htmlFor="patient-dob">Date of Birth</Label>
               <Input
-                id="patient-yob"
-                type="number"
-                value={newPatientForm.yearOfBirth}
-                onChange={(e) => setNewPatientForm({ ...newPatientForm, yearOfBirth: e.target.value })}
+                id="patient-dob"
+                type="date"
+                value={newPatientForm.dateOfBirth}
+                onChange={(e) => setNewPatientForm({ ...newPatientForm, dateOfBirth: e.target.value })}
                 required
-                data-testid="input-patient-yob"
+                data-testid="input-patient-dob"
               />
             </div>
             <div className="space-y-2">
@@ -1751,14 +1762,13 @@ export default function AdminDashboard() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-patient-yob">Year of Birth</Label>
+              <Label htmlFor="edit-patient-dob">Date of Birth</Label>
               <Input
-                id="edit-patient-yob"
-                type="number"
-                value={editPatientForm.yearOfBirth}
-                onChange={(e) => setEditPatientForm({ ...editPatientForm, yearOfBirth: e.target.value })}
-                required
-                data-testid="input-edit-patient-yob"
+                id="edit-patient-dob"
+                type="date"
+                value={editPatientForm.dateOfBirth}
+                onChange={(e) => setEditPatientForm({ ...editPatientForm, dateOfBirth: e.target.value })}
+                data-testid="input-edit-patient-dob"
               />
             </div>
             <div className="space-y-2">
@@ -1797,7 +1807,7 @@ export default function AdminDashboard() {
           <DialogHeader>
             <DialogTitle>Import Patients from CSV</DialogTitle>
             <DialogDescription>
-              Upload a CSV file with columns: name, email, phone, yearOfBirth, preferredLanguage
+              Upload a CSV file with columns: name, email, phone, dateOfBirth (YYYY-MM-DD), preferredLanguage
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1812,7 +1822,7 @@ export default function AdminDashboard() {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              The CSV should include headers: name, email, phone, yearOfBirth, preferredLanguage. 
+              The CSV should include headers: name, email, phone, dateOfBirth (or yearOfBirth), preferredLanguage. 
               Existing patients (matched by email) will be updated.
             </p>
           </div>

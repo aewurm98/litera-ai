@@ -234,6 +234,7 @@ const sendCarePlanSchema = z.object({
   email: z.string().email(),
   phone: z.string().optional(),
   yearOfBirth: z.number().int().min(1900).max(2100),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   preferredLanguage: z.string().min(2).max(5),
 });
 
@@ -1310,7 +1311,7 @@ export async function registerRoutes(
   app.post("/api/care-plans/:id/send", requireClinicianAuth, validateBody(sendCarePlanSchema), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const { name, email, phone, yearOfBirth, preferredLanguage } = req.body;
+      const { name, email, phone, yearOfBirth, dateOfBirth, preferredLanguage } = req.body;
       const clinicianId = (req as any).clinicianId || "clinician-1";
       const tenantId = req.session.tenantId;
 
@@ -1333,6 +1334,7 @@ export async function registerRoutes(
       // Generate PIN for patient verification (production security)
       const patientPin = generatePin();
       const lastName = extractLastName(name);
+      const effectiveYob = dateOfBirth ? new Date(dateOfBirth).getFullYear() : yearOfBirth;
       
       // Create or update patient (scoped by tenant)
       let patient = await storage.getPatientByEmail(email, tenantId);
@@ -1342,7 +1344,8 @@ export async function registerRoutes(
           lastName,
           email,
           phone,
-          yearOfBirth,
+          yearOfBirth: effectiveYob,
+          dateOfBirth: dateOfBirth || null,
           pin: await bcrypt.hash(patientPin, 10),
           preferredLanguage,
           tenantId,
@@ -2589,6 +2592,7 @@ ${contextText}`
             email: patient.email,
             phone: patient.phone,
             yearOfBirth: patient.yearOfBirth,
+            dateOfBirth: patient.dateOfBirth,
             preferredLanguage: patient.preferredLanguage,
             tenantId: patient.tenantId,
             createdAt: patient.createdAt,
@@ -2610,10 +2614,10 @@ ${contextText}`
   app.post("/api/admin/patients", requireAdminAuth, async (req: Request, res: Response) => {
     try {
       const tenantId = req.session.tenantId;
-      const { name, email, phone, yearOfBirth, preferredLanguage } = req.body;
+      const { name, email, phone, yearOfBirth, dateOfBirth, preferredLanguage } = req.body;
       
-      if (!name || !email || !yearOfBirth) {
-        return res.status(400).json({ error: "Name, email, and year of birth are required" });
+      if (!name || !email || (!yearOfBirth && !dateOfBirth)) {
+        return res.status(400).json({ error: "Name, email, and date of birth (or year of birth) are required" });
       }
       if (typeof name !== "string" || name.length > 500) {
         return res.status(400).json({ error: "Name must be 500 characters or fewer" });
@@ -2621,7 +2625,11 @@ ${contextText}`
       if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return res.status(400).json({ error: "A valid email address is required" });
       }
-      if (typeof yearOfBirth !== "number" || yearOfBirth < 1900 || yearOfBirth > 2100) {
+      if (dateOfBirth && (typeof dateOfBirth !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth))) {
+        return res.status(400).json({ error: "Date of birth must be in YYYY-MM-DD format" });
+      }
+      const effectiveYob = dateOfBirth ? new Date(dateOfBirth).getFullYear() : yearOfBirth;
+      if (typeof effectiveYob !== "number" || effectiveYob < 1900 || effectiveYob > 2100) {
         return res.status(400).json({ error: "Year of birth must be between 1900 and 2100" });
       }
       
@@ -2647,7 +2655,8 @@ ${contextText}`
         lastName,
         email,
         phone: phone || null,
-        yearOfBirth,
+        yearOfBirth: effectiveYob,
+        dateOfBirth: dateOfBirth || null,
         pin: hashedPin,
         preferredLanguage: preferredLanguage || "en",
         tenantId,
@@ -2685,13 +2694,16 @@ ${contextText}`
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const { name, email, phone, yearOfBirth, preferredLanguage } = req.body;
+      const { name, email, phone, yearOfBirth, dateOfBirth, preferredLanguage } = req.body;
 
       if (name !== undefined && (typeof name !== "string" || name.length > 500)) {
         return res.status(400).json({ error: "Name must be 500 characters or fewer" });
       }
       if (email !== undefined && (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
         return res.status(400).json({ error: "A valid email address is required" });
+      }
+      if (dateOfBirth !== undefined && dateOfBirth !== null && (typeof dateOfBirth !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth))) {
+        return res.status(400).json({ error: "Date of birth must be in YYYY-MM-DD format" });
       }
       if (yearOfBirth !== undefined && (typeof yearOfBirth !== "number" || yearOfBirth < 1900 || yearOfBirth > 2100)) {
         return res.status(400).json({ error: "Year of birth must be between 1900 and 2100" });
@@ -2712,7 +2724,11 @@ ${contextText}`
       }
       if (email !== undefined) updateData.email = email;
       if (phone !== undefined) updateData.phone = phone;
-      if (yearOfBirth !== undefined) updateData.yearOfBirth = yearOfBirth;
+      if (dateOfBirth !== undefined) {
+        updateData.dateOfBirth = dateOfBirth;
+        if (dateOfBirth) updateData.yearOfBirth = new Date(dateOfBirth).getFullYear();
+      }
+      if (yearOfBirth !== undefined && !dateOfBirth) updateData.yearOfBirth = yearOfBirth;
       if (preferredLanguage !== undefined) updateData.preferredLanguage = preferredLanguage;
       
       const updated = await storage.updatePatient(id, updateData);
@@ -2852,6 +2868,7 @@ ${contextText}`
         email: p.email,
         phone: p.phone,
         yearOfBirth: p.yearOfBirth,
+        dateOfBirth: p.dateOfBirth,
         preferredLanguage: p.preferredLanguage,
         tenantId: p.tenantId,
       }));
@@ -2882,6 +2899,7 @@ ${contextText}`
       const nameIdx = header.findIndex(h => h === "name" || h === "patient name" || h === "full name");
       const emailIdx = header.findIndex(h => h === "email" || h === "patient email" || h === "email address");
       const phoneIdx = header.findIndex(h => h === "phone" || h === "phone number");
+      const dobIdx = header.findIndex(h => h === "dateofbirth" || h === "date of birth" || h === "dob" || h === "date_of_birth" || h === "birthday");
       const yobIdx = header.findIndex(h => h === "yearofbirth" || h === "year of birth" || h === "yob" || h === "birth year" || h === "year_of_birth");
       const langIdx = header.findIndex(h => h === "preferredlanguage" || h === "preferred language" || h === "language" || h === "preferred_language" || h === "lang");
       
@@ -2899,6 +2917,7 @@ ${contextText}`
         const name = values[nameIdx]?.trim();
         const email = values[emailIdx]?.trim();
         const phone = phoneIdx !== -1 ? values[phoneIdx]?.trim() : null;
+        const dobStr = dobIdx !== -1 ? values[dobIdx]?.trim() : null;
         const yobStr = yobIdx !== -1 ? values[yobIdx]?.trim() : null;
         const lang = langIdx !== -1 ? values[langIdx]?.trim() : "en";
         
@@ -2907,9 +2926,18 @@ ${contextText}`
           continue;
         }
         
-        const yearOfBirth = yobStr ? parseInt(yobStr) : 1970;
+        let dateOfBirth: string | null = null;
+        let yearOfBirth: number;
+        if (dobStr && /^\d{4}-\d{2}-\d{2}$/.test(dobStr)) {
+          dateOfBirth = dobStr;
+          yearOfBirth = new Date(dobStr).getFullYear();
+        } else if (yobStr) {
+          yearOfBirth = parseInt(yobStr);
+        } else {
+          yearOfBirth = 1970;
+        }
         if (isNaN(yearOfBirth) || yearOfBirth < 1900 || yearOfBirth > new Date().getFullYear()) {
-          errors.push(`Row ${i + 1}: Invalid year of birth '${yobStr}'`);
+          errors.push(`Row ${i + 1}: Invalid date/year of birth '${dobStr || yobStr}'`);
           continue;
         }
         
@@ -2944,6 +2972,7 @@ ${contextText}`
           email,
           phone: phone || null,
           yearOfBirth,
+          dateOfBirth,
           pin: hashedPin,
           preferredLanguage: lang || "en",
           tenantId,
@@ -3394,7 +3423,8 @@ ${contextText}`
           const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
           const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
 
-          const carePlanSentTime = plan.sentAt ? new Date(plan.sentAt).getTime() : null;
+          const carePlanSentTime = (plan.status === "sent" || plan.status === "completed")
+            ? new Date(plan.updatedAt).getTime() : null;
           if (carePlanSentTime) {
             const diff = carePlanSentTime - dischargeTime;
             if (diff >= 0 && diff <= TWO_DAYS_MS) hasContactWithin2Days = true;
