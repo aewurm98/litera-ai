@@ -1297,6 +1297,12 @@ export default function ClinicianDashboard() {
                     Update Translation
                   </Button>
                 )}
+                {interpreterReviewMode === "optional" && selectedCarePlan.status === "pending_review" && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en" && (
+                  <Badge variant="outline" className="py-2 px-3 border-amber-300 bg-amber-50 text-amber-800">
+                    <Languages className="h-4 w-4 mr-2" />
+                    Interpreter review available
+                  </Badge>
+                )}
                 {(selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
                   <Button
                     onClick={() => {
@@ -1322,7 +1328,7 @@ export default function ClinicianDashboard() {
                     )}
                     {selectedCarePlan.status === "interpreter_approved" 
                       ? (hasEdits ? "Update Translation First" : "Final Approve") 
-                      : (hasEdits && selectedCarePlan.translatedLanguage !== "en" ? "Update Translation First" : hasEdits ? "Save Edits & Approve" : "Verify & Approve")}
+                      : (hasEdits && selectedCarePlan.translatedLanguage !== "en" ? "Update Translation First" : hasEdits ? "Save Edits & Approve" : interpreterReviewMode === "optional" && selectedCarePlan.translatedLanguage && selectedCarePlan.translatedLanguage !== "en" ? "Review & Approve" : "Verify & Approve")}
                   </Button>
                 )}
                 {selectedCarePlan.status === "pending_review" && !hasScrolledAll && (

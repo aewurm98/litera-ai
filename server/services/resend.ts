@@ -61,10 +61,14 @@ async function getCredentials(): Promise<{ apiKey: string; fromEmail: string }> 
       throw new Error("Resend connection found but api_key is missing from settings");
     }
 
-    console.log("[Resend] Credentials obtained successfully, from_email:", connectionSettings.settings.from_email);
+    const DEFAULT_FROM = "Litera Health <onboarding@resend.dev>";
+    const envFrom = process.env.RESEND_FROM_EMAIL;
+    const connectorFrom = connectionSettings.settings.from_email;
+    const fromEmail = envFrom || connectorFrom || DEFAULT_FROM;
+    console.log("[Resend] Credentials obtained successfully, using from_email:", fromEmail, "(env override:", !!envFrom, ", connector:", connectorFrom, ")");
     return {
       apiKey: connectionSettings.settings.api_key,
-      fromEmail: connectionSettings.settings.from_email,
+      fromEmail,
     };
   } catch (error: any) {
     if (error.message.includes("Resend")) throw error;
