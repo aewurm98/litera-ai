@@ -50,7 +50,18 @@ import {
 import { DialogFooter } from "@/components/ui/dialog";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
-import { format, differenceInCalendarDays } from "date-fns";
+import { format, parseISO, differenceInCalendarDays } from "date-fns";
+
+function formatDob(dateOfBirth: string | null, yearOfBirth: number): string {
+  if (dateOfBirth) {
+    try {
+      return format(parseISO(dateOfBirth), "MM/dd/yyyy");
+    } catch {
+      return String(yearOfBirth);
+    }
+  }
+  return `Born ${yearOfBirth}`;
+}
 
 type CarePlanWithDetails = CarePlan & { 
   patient?: Patient; 
@@ -192,7 +203,7 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
             </div>
             <div>
               <Label className="text-xs text-muted-foreground uppercase">Date of Birth</Label>
-              <p data-testid="text-patient-detail-yob">{patient.dateOfBirth || patient.yearOfBirth}</p>
+              <p data-testid="text-patient-detail-yob">{formatDob(patient.dateOfBirth, patient.yearOfBirth)}</p>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground uppercase">Last Name (Auth)</Label>
@@ -234,6 +245,7 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
                   <TableHead>Status</TableHead>
                   <TableHead>Clinician</TableHead>
                   <TableHead>Language</TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -248,6 +260,19 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
                       {cp.translatedLanguage
                         ? SUPPORTED_LANGUAGES.find(l => l.code === cp.translatedLanguage)?.name || cp.translatedLanguage
                         : <span className="text-muted-foreground">{preferredLangName} <span className="text-xs">(pending)</span></span>}
+                    </TableCell>
+                    <TableCell>
+                      {cp.accessToken && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => window.open(`/p/${cp.accessToken}?demo=1`, "_blank")}
+                          title="View as Patient"
+                          data-testid={`button-view-care-plan-${cp.id}`}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -928,7 +953,7 @@ export default function AdminDashboard() {
                                 <Badge variant="outline" className="ml-2 text-[10px] py-0 px-1.5 border-orange-300 text-orange-600 bg-orange-50">TEST</Badge>
                               )}
                             </p>
-                            <p className="text-sm text-muted-foreground">DOB: {patient.dateOfBirth || patient.yearOfBirth}</p>
+                            <p className="text-sm text-muted-foreground">{formatDob(patient.dateOfBirth, patient.yearOfBirth)}</p>
                           </div>
                         </TableCell>
                         <TableCell>{patient.email}</TableCell>

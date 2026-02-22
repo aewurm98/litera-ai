@@ -1609,6 +1609,7 @@ export async function registerRoutes(
       }
       const valid = validateDemoToken(previewToken, accessToken);
       if (valid) {
+        req.session.verifiedTokens = { ...(req.session.verifiedTokens || {}), [accessToken]: true };
         return res.json({ verified: true });
       }
       return res.status(401).json({ verified: false });

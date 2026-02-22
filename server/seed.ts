@@ -396,8 +396,21 @@ async function seedDemoData() {
   // 4. Amadou Diallo — DRAFT (sickle cell)
   const [carePlan6] = await db.insert(carePlans).values({
     patientId: patient6.id, clinicianId: clinician1.id, tenantId: tenant1.id, status: "draft",
-    originalContent: "DISCHARGE SUMMARY\n\nPatient: Amadou Diallo\nDiagnosis: Sickle Cell Crisis\n\nMEDICATIONS:\n1. Hydroxyurea 500mg - Once daily\n2. Folic acid 1mg - Once daily\n\nWARNINGS:\n- Seek immediate care for severe pain, fever, or difficulty breathing",
-    originalFileName: "discharge_amadou_diallo_sickle_cell.pdf", extractedPatientName: "Amadou Diallo", diagnosis: "Sickle Cell Crisis",
+    originalContent: "DISCHARGE SUMMARY\n\nPatient: Amadou Diallo\nDiagnosis: Sickle Cell Vaso-Occlusive Crisis\n\nHOSPITAL COURSE:\nMr. Diallo presented with severe pain in bilateral lower extremities and lower back consistent with vaso-occlusive crisis. He was managed with IV fluids, IV morphine PCA, and ketorolac. Pain resolved over 3 days. Labs showed Hgb 7.8 g/dL (baseline 8.5), reticulocyte count 12%.\n\nMEDICATIONS:\n1. Hydroxyurea 500mg - Take once daily (continue home dose)\n2. Folic acid 1mg - Take once daily\n3. Ibuprofen 400mg - Take every 6 hours as needed for mild pain\n4. Oxycodone 5mg - Take every 4-6 hours as needed for severe pain (15 tablets)\n\nHYDRATION:\n- Drink at least 8 glasses of water per day\n- Increase fluids in hot weather or during physical activity\n- Avoid caffeine and alcohol\n\nFOLLOW-UP APPOINTMENTS:\n- Hematology: Dr. Kone, February 28, 2026 at 11:00 AM\n- Primary Care: Dr. Williams, March 5, 2026 at 9:00 AM\n\nWARNINGS:\n- Seek immediate care for fever over 101°F, severe pain not relieved by medications, difficulty breathing, chest pain, sudden weakness, or priapism\n- Go to nearest ER for signs of acute chest syndrome: chest pain, cough, fever, shortness of breath",
+    originalFileName: "discharge_amadou_diallo_sickle_cell.pdf", extractedPatientName: "Amadou Diallo",
+    diagnosis: "Sickle Cell Vaso-Occlusive Crisis with bilateral lower extremity and lumbar pain. Hospital course included IV hydration and pain management over 3 days. Hemoglobin 7.8 g/dL at discharge.",
+    medications: [
+      { name: "Hydroxyurea", dose: "500mg", frequency: "Once daily", instructions: "Continue home dose. Take at the same time each day." },
+      { name: "Folic Acid", dose: "1mg", frequency: "Once daily", instructions: "Helps your body make new red blood cells" },
+      { name: "Ibuprofen", dose: "400mg", frequency: "Every 6 hours", instructions: "Take as needed for mild pain. Take with food." },
+      { name: "Oxycodone", dose: "5mg", frequency: "Every 4-6 hours", instructions: "Take as needed for severe pain only. 15 tablets provided." }
+    ],
+    appointments: [
+      { date: "February 28, 2026", time: "11:00 AM", provider: "Dr. Kone", location: "Hematology Clinic", purpose: "Sickle cell follow-up and lab review" },
+      { date: "March 5, 2026", time: "9:00 AM", provider: "Dr. Williams", location: "Primary Care Clinic", purpose: "General follow-up" }
+    ],
+    instructions: "Drink at least 8 glasses of water per day. Increase fluids in hot weather or during exercise. Avoid caffeine and alcohol. Get plenty of rest. Avoid extreme temperatures. Take medications as prescribed.",
+    warnings: "Seek immediate care for: fever over 101°F, severe pain not relieved by medications, difficulty breathing, chest pain, sudden weakness, or priapism. Go to nearest ER for signs of acute chest syndrome.",
     createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
   }).returning();
 
@@ -653,8 +666,23 @@ async function seedDemoData() {
   // 5. Tran Van Duc — DRAFT (stroke)
   const [carePlan10] = await db.insert(carePlans).values({
     patientId: patient10.id, clinicianId: clinician2.id, tenantId: tenant2.id, status: "draft",
-    originalContent: "DISCHARGE SUMMARY\n\nPatient: Tran Van Duc\nDiagnosis: Ischemic Stroke - Left MCA Territory\n\nMEDICATIONS:\n1. Aspirin 325mg - Once daily\n2. Atorvastatin 80mg - Once daily at bedtime\n3. Lisinopril 10mg - Once daily\n\nWARNINGS:\n- Call 911 immediately for sudden weakness, vision changes, or difficulty speaking",
-    originalFileName: "discharge_tran_van_duc_stroke.pdf", extractedPatientName: "Tran Van Duc", diagnosis: "Ischemic Stroke - Left MCA Territory",
+    originalContent: "DISCHARGE SUMMARY\n\nPatient: Tran Van Duc\nDiagnosis: Ischemic Stroke - Left Middle Cerebral Artery (MCA) Territory\n\nHOSPITAL COURSE:\nMr. Tran presented with acute onset right-sided weakness and expressive aphasia. CT angiography confirmed left MCA occlusion. tPA was administered within 3 hours of symptom onset with significant improvement. MRI showed small infarct in left frontal lobe. Speech and motor function improved during hospitalization. Mild residual right hand weakness.\n\nMEDICATIONS:\n1. Aspirin 325mg - Take once daily\n2. Atorvastatin 80mg - Take once daily at bedtime\n3. Lisinopril 10mg - Take once daily for blood pressure\n4. Clopidogrel 75mg - Take once daily for 90 days\n\nREHABILITATION:\n- Physical therapy 2x/week for right hand strengthening\n- Speech therapy 1x/week for word-finding exercises\n- Home exercises: hand grip exercises, word recall practice\n\nDIET:\n- Low sodium, heart-healthy diet\n- Limit alcohol\n- Increase fruits, vegetables, and whole grains\n\nFOLLOW-UP APPOINTMENTS:\n- Neurology: Dr. Nguyen, March 1, 2026 at 10:00 AM\n- Physical Therapy: Starting February 24, 2026\n- Speech Therapy: Starting February 25, 2026\n- Primary Care: Dr. Kim, March 10, 2026 at 2:00 PM\n\nWARNINGS:\n- Call 911 immediately for: sudden weakness or numbness (especially one side), sudden confusion or trouble speaking, sudden vision changes, sudden severe headache, sudden trouble walking or loss of balance\n- Remember BE FAST: Balance, Eyes, Face, Arms, Speech, Time to call 911",
+    originalFileName: "discharge_tran_van_duc_stroke.pdf", extractedPatientName: "Tran Van Duc",
+    diagnosis: "Ischemic Stroke - Left MCA Territory. tPA administered within 3-hour window with good response. Small left frontal infarct on MRI. Mild residual right hand weakness and word-finding difficulty. Etiology: cardioembolic vs atherosclerotic (workup pending).",
+    medications: [
+      { name: "Aspirin", dose: "325mg", frequency: "Once daily", instructions: "Take with food to prevent stomach upset" },
+      { name: "Atorvastatin", dose: "80mg", frequency: "Once daily", instructions: "Take at bedtime for cholesterol" },
+      { name: "Lisinopril", dose: "10mg", frequency: "Once daily", instructions: "Take in the morning for blood pressure" },
+      { name: "Clopidogrel", dose: "75mg", frequency: "Once daily", instructions: "Blood thinner - take for 90 days. Do not stop without doctor's approval." }
+    ],
+    appointments: [
+      { date: "February 24, 2026", time: "9:00 AM", provider: "Rehab Center", location: "Physical Therapy Clinic", purpose: "Start physical therapy for right hand" },
+      { date: "February 25, 2026", time: "1:00 PM", provider: "Speech Therapist", location: "Speech Therapy Clinic", purpose: "Start speech therapy for word-finding" },
+      { date: "March 1, 2026", time: "10:00 AM", provider: "Dr. Nguyen", location: "Neurology Clinic", purpose: "Stroke follow-up and imaging review" },
+      { date: "March 10, 2026", time: "2:00 PM", provider: "Dr. Kim", location: "Primary Care Clinic", purpose: "Blood pressure and cholesterol check" }
+    ],
+    instructions: "Take all medications as prescribed. Follow low-sodium heart-healthy diet. Attend all physical therapy and speech therapy appointments. Do home exercises: hand grip exercises 3x daily, word recall practice 15 min daily. Limit alcohol. Increase fruits, vegetables, and whole grains.",
+    warnings: "Call 911 immediately for: sudden weakness or numbness (especially one side), sudden confusion or trouble speaking, sudden vision changes, sudden severe headache, sudden trouble walking. Remember BE FAST: Balance, Eyes, Face, Arms, Speech, Time to call 911.",
     createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), updatedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
   }).returning();
 
