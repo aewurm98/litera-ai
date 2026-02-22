@@ -410,7 +410,7 @@ export default function ClinicianDashboard() {
   const [isRecording, setIsRecording] = useState(false);
   const [dictationText, setDictationText] = useState("");
   const recognitionRef = useRef<any>(null);
-  const [testCredentials, setTestCredentials] = useState<{ lastName: string; yearOfBirth: number; pin: string; accessLink: string } | null>(null);
+  const [testCredentials, setTestCredentials] = useState<{ patientName?: string; lastName: string; yearOfBirth: number; dateOfBirth?: string; pin: string; accessLink: string } | null>(null);
   const [isTestCredentialsOpen, setIsTestCredentialsOpen] = useState(false);
   const [columnsScrolled, setColumnsScrolled] = useState<boolean[]>([
     false,
@@ -2585,10 +2585,25 @@ export default function ClinicianDashboard() {
               <div className="bg-muted rounded-lg p-4 space-y-3">
                 <h4 className="text-sm font-semibold">Patient Login Credentials</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
+                  {testCredentials.patientName && (
+                    <>
+                      <span className="text-muted-foreground">Patient:</span>
+                      <span className="font-medium">{testCredentials.patientName}</span>
+                    </>
+                  )}
                   <span className="text-muted-foreground">Last Name:</span>
                   <span className="font-mono font-medium">{testCredentials.lastName}</span>
-                  <span className="text-muted-foreground">Year of Birth:</span>
-                  <span className="font-mono font-medium">{testCredentials.yearOfBirth}</span>
+                  {testCredentials.dateOfBirth ? (
+                    <>
+                      <span className="text-muted-foreground">Date of Birth:</span>
+                      <span className="font-mono font-medium">{testCredentials.dateOfBirth}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-muted-foreground">Year of Birth:</span>
+                      <span className="font-mono font-medium">{testCredentials.yearOfBirth}</span>
+                    </>
+                  )}
                   <span className="text-muted-foreground">PIN:</span>
                   <span className="font-mono font-medium">{testCredentials.pin}</span>
                 </div>

@@ -1505,7 +1505,7 @@ export async function registerRoutes(
     }
   });
 
-  // Send test email to clinician (email testing workflow)
+  // Send test email to clinician (preview the patient experience with real patient data)
   app.post("/api/care-plans/:id/send-test", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
@@ -1525,9 +1525,18 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const sendableStatuses = ["approved", "interpreter_approved", "pending_review", "draft"];
+      if (!carePlan.patientId) {
+        return res.status(400).json({ error: "This care plan has no patient assigned." });
+      }
+
+      const sendableStatuses = ["approved", "interpreter_approved", "pending_review", "draft", "sent"];
       if (!sendableStatuses.includes(carePlan.status)) {
         return res.status(400).json({ error: `Cannot send test for this care plan (status: "${carePlan.status}").` });
+      }
+
+      const patient = await storage.getPatient(carePlan.patientId);
+      if (!patient) {
+        return res.status(404).json({ error: "Patient not found for this care plan." });
       }
 
       const { email: requestedEmail } = req.body || {};
@@ -1535,70 +1544,18 @@ export async function registerRoutes(
       const testEmail = requestedEmail && typeof requestedEmail === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requestedEmail)
         ? requestedEmail
         : recoveryEmail || `test+${user.username}@litera.health`;
-      const testName = `Test Patient (${user.name})`;
-      const testLastName = "Test";
-      const testYob = 2000;
+
       const testPin = generatePin();
-
-      let patient = await storage.getPatientByEmail(testEmail, tenantId);
-      if (!patient) {
-        patient = await storage.createPatient({
-          name: testName,
-          lastName: testLastName,
-          email: testEmail,
-          phone: null,
-          yearOfBirth: testYob,
-          pin: await bcrypt.hash(testPin, 10),
-          preferredLanguage: carePlan.translatedLanguage || "en",
-          tenantId,
-          isTestPatient: true,
-        });
-      } else {
-        const newPin = await bcrypt.hash(testPin, 10);
-        patient = await storage.updatePatient(patient.id, {
-          isTestPatient: true,
-          pin: newPin,
-        });
-      }
-
-      if (!patient) {
-        return res.status(500).json({ error: "Failed to create test patient" });
-      }
+      const hashedPin = await bcrypt.hash(testPin, 10);
+      await storage.updatePatient(patient.id, { pin: hashedPin });
 
       const accessToken = generateAccessToken();
       const accessTokenExpiry = new Date();
       accessTokenExpiry.setDate(accessTokenExpiry.getDate() + 30);
 
-      const testCarePlan = await storage.createCarePlan({
-        clinicianId,
-        tenantId: carePlan.tenantId,
-        status: "sent",
-        originalContent: carePlan.originalContent,
-        originalFileName: carePlan.originalFileName,
-        extractedPatientName: carePlan.extractedPatientName,
-        diagnosis: carePlan.diagnosis,
-        medications: carePlan.medications as any,
-        appointments: carePlan.appointments as any,
-        instructions: carePlan.instructions,
-        warnings: carePlan.warnings,
-        simplifiedDiagnosis: carePlan.simplifiedDiagnosis,
-        simplifiedMedications: carePlan.simplifiedMedications as any,
-        simplifiedAppointments: carePlan.simplifiedAppointments as any,
-        simplifiedInstructions: carePlan.simplifiedInstructions,
-        simplifiedWarnings: carePlan.simplifiedWarnings,
-        translatedLanguage: carePlan.translatedLanguage,
-        translatedDiagnosis: carePlan.translatedDiagnosis,
-        translatedMedications: carePlan.translatedMedications as any,
-        translatedAppointments: carePlan.translatedAppointments as any,
-        translatedInstructions: carePlan.translatedInstructions,
-        translatedWarnings: carePlan.translatedWarnings,
-        backTranslatedDiagnosis: carePlan.backTranslatedDiagnosis,
-        backTranslatedInstructions: carePlan.backTranslatedInstructions,
-        backTranslatedWarnings: carePlan.backTranslatedWarnings,
-        patientId: patient.id,
+      await storage.updateCarePlan(id, {
         accessToken,
         accessTokenExpiry,
-        dischargeDate: new Date(),
       });
 
       const baseUrl = process.env.APP_URL
@@ -1607,28 +1564,28 @@ export async function registerRoutes(
 
       let emailSent = true;
       try {
-        await sendCarePlanEmail(testEmail, testName, accessLink, testPin);
+        await sendCarePlanEmail(testEmail, patient.name, accessLink, testPin);
       } catch (emailError) {
         console.error("Test email sending failed:", emailError);
         emailSent = false;
       }
 
       await storage.createAuditLog({
-        carePlanId: testCarePlan.id,
+        carePlanId: id,
         userId: clinicianId,
-        action: "sent",
-        details: { patientEmail: testEmail, isTest: true, sourceCarePlanId: id },
+        action: "test_sent",
+        details: { sentTo: testEmail, isTest: true, patientName: patient.name },
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });
 
       res.json({
-        ...testCarePlan,
-        patient,
         emailSent,
         testCredentials: {
-          lastName: testLastName,
-          yearOfBirth: testYob,
+          patientName: patient.name,
+          lastName: patient.lastName,
+          yearOfBirth: patient.yearOfBirth,
+          dateOfBirth: patient.dateOfBirth,
           pin: testPin,
           accessLink,
         },
