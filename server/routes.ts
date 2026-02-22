@@ -12,7 +12,7 @@ import {
   simplifyContent, 
   translateContent 
 } from "./services/openai";
-import { sendCarePlanEmail, sendCheckInEmail, getUncachableResendClient } from "./services/resend";
+import { sendCarePlanEmail, sendCheckInEmail, sendTeamInviteEmail, getUncachableResendClient } from "./services/resend";
 import { SUPPORTED_LANGUAGES, insertPatientSchema } from "@shared/schema";
 import { isDemoMode } from "./index";
 
@@ -790,20 +790,45 @@ export async function registerRoutes(
       const textSchema = z.object({
         text: z.string().min(20, "Text must be at least 20 characters"),
         method: z.enum(["paste", "dictation", "photo"]).default("paste"),
+        existingPatientId: z.string().optional(),
+        patientName: z.string().optional(),
+        patientEmail: z.string().email().optional(),
+        patientYearOfBirth: z.number().int().min(1900).max(2100).optional(),
+        preferredLanguage: z.string().optional(),
       });
       const parsed = textSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ error: "Validation failed", details: parsed.error.errors });
       }
 
-      const { text, method } = parsed.data;
+      const { text, method, existingPatientId, patientName: inputPatientName, patientEmail: inputPatientEmail, patientYearOfBirth: inputYob, preferredLanguage: inputLang } = parsed.data;
       const clinicianId = (req as any).clinicianId || "clinician-1";
       const tenantId = req.session.tenantId;
 
       const extracted = await extractDischargeContent(text);
 
       let matchedPatientId: string | undefined = undefined;
-      if (extracted.patientName) {
+
+      if (existingPatientId) {
+        const existingPatient = await storage.getPatient(existingPatientId);
+        if (existingPatient && existingPatient.tenantId === tenantId) {
+          matchedPatientId = existingPatient.id;
+        }
+      } else if (inputPatientName && inputPatientEmail && inputYob) {
+        let patient = await storage.getPatientByEmail(inputPatientEmail, tenantId);
+        if (!patient) {
+          patient = await storage.createPatient({
+            name: inputPatientName,
+            email: inputPatientEmail,
+            phone: null,
+            yearOfBirth: inputYob,
+            preferredLanguage: inputLang || "en",
+            tenantId: tenantId!,
+            pin: null,
+          });
+        }
+        matchedPatientId = patient.id;
+      } else if (extracted.patientName) {
         const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
         if (matchedPatient) {
           matchedPatientId = matchedPatient.id;
@@ -849,7 +874,8 @@ export async function registerRoutes(
   app.post("/api/care-plans/:id/process", requireClinicianAuth, validateBody(processCarePlanSchema), async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const { language } = req.body;
+      const { language, readingLevel: reqReadingLevel } = req.body;
+      const readingLevel = typeof reqReadingLevel === "number" && reqReadingLevel >= 1 && reqReadingLevel <= 12 ? reqReadingLevel : 5;
       const clinicianId = (req as any).clinicianId || "clinician-1";
       const tenantId = req.session.tenantId;
 
@@ -871,7 +897,7 @@ export async function registerRoutes(
         appointments: carePlan.appointments || [],
         instructions: carePlan.instructions || "",
         warnings: carePlan.warnings || "",
-      });
+      }, readingLevel);
 
       // For English, skip translation - just use simplified content
       // For other languages, translate the simplified content
@@ -896,6 +922,7 @@ export async function registerRoutes(
       // Update care plan
       const updated = await storage.updateCarePlan(id, {
         status: "pending_review",
+        readingLevel,
         simplifiedDiagnosis: simplified.diagnosis,
         simplifiedMedications: simplified.medications,
         simplifiedAppointments: simplified.appointments,
@@ -916,7 +943,7 @@ export async function registerRoutes(
         carePlanId: id,
         userId: clinicianId,
         action: "processed",
-        details: { language },
+        details: { language, readingLevel },
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });
@@ -1525,6 +1552,23 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/care-plans/test-patients/cleanup", requireClinicianAuth, async (req: Request, res: Response) => {
+    try {
+      const deleted = await storage.cleanupOldTestPatients(0);
+      await storage.createAuditLog({
+        userId: (req as any).clinicianId || req.session.userId,
+        action: "test_patients_cleanup",
+        details: { deleted, manual: true },
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      });
+      res.json({ deleted });
+    } catch (error) {
+      console.error("Error cleaning up test patients:", error);
+      res.status(500).json({ error: "Failed to clean up test patients" });
+    }
+  });
+
   // Generate demo token for clinician preview (requires clinician auth)
   app.post("/api/care-plans/:id/demo-token", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
@@ -1550,6 +1594,24 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error generating demo token:", error);
       res.status(500).json({ error: "Failed to generate demo token" });
+    }
+  });
+
+  app.post("/api/patient/:token/verify-preview", async (req: Request, res: Response) => {
+    try {
+      const accessToken = req.params.token as string;
+      const { previewToken } = req.body;
+      if (!previewToken || !accessToken) {
+        return res.status(400).json({ verified: false });
+      }
+      const valid = validateDemoToken(previewToken, accessToken);
+      if (valid) {
+        return res.json({ verified: true });
+      }
+      return res.status(401).json({ verified: false });
+    } catch (error) {
+      console.error("Error verifying preview token:", error);
+      res.status(500).json({ verified: false });
     }
   });
 
@@ -2383,6 +2445,132 @@ ${contextText}`
     }
   });
   
+  // ============= Team Invitation Endpoints =============
+
+  app.post("/api/admin/invitations", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const { email, role } = req.body;
+      if (!email || !role) {
+        return res.status(400).json({ error: "Email and role are required" });
+      }
+      const validRoles = ["clinician", "interpreter", "admin"];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+      const tenantId = req.session.tenantId;
+      const invitedBy = req.session.userId;
+      const inviter = await storage.getUser(invitedBy!);
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      const invitation = await storage.createTeamInvitation({
+        email,
+        role,
+        tenantId: tenantId || null,
+        invitedBy: invitedBy || null,
+        token,
+        status: "pending",
+        expiresAt,
+      });
+
+      const appUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const inviteLink = `${appUrl}/invite/${token}`;
+
+      try {
+        await sendTeamInviteEmail(email, inviter?.name || "An administrator", role, inviteLink);
+      } catch (emailErr) {
+        console.error("Failed to send invite email:", emailErr);
+      }
+
+      res.json({ success: true, invitation });
+    } catch (error) {
+      console.error("Error creating invitation:", error);
+      res.status(500).json({ error: "Failed to create invitation" });
+    }
+  });
+
+  app.get("/api/admin/invitations", requireAdminAuth, async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.session.tenantId;
+      const invitations = await storage.getTeamInvitations(tenantId || undefined);
+      res.json(invitations);
+    } catch (error) {
+      console.error("Error fetching invitations:", error);
+      res.status(500).json({ error: "Failed to fetch invitations" });
+    }
+  });
+
+  app.get("/api/invitations/:token", async (req: Request, res: Response) => {
+    try {
+      const { token } = req.params;
+      const invitation = await storage.getTeamInvitationByToken(token);
+      if (!invitation) {
+        return res.status(404).json({ error: "Invitation not found" });
+      }
+      if (invitation.status !== "pending") {
+        return res.status(400).json({ error: "Invitation already used", status: invitation.status });
+      }
+      if (new Date() > invitation.expiresAt) {
+        return res.status(400).json({ error: "Invitation has expired" });
+      }
+      let tenantName: string | undefined;
+      if (invitation.tenantId) {
+        const tenant = await storage.getTenant(invitation.tenantId);
+        tenantName = tenant?.name;
+      }
+      res.json({ email: invitation.email, role: invitation.role, tenantName });
+    } catch (error) {
+      console.error("Error fetching invitation:", error);
+      res.status(500).json({ error: "Failed to fetch invitation" });
+    }
+  });
+
+  app.post("/api/invitations/:token/accept", async (req: Request, res: Response) => {
+    try {
+      const { token } = req.params;
+      const { name, username, password } = req.body;
+      if (!name || !username || !password) {
+        return res.status(400).json({ error: "Name, username, and password are required" });
+      }
+      const invitation = await storage.getTeamInvitationByToken(token);
+      if (!invitation) {
+        return res.status(404).json({ error: "Invitation not found" });
+      }
+      if (invitation.status !== "pending") {
+        return res.status(400).json({ error: "Invitation already used" });
+      }
+      if (new Date() > invitation.expiresAt) {
+        return res.status(400).json({ error: "Invitation has expired" });
+      }
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already taken" });
+      }
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      const user = await storage.createUser({
+        name,
+        username,
+        password: hashedPassword,
+        role: invitation.role,
+        roles: [invitation.role],
+        tenantId: invitation.tenantId,
+      });
+
+      await storage.updateTeamInvitation(invitation.id, { status: "accepted" });
+
+      req.session.userId = user.id;
+      req.session.userRole = user.role;
+      req.session.tenantId = user.tenantId || undefined;
+
+      res.json({ success: true, user: { id: user.id, name: user.name, role: user.role } });
+    } catch (error) {
+      console.error("Error accepting invitation:", error);
+      res.status(500).json({ error: "Failed to accept invitation" });
+    }
+  });
+
   // ============= Patient CRUD Endpoints =============
 
   app.get("/api/admin/patients", requireAdminAuth, async (req: Request, res: Response) => {
@@ -3096,17 +3284,25 @@ ${contextText}`
     try {
       const userRole = req.session.userRole;
       const tenantId = req.session.tenantId;
+      const daysParam = parseInt(req.query.days as string) || 0;
 
       const { db } = await import("./db");
       const { carePlans, checkIns } = await import("@shared/schema");
-      const { eq, sql, isNotNull, inArray } = await import("drizzle-orm");
+      const { eq, sql, isNotNull, inArray, and: drizzleAnd, gte } = await import("drizzle-orm");
 
-      const tenantFilter = userRole === "super_admin" || !tenantId
-        ? undefined
-        : eq(carePlans.tenantId, tenantId);
+      const conditions = [];
+      if (userRole !== "super_admin" && tenantId) {
+        conditions.push(eq(carePlans.tenantId, tenantId));
+      }
+      if (daysParam > 0) {
+        const cutoff = new Date(Date.now() - daysParam * 24 * 60 * 60 * 1000);
+        conditions.push(gte(carePlans.createdAt, cutoff));
+      }
 
-      const allPlans = tenantFilter
-        ? await db.select().from(carePlans).where(tenantFilter)
+      const whereClause = conditions.length > 0 ? drizzleAnd(...conditions) : undefined;
+
+      const allPlans = whereClause
+        ? await db.select().from(carePlans).where(whereClause)
         : await db.select().from(carePlans);
 
       const statusCounts: Record<string, number> = {};
@@ -3174,32 +3370,72 @@ ${contextText}`
 
       let eligible99495 = 0;
       let eligible99496 = 0;
+      let contactWithin2Days = 0;
+      let missingDischargeDate = 0;
 
       const planMap = new Map(allPlans.map(p => [p.id, p]));
 
       for (const patientId of Array.from(uniquePatientsSent)) {
         const patientCheckIns = checkInsByPatient.get(patientId!) || [];
         const respondedCIs = patientCheckIns.filter(c => c.respondedAt !== null);
+        const patientSentPlans = sentPlans.filter(p => p.patientId === patientId);
 
-        if (respondedCIs.length >= 2) {
-          eligible99495++;
+        let hasContactWithin2Days = false;
+        let hasResponseWithin7Days = false;
+        let hasResponseWithin14Days = false;
+
+        for (const plan of patientSentPlans) {
+          if (!plan.dischargeDate) {
+            missingDischargeDate++;
+            continue;
+          }
+          const dischargeTime = new Date(plan.dischargeDate).getTime();
+          const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+          const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+          const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+
+          const carePlanSentTime = plan.sentAt ? new Date(plan.sentAt).getTime() : null;
+          if (carePlanSentTime) {
+            const diff = carePlanSentTime - dischargeTime;
+            if (diff >= 0 && diff <= TWO_DAYS_MS) hasContactWithin2Days = true;
+          }
+
+          for (const ci of respondedCIs) {
+            if (ci.carePlanId !== plan.id) continue;
+            const respondedTime = new Date(ci.respondedAt!).getTime();
+            const diff = respondedTime - dischargeTime;
+            if (diff >= 0 && diff <= SEVEN_DAYS_MS) hasResponseWithin7Days = true;
+            if (diff >= 0 && diff <= FOURTEEN_DAYS_MS) hasResponseWithin14Days = true;
+          }
         }
 
-        const patientSentPlans = sentPlans.filter(p => p.patientId === patientId);
-        for (const plan of patientSentPlans) {
-          if (!plan.dischargeDate) continue;
-          const dischargeTime = new Date(plan.dischargeDate).getTime();
-          const within48h = respondedCIs.some(ci => {
-            if (ci.carePlanId !== plan.id) return false;
-            const respondedTime = new Date(ci.respondedAt!).getTime();
-            return respondedTime - dischargeTime <= 48 * 60 * 60 * 1000 && respondedTime >= dischargeTime;
-          });
-          if (within48h) {
+        if (hasContactWithin2Days) {
+          contactWithin2Days++;
+          if (hasResponseWithin14Days) {
+            eligible99495++;
+          }
+          if (hasResponseWithin7Days) {
             eligible99496++;
-            break;
           }
         }
       }
+
+      const now = new Date();
+      const staleDraftThresholdMs = 48 * 60 * 60 * 1000;
+      const staleReviewThresholdMs = 72 * 60 * 60 * 1000;
+      const staleCarePlans = allPlans.filter(plan => {
+        const age = now.getTime() - new Date(plan.createdAt).getTime();
+        if (plan.status === "draft" && age > staleDraftThresholdMs) return true;
+        if (plan.status === "pending_review" && age > staleReviewThresholdMs) return true;
+        if (plan.status === "approved" && age > staleReviewThresholdMs) return true;
+        return false;
+      }).map(plan => ({
+        id: plan.id,
+        patientId: plan.patientId,
+        status: plan.status,
+        createdAt: plan.createdAt,
+        ageHours: Math.round((now.getTime() - new Date(plan.createdAt).getTime()) / (60 * 60 * 1000)),
+      }));
 
       res.json({
         statusCounts,
@@ -3221,7 +3457,10 @@ ${contextText}`
           totalPatientsSent,
           eligible99495,
           eligible99496,
+          contactWithin2Days,
+          missingDischargeDate,
         },
+        staleCarePlans,
       });
     } catch (error) {
       console.error("Analytics error:", error);

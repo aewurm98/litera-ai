@@ -1,5 +1,5 @@
 import { 
-  users, patients, carePlans, checkIns, auditLogs, tenants, chatMessages,
+  users, patients, carePlans, checkIns, auditLogs, tenants, chatMessages, teamInvitations,
   type User, type InsertUser,
   type Patient, type InsertPatient,
   type CarePlan, type InsertCarePlan,
@@ -7,6 +7,7 @@ import {
   type AuditLog, type InsertAuditLog,
   type Tenant, type InsertTenant,
   type ChatMessage, type InsertChatMessage,
+  type TeamInvitation, type InsertTeamInvitation,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, lte, isNull, inArray, sql } from "drizzle-orm";
@@ -26,6 +27,7 @@ export interface IStorage {
   updatePatient(id: string, data: Partial<Patient>): Promise<Patient | undefined>;
   updatePatientPassword(id: string, hashedPassword: string): Promise<void>;
   deletePatient(id: string): Promise<boolean>;
+  cleanupOldTestPatients(maxAgeHours?: number): Promise<number>;
   getCarePlansByPatientId(patientId: string, tenantId?: string): Promise<CarePlan[]>;
   
   getCarePlan(id: string): Promise<CarePlan | undefined>;
@@ -69,6 +71,11 @@ export interface IStorage {
   
   getChatMessages(carePlanId: string, patientId: string): Promise<ChatMessage[]>;
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+
+  createTeamInvitation(invitation: InsertTeamInvitation): Promise<TeamInvitation>;
+  getTeamInvitationByToken(token: string): Promise<TeamInvitation | undefined>;
+  getTeamInvitations(tenantId?: string): Promise<TeamInvitation[]>;
+  updateTeamInvitation(id: string, data: Partial<TeamInvitation>): Promise<TeamInvitation | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -149,6 +156,18 @@ export class DatabaseStorage implements IStorage {
   async deletePatient(id: string): Promise<boolean> {
     const result = await db.delete(patients).where(eq(patients.id, id)).returning();
     return result.length > 0;
+  }
+
+  async cleanupOldTestPatients(maxAgeHours: number = 48): Promise<number> {
+    const cutoff = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+    const oldTestPatients = await db.select({ id: patients.id }).from(patients)
+      .where(and(eq(patients.isTestPatient, true), lte(patients.createdAt, cutoff)));
+    if (oldTestPatients.length === 0) return 0;
+    const ids = oldTestPatients.map(p => p.id);
+    await db.delete(carePlans).where(inArray(carePlans.patientId, ids));
+    await db.delete(checkIns).where(inArray(checkIns.patientId, ids));
+    await db.delete(patients).where(inArray(patients.id, ids));
+    return ids.length;
   }
 
   async getCarePlansByPatientId(patientId: string, tenantId?: string): Promise<CarePlan[]> {
@@ -363,6 +382,28 @@ export class DatabaseStorage implements IStorage {
   async createChatMessage(message: InsertChatMessage): Promise<ChatMessage> {
     const [msg] = await db.insert(chatMessages).values(message).returning();
     return msg;
+  }
+
+  async createTeamInvitation(invitation: InsertTeamInvitation): Promise<TeamInvitation> {
+    const [inv] = await db.insert(teamInvitations).values(invitation).returning();
+    return inv;
+  }
+
+  async getTeamInvitationByToken(token: string): Promise<TeamInvitation | undefined> {
+    const [inv] = await db.select().from(teamInvitations).where(eq(teamInvitations.token, token));
+    return inv || undefined;
+  }
+
+  async getTeamInvitations(tenantId?: string): Promise<TeamInvitation[]> {
+    if (tenantId) {
+      return db.select().from(teamInvitations).where(eq(teamInvitations.tenantId, tenantId)).orderBy(desc(teamInvitations.createdAt));
+    }
+    return db.select().from(teamInvitations).orderBy(desc(teamInvitations.createdAt));
+  }
+
+  async updateTeamInvitation(id: string, data: Partial<TeamInvitation>): Promise<TeamInvitation | undefined> {
+    const [inv] = await db.update(teamInvitations).set(data).where(eq(teamInvitations.id, id)).returning();
+    return inv || undefined;
   }
 }
 

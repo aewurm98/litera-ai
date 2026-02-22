@@ -917,7 +917,7 @@ export default function AdminDashboard() {
                                 <Badge variant="outline" className="ml-2 text-[10px] py-0 px-1.5 border-orange-300 text-orange-600 bg-orange-50">TEST</Badge>
                               )}
                             </p>
-                            <p className="text-sm text-muted-foreground">Born {patient.yearOfBirth}</p>
+                            <p className="text-sm text-muted-foreground">Year of Birth: {patient.yearOfBirth}</p>
                           </div>
                         </TableCell>
                         <TableCell>{patient.email}</TableCell>

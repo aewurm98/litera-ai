@@ -73,6 +73,9 @@ import {
   Mail,
   Copy,
   Save,
+  ChevronDown,
+  ChevronRight,
+  UserPlus,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
@@ -387,7 +390,15 @@ export default function ClinicianDashboard() {
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [inputTab, setInputTab] = useState("upload");
+  const [capturedPhoto, setCapturedPhoto] = useState<File | null>(null);
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState("");
+  const [textInputPatientId, setTextInputPatientId] = useState<string>("");
+  const [showTextPatientFields, setShowTextPatientFields] = useState(false);
+  const [textPatientName, setTextPatientName] = useState("");
+  const [textPatientEmail, setTextPatientEmail] = useState("");
+  const [textPatientYob, setTextPatientYob] = useState("");
+  const [textPatientLang, setTextPatientLang] = useState("en");
   const [isRecording, setIsRecording] = useState(false);
   const [dictationText, setDictationText] = useState("");
   const recognitionRef = useRef<any>(null);
@@ -581,9 +592,27 @@ export default function ClinicianDashboard() {
     },
   });
 
+  const resetTextPatientFields = () => {
+    setTextInputPatientId("");
+    setShowTextPatientFields(false);
+    setTextPatientName("");
+    setTextPatientEmail("");
+    setTextPatientYob("");
+    setTextPatientLang("en");
+  };
+
   const textInputMutation = useMutation({
     mutationFn: async ({ text, method }: { text: string; method: "paste" | "dictation" }) => {
-      const response = await apiRequest("POST", "/api/care-plans/from-text", { text, method });
+      const body: Record<string, any> = { text, method };
+      if (textInputPatientId) {
+        body.existingPatientId = textInputPatientId;
+      } else if (textPatientName && textPatientEmail && textPatientYob) {
+        body.patientName = textPatientName;
+        body.patientEmail = textPatientEmail;
+        body.patientYearOfBirth = parseInt(textPatientYob);
+        body.preferredLanguage = textPatientLang;
+      }
+      const response = await apiRequest("POST", "/api/care-plans/from-text", body);
       return response.json();
     },
     onSuccess: (data: CarePlanWithPatient) => {
@@ -595,6 +624,7 @@ export default function ClinicianDashboard() {
       setIsUploadDialogOpen(false);
       setPasteText("");
       setDictationText("");
+      resetTextPatientFields();
       toast({
         title: "Care plan created",
         description: "AI has extracted the medical content from your text.",
@@ -647,11 +677,14 @@ export default function ClinicianDashboard() {
   };
 
   // Process mutation (simplify + translate)
+  const [selectedReadingLevel, setSelectedReadingLevel] = useState(5);
+
   const processMutation = useMutation({
-    mutationFn: async ({ id, language }: { id: string; language: string }) => {
+    mutationFn: async ({ id, language, readingLevel }: { id: string; language: string; readingLevel?: number }) => {
       setProcessingIds(prev => new Set(prev).add(id));
       const res = await apiRequest("POST", `/api/care-plans/${id}/process`, {
         language,
+        readingLevel: readingLevel || selectedReadingLevel,
       });
       return res.json() as Promise<CarePlanWithPatient>;
     },
@@ -842,6 +875,21 @@ export default function ClinicianDashboard() {
     },
   });
 
+  const cleanupTestMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/care-plans/test-patients/cleanup");
+      return res.json();
+    },
+    onSuccess: (data: { deleted: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/patients"] });
+      toast({ title: "Test patients cleaned up", description: `Removed ${data.deleted} test patient(s) and their care plans.` });
+    },
+    onError: () => {
+      toast({ title: "Cleanup failed", description: "Please try again", variant: "destructive" });
+    },
+  });
+
   const resetDemoMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/admin/reset-demo");
@@ -958,9 +1006,22 @@ export default function ClinicianDashboard() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const handleViewAsPatient = () => {
-    if (!selectedCarePlan?.accessToken) return;
-    window.open(`/p/${selectedCarePlan.accessToken}?demo=1`, "_blank");
+  const handleViewAsPatient = async () => {
+    if (!selectedCarePlan?.accessToken || !selectedCarePlan?.id) return;
+    try {
+      const res = await fetch(`/api/care-plans/${selectedCarePlan.id}/demo-token`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (data.demoToken) {
+        window.open(`/p/${selectedCarePlan.accessToken}?preview=${data.demoToken}`, "_blank");
+      } else {
+        window.open(`/p/${selectedCarePlan.accessToken}?demo=1`, "_blank");
+      }
+    } catch {
+      window.open(`/p/${selectedCarePlan.accessToken}?demo=1`, "_blank");
+    }
   };
 
   const handleScroll =
@@ -1084,7 +1145,7 @@ export default function ClinicianDashboard() {
                       ? "border-primary bg-primary/5"
                       : ""
                   }`}
-                  onClick={() => setSelectedCarePlan(plan)}
+                  onClick={() => { setSelectedCarePlan(plan); if (plan.readingLevel) setSelectedReadingLevel(plan.readingLevel); }}
                   data-testid={`card-care-plan-${plan.id}`}
                 >
                   <CardContent className="p-3">
@@ -1198,6 +1259,16 @@ export default function ClinicianDashboard() {
               </span>
               Show test patients ({testPatientCount})
             </button>
+            {showTestPatients && testPatientCount > 0 && (
+              <button
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-destructive transition-colors mt-1 ml-4"
+                onClick={() => cleanupTestMutation.mutate()}
+                disabled={cleanupTestMutation.isPending}
+                data-testid="button-cleanup-test-patients"
+              >
+                {cleanupTestMutation.isPending ? "Cleaning..." : `Clean up ${testPatientCount} test patient(s)`}
+              </button>
+            )}
           </div>
         )}
 
@@ -1249,23 +1320,36 @@ export default function ClinicianDashboard() {
               </div>
               <div className="flex items-center gap-2">
                 {selectedCarePlan.status === "draft" && (
-                  <Button
-                    onClick={() => {
-                      processMutation.mutate({
-                        id: selectedCarePlan.id,
-                        language: patientLanguage,
-                      });
-                    }}
-                    disabled={processingIds.has(selectedCarePlan.id) || !patientLanguage}
-                    data-testid="button-process"
-                  >
-                    {processingIds.has(selectedCarePlan.id) ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                    )}
-                    {patientLanguage === "en" ? "Simplify" : patientLanguage ? "Process & Translate" : "Select Language First"}
-                  </Button>
+                  <>
+                    <Select value={String(selectedReadingLevel)} onValueChange={(v) => setSelectedReadingLevel(parseInt(v))}>
+                      <SelectTrigger className="w-[110px] h-9 text-xs" data-testid="select-reading-level">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="3">3rd grade</SelectItem>
+                        <SelectItem value="5">5th grade</SelectItem>
+                        <SelectItem value="8">8th grade</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={() => {
+                        processMutation.mutate({
+                          id: selectedCarePlan.id,
+                          language: patientLanguage,
+                          readingLevel: selectedReadingLevel,
+                        });
+                      }}
+                      disabled={processingIds.has(selectedCarePlan.id) || !patientLanguage}
+                      data-testid="button-process"
+                    >
+                      {processingIds.has(selectedCarePlan.id) ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                      )}
+                      {patientLanguage === "en" ? "Simplify" : patientLanguage ? "Process & Translate" : "Select Language First"}
+                    </Button>
+                  </>
                 )}
                 {hasEdits && (selectedCarePlan.status === "pending_review" || selectedCarePlan.status === "interpreter_approved") && (
                   <Button
@@ -1442,9 +1526,7 @@ export default function ClinicianDashboard() {
                     Send to Patient
                   </Button>
                 )}
-                {(selectedCarePlan.status === "sent" ||
-                  selectedCarePlan.status === "completed") &&
-                  selectedCarePlan.accessToken && (
+                {selectedCarePlan.accessToken && (
                     <Button
                       variant="outline"
                       onClick={handleViewAsPatient}
@@ -2004,6 +2086,8 @@ export default function ClinicianDashboard() {
           setUploadProgress(null);
           setPasteText("");
           setDictationText("");
+          if (capturedPhotoUrl) { URL.revokeObjectURL(capturedPhotoUrl); setCapturedPhotoUrl(null); }
+          setCapturedPhoto(null);
           if (isRecording) stopDictation();
         }
       }}>
@@ -2112,30 +2196,64 @@ export default function ClinicianDashboard() {
 
             {/* Photo Tab */}
             <TabsContent value="photo" className="space-y-3 mt-3">
-              <div className="text-center space-y-3">
-                <Camera className="h-10 w-10 text-muted-foreground mx-auto" />
-                <p className="text-sm text-muted-foreground">Take a photo of discharge paperwork using your device camera, or select an existing photo.</p>
-                <Label htmlFor="photo-capture" className="cursor-pointer">
-                  <Button variant="outline" asChild>
-                    <span><Camera className="h-4 w-4 mr-2" />Open Camera</span>
-                  </Button>
-                  <Input id="photo-capture" type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    if (files.length > 0) { setUploadFiles(files); setInputTab("upload"); }
-                    e.target.value = '';
-                  }} data-testid="input-photo-capture" />
-                </Label>
-                <Label htmlFor="photo-gallery" className="cursor-pointer block">
-                  <Button variant="ghost" size="sm" asChild>
-                    <span className="text-primary">Or choose from gallery</span>
-                  </Button>
-                  <Input id="photo-gallery" type="file" className="hidden" accept="image/*" multiple onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    if (files.length > 0) { setUploadFiles(files); setInputTab("upload"); }
-                    e.target.value = '';
-                  }} data-testid="input-photo-gallery" />
-                </Label>
-              </div>
+              {capturedPhoto && capturedPhotoUrl ? (
+                <div className="space-y-3">
+                  <div className="relative rounded-lg overflow-hidden border bg-muted/30">
+                    <img src={capturedPhotoUrl} alt="Captured photo" className="w-full max-h-48 object-contain" />
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center">{capturedPhoto.name}</p>
+                  <DialogFooter className="flex gap-2">
+                    <Button variant="outline" onClick={() => {
+                      URL.revokeObjectURL(capturedPhotoUrl);
+                      setCapturedPhotoUrl(null);
+                      setCapturedPhoto(null);
+                    }} data-testid="button-photo-retake">
+                      <Camera className="h-4 w-4 mr-2" />Retake
+                    </Button>
+                    <Button onClick={() => {
+                      setUploadFiles([capturedPhoto]);
+                      setInputTab("upload");
+                    }} data-testid="button-photo-process">
+                      <Upload className="h-4 w-4 mr-2" />Process Photo
+                    </Button>
+                  </DialogFooter>
+                </div>
+              ) : (
+                <div className="text-center space-y-3">
+                  <Camera className="h-10 w-10 text-muted-foreground mx-auto" />
+                  <p className="text-sm text-muted-foreground">Take a photo of discharge paperwork using your device camera, or select an existing photo.</p>
+                  {'mediaDevices' in navigator && (
+                    <Label htmlFor="photo-capture" className="cursor-pointer">
+                      <Button variant="outline" asChild>
+                        <span><Camera className="h-4 w-4 mr-2" />Open Camera</span>
+                      </Button>
+                      <Input id="photo-capture" type="file" className="hidden" accept="image/*" capture="environment" onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length > 0) {
+                          const file = files[0];
+                          setCapturedPhoto(file);
+                          setCapturedPhotoUrl(URL.createObjectURL(file));
+                        }
+                        e.target.value = '';
+                      }} data-testid="input-photo-capture" />
+                    </Label>
+                  )}
+                  <Label htmlFor="photo-gallery" className="cursor-pointer block">
+                    <Button variant="ghost" size="sm" asChild>
+                      <span className="text-primary">Choose from files</span>
+                    </Button>
+                    <Input id="photo-gallery" type="file" className="hidden" accept="image/*" onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 0) {
+                        const file = files[0];
+                        setCapturedPhoto(file);
+                        setCapturedPhotoUrl(URL.createObjectURL(file));
+                      }
+                      e.target.value = '';
+                    }} data-testid="input-photo-gallery" />
+                  </Label>
+                </div>
+              )}
             </TabsContent>
 
             {/* Dictation Tab */}
@@ -2171,8 +2289,40 @@ export default function ClinicianDashboard() {
                 className="resize-none"
                 data-testid="textarea-dictation"
               />
+              <Collapsible open={showTextPatientFields} onOpenChange={setShowTextPatientFields}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" data-testid="button-dictate-patient-toggle">
+                    {showTextPatientFields ? <ChevronDown className="h-3.5 w-3.5 mr-2" /> : <ChevronRight className="h-3.5 w-3.5 mr-2" />}
+                    <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                    {textInputPatientId || textPatientName ? "Patient linked" : "Link to patient (optional)"}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2 pt-2">
+                  {existingPatients.length > 0 && (
+                    <Select value={textInputPatientId} onValueChange={(id) => {
+                      setTextInputPatientId(id);
+                      const p = existingPatients.find(pt => pt.id === id);
+                      if (p) { setTextPatientName(p.name); setTextPatientEmail(p.email); setTextPatientYob(String(p.yearOfBirth)); setTextPatientLang(p.preferredLanguage || "en"); }
+                    }}>
+                      <SelectTrigger data-testid="select-dictate-patient"><SelectValue placeholder="Select existing patient..." /></SelectTrigger>
+                      <SelectContent>{existingPatients.map((p) => (<SelectItem key={p.id} value={p.id}>{p.name} ({p.email})</SelectItem>))}</SelectContent>
+                    </Select>
+                  )}
+                  {!textInputPatientId && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="Patient name" value={textPatientName} onChange={(e) => setTextPatientName(e.target.value)} data-testid="input-dictate-patient-name" />
+                      <Input placeholder="Email" type="email" value={textPatientEmail} onChange={(e) => setTextPatientEmail(e.target.value)} data-testid="input-dictate-patient-email" />
+                      <Input placeholder="Year of birth" type="number" value={textPatientYob} onChange={(e) => setTextPatientYob(e.target.value)} data-testid="input-dictate-patient-yob" />
+                      <Select value={textPatientLang} onValueChange={setTextPatientLang}>
+                        <SelectTrigger data-testid="select-dictate-patient-lang"><SelectValue /></SelectTrigger>
+                        <SelectContent>{SUPPORTED_LANGUAGES.map((lang) => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}</SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
               <DialogFooter>
-                <Button variant="outline" onClick={() => { setIsUploadDialogOpen(false); setDictationText(""); if (isRecording) stopDictation(); }}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setIsUploadDialogOpen(false); setDictationText(""); resetTextPatientFields(); if (isRecording) stopDictation(); }}>Cancel</Button>
                 <Button
                   onClick={() => textInputMutation.mutate({ text: dictationText, method: "dictation" })}
                   disabled={dictationText.trim().length < 20 || textInputMutation.isPending}
@@ -2199,8 +2349,40 @@ export default function ClinicianDashboard() {
                   {pasteText.length < 20 ? `${20 - pasteText.length} more characters needed` : `${pasteText.length} characters`}
                 </p>
               </div>
+              <Collapsible open={showTextPatientFields} onOpenChange={setShowTextPatientFields}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" data-testid="button-paste-patient-toggle">
+                    {showTextPatientFields ? <ChevronDown className="h-3.5 w-3.5 mr-2" /> : <ChevronRight className="h-3.5 w-3.5 mr-2" />}
+                    <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                    {textInputPatientId || textPatientName ? "Patient linked" : "Link to patient (optional)"}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2 pt-2">
+                  {existingPatients.length > 0 && (
+                    <Select value={textInputPatientId} onValueChange={(id) => {
+                      setTextInputPatientId(id);
+                      const p = existingPatients.find(pt => pt.id === id);
+                      if (p) { setTextPatientName(p.name); setTextPatientEmail(p.email); setTextPatientYob(String(p.yearOfBirth)); setTextPatientLang(p.preferredLanguage || "en"); }
+                    }}>
+                      <SelectTrigger data-testid="select-paste-patient"><SelectValue placeholder="Select existing patient..." /></SelectTrigger>
+                      <SelectContent>{existingPatients.map((p) => (<SelectItem key={p.id} value={p.id}>{p.name} ({p.email})</SelectItem>))}</SelectContent>
+                    </Select>
+                  )}
+                  {!textInputPatientId && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="Patient name" value={textPatientName} onChange={(e) => setTextPatientName(e.target.value)} data-testid="input-paste-patient-name" />
+                      <Input placeholder="Email" type="email" value={textPatientEmail} onChange={(e) => setTextPatientEmail(e.target.value)} data-testid="input-paste-patient-email" />
+                      <Input placeholder="Year of birth" type="number" value={textPatientYob} onChange={(e) => setTextPatientYob(e.target.value)} data-testid="input-paste-patient-yob" />
+                      <Select value={textPatientLang} onValueChange={setTextPatientLang}>
+                        <SelectTrigger data-testid="select-paste-patient-lang"><SelectValue /></SelectTrigger>
+                        <SelectContent>{SUPPORTED_LANGUAGES.map((lang) => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}</SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
               <DialogFooter>
-                <Button variant="outline" onClick={() => { setIsUploadDialogOpen(false); setPasteText(""); }}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setIsUploadDialogOpen(false); setPasteText(""); resetTextPatientFields(); }}>Cancel</Button>
                 <Button
                   onClick={() => textInputMutation.mutate({ text: pasteText, method: "paste" })}
                   disabled={pasteText.trim().length < 20 || textInputMutation.isPending}

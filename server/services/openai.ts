@@ -124,7 +124,9 @@ export async function extractFromImage(base64Image: string): Promise<ExtractedCo
 }
 
 // Simplify content to 5th grade reading level
-export async function simplifyContent(extracted: ExtractedContent): Promise<SimplifiedContent> {
+export async function simplifyContent(extracted: ExtractedContent, readingLevel: number = 5): Promise<SimplifiedContent> {
+  const gradeSuffix = readingLevel === 1 ? "st" : readingLevel === 2 ? "nd" : readingLevel === 3 ? "rd" : "th";
+  const gradeLabel = `${readingLevel}${gradeSuffix} grade`;
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
@@ -133,7 +135,7 @@ export async function simplifyContent(extracted: ExtractedContent): Promise<Simp
         content: `You are a health literacy expert. Rewrite medical content for patients with limited health literacy.
 
 RULES:
-1. Use 5th grade reading level (simple words, short sentences)
+1. Use ${gradeLabel} reading level (simple words, short sentences)
 2. Keep drug names EXACTLY as written (do not simplify medication names)
 3. Use "you" and active voice
 4. Break complex instructions into numbered steps
@@ -148,7 +150,7 @@ Output valid JSON with the same structure as input.`,
       },
       {
         role: "user",
-        content: `Simplify this medical content to 5th grade reading level:\n\n${JSON.stringify(extracted, null, 2)}`,
+        content: `Simplify this medical content to ${gradeLabel} reading level:\n\n${JSON.stringify(extracted, null, 2)}`,
       },
     ],
     response_format: { type: "json_object" },

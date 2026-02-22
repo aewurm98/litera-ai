@@ -6,6 +6,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { pool } from "./db";
 import { seedDatabase } from "./seed";
+import { storage } from "./storage";
 
 // Validate required environment variables at startup
 if (!process.env.SESSION_SECRET) {
@@ -111,6 +112,17 @@ app.use((req, res, next) => {
 (async () => {
   await seedDatabase();
   await registerRoutes(httpServer, app);
+
+  setInterval(async () => {
+    try {
+      const deleted = await storage.cleanupOldTestPatients(48);
+      if (deleted > 0) {
+        console.log(`Auto-cleanup: removed ${deleted} test patient(s) older than 48 hours`);
+      }
+    } catch (err) {
+      console.error("Auto-cleanup failed:", err);
+    }
+  }, 24 * 60 * 60 * 1000);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

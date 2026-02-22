@@ -61,6 +61,7 @@ import ExperimentsHub from "@/pages/experiments-hub";
 import ExperimentComprehension from "@/pages/experiment-comprehension";
 import ExperimentLoginDemo from "@/pages/experiment-login-demo";
 import ExperimentInterpreter from "@/pages/experiment-interpreter";
+import AcceptInvite from "@/pages/accept-invite";
 
 interface User {
   id: string;
@@ -275,12 +276,20 @@ function AppSidebar({ user }: { user: User }) {
     },
   ];
 
-  const phase2Items = [
+  const toolsNavItems = [
     {
       title: "Analytics",
       icon: BarChart3,
       href: "/analytics",
     },
+    {
+      title: "Settings",
+      icon: Settings,
+      href: "/settings",
+    },
+  ];
+
+  const comingSoonItems = [
     {
       title: "Provider Directory",
       icon: Building2,
@@ -295,11 +304,6 @@ function AppSidebar({ user }: { user: User }) {
       title: "Notifications",
       icon: Bell,
       href: "/notifications",
-    },
-    {
-      title: "Settings",
-      icon: Settings,
-      href: "/settings",
     },
   ];
 
@@ -348,20 +352,38 @@ function AppSidebar({ user }: { user: User }) {
         </SidebarGroup>
 
         <SidebarGroup>
+          <SidebarGroupLabel>Tools</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {toolsNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    isActive={location === item.href}
+                    onClick={() => navigate(item.href)}
+                    data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
           <SidebarGroupLabel>Coming Soon</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {phase2Items.map((item) => (
+              {comingSoonItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
+                  <SidebarMenuButton
                     isActive={location === item.href}
+                    onClick={() => navigate(item.href)}
                     data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                   >
-                    <a href={item.href}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -562,7 +584,15 @@ function Router() {
     );
   }
 
-  // Experiments sandbox routes - no auth required
+  if (location.startsWith("/invite/")) {
+    return (
+      <Switch>
+        <Route path="/invite/:token" component={AcceptInvite} />
+        <Route component={NotFound} />
+      </Switch>
+    );
+  }
+
   if (location.startsWith("/experiments")) {
     return (
       <Switch>

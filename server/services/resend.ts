@@ -266,3 +266,74 @@ export async function sendCheckInEmail(
     throw error;
   }
 }
+
+export async function sendTeamInviteEmail(
+  toEmail: string,
+  inviterName: string,
+  role: string,
+  inviteLink: string
+) {
+  console.log(`[Resend] === Starting team invite email send ===`);
+  console.log(`[Resend] To: ${toEmail}, Role: ${role}`);
+
+  const { client, fromEmail } = await getUncachableResendClient();
+
+  try {
+    const result = await client.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      subject: `You've been invited to join Litera.ai`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; margin-bottom: 32px;">
+    <div style="width: 60px; height: 60px; background: #1e40af; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+      <span style="font-size: 28px;">❤️</span>
+    </div>
+    <h1 style="color: #1e40af; margin: 0; font-size: 24px;">Litera.ai</h1>
+    <p style="color: #64748b; margin: 4px 0 0; font-size: 14px;">Healthcare Communication Platform</p>
+  </div>
+
+  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; margin-bottom: 24px;">
+    <h2 style="margin: 0 0 16px; font-size: 20px; color: #0f172a;">You've been invited!</h2>
+    <p style="margin: 0 0 16px; color: #475569;">
+      <strong>${inviterName}</strong> has invited you to join Litera.ai as a <strong>${role}</strong>.
+    </p>
+    <p style="margin: 0 0 24px; color: #475569;">
+      Litera.ai helps clinicians create simplified, translated discharge instructions for patients with limited English proficiency.
+    </p>
+    <div style="text-align: center;">
+      <a href="${inviteLink}" style="display: inline-block; background: #1e40af; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+        Accept Invitation
+      </a>
+    </div>
+    <p style="margin: 16px 0 0; color: #94a3b8; font-size: 12px; text-align: center;">
+      This invitation expires in 7 days.
+    </p>
+  </div>
+
+  <div style="text-align: center; color: #94a3b8; font-size: 12px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+    <p style="margin: 0;">Powered by Litera.ai</p>
+  </div>
+</body>
+</html>
+      `,
+    });
+
+    if (result?.error) {
+      console.error(`[Resend] Team invite email API returned error:`, JSON.stringify(result.error));
+      throw new Error(`Resend API error: ${JSON.stringify(result.error)}`);
+    }
+
+    console.log(`[Resend] Team invite email sent successfully:`, JSON.stringify(result));
+    return result;
+  } catch (error: any) {
+    console.error(`[Resend] Team invite email send FAILED:`, error?.message || error);
+    throw error;
+  }
+}

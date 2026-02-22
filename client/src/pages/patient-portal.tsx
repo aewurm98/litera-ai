@@ -510,20 +510,19 @@ export default function PatientPortal() {
   const searchString = useSearch();
   const { toast } = useToast();
   
-  // Check for demo mode (simple ?demo=1 parameter for clinician preview)
-  const demoParam = new URLSearchParams(searchString).get("demo");
+  const searchParams = new URLSearchParams(searchString);
+  const demoParam = searchParams.get("demo");
+  const previewToken = searchParams.get("preview");
   
   // Fetch environment info to determine if we're in demo mode
   const { data: envInfo, isLoading: isEnvLoading } = useQuery<{ isDemoMode: boolean; isProduction: boolean }>({
     queryKey: ["/api/env-info"],
   });
   
-  // SECURITY: Only allow clinician preview bypass in demo mode
-  // In production mode, demoParam is ignored
-  const isAppDemoMode = envInfo?.isDemoMode ?? false; // Default to production (secure) until loaded
-  const isClinicianPreview = demoParam === "1" && isAppDemoMode;
+  const isAppDemoMode = envInfo?.isDemoMode ?? false;
+  const isClinicianPreview = (demoParam === "1" && isAppDemoMode) || !!previewToken;
   
-  const [isVerified, setIsVerified] = useState(false); // Always start unverified until env is loaded
+  const [isVerified, setIsVerified] = useState(false);
   const [yearOfBirth, setYearOfBirth] = useState("");
   const [lastName, setLastName] = useState("");
   const [pin, setPin] = useState("");
@@ -537,15 +536,25 @@ export default function PatientPortal() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
-  // Once env info loads, allow clinician preview bypass in demo mode only
   useEffect(() => {
     if (!isEnvLoading && envInfo) {
-      // Only auto-verify for clinician preview if in demo mode
       if (demoParam === "1" && envInfo.isDemoMode) {
         setIsVerified(true);
       }
     }
   }, [isEnvLoading, envInfo, demoParam]);
+
+  useEffect(() => {
+    if (previewToken && token) {
+      fetch(`/api/patient/${token}/verify-preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ previewToken }),
+      }).then(r => r.json()).then(data => {
+        if (data.verified) setIsVerified(true);
+      }).catch(() => {});
+    }
+  }, [previewToken, token]);
   const [showEnglish, setShowEnglish] = useState(false);
   const [showOriginalDocument, setShowOriginalDocument] = useState(false);
   const [showCheckIn, setShowCheckIn] = useState(false);

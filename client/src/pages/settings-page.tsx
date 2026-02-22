@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Settings, Building2, Shield, Loader2 } from "lucide-react";
+import { Settings, Building2, Shield, Loader2, UserPlus, Mail, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { format } from "date-fns";
 
 type UserData = {
   id: string;
@@ -172,6 +174,102 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {isAdmin && <TeamInviteSection />}
     </div>
+  );
+}
+
+function TeamInviteSection() {
+  const { toast } = useToast();
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("clinician");
+
+  const { data: invitations } = useQuery<Array<{
+    id: string;
+    email: string;
+    role: string;
+    status: string;
+    expiresAt: string;
+    createdAt: string;
+  }>>({
+    queryKey: ["/api/admin/invitations"],
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: async (data: { email: string; role: string }) => {
+      const res = await apiRequest("POST", "/api/admin/invitations", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/invitations"] });
+      setInviteEmail("");
+      setInviteRole("clinician");
+      toast({ title: "Invitation sent", description: "An email has been sent with the invite link." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const pendingInvites = invitations?.filter(i => i.status === "pending") || [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <UserPlus className="h-5 w-5" />
+          Invite Team Members
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <Input
+            type="email"
+            placeholder="Email address"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            className="flex-1"
+            data-testid="input-invite-email"
+          />
+          <Select value={inviteRole} onValueChange={setInviteRole}>
+            <SelectTrigger className="w-36" data-testid="select-invite-role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="clinician">Clinician</SelectItem>
+              <SelectItem value="interpreter">Interpreter</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={() => inviteMutation.mutate({ email: inviteEmail, role: inviteRole })}
+            disabled={!inviteEmail.trim() || inviteMutation.isPending}
+            data-testid="button-send-invite"
+          >
+            {inviteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+          </Button>
+        </div>
+
+        {pendingInvites.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground uppercase">Pending Invitations</Label>
+            {pendingInvites.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between p-2 rounded bg-muted/50 text-sm">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>{inv.email}</span>
+                  <Badge variant="secondary" className="text-xs capitalize">{inv.role}</Badge>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {format(new Date(inv.createdAt), "MMM d")}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

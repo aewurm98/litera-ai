@@ -134,6 +134,8 @@ export const carePlans = pgTable("care_plans", {
   interpreterReviewedAt: timestamp("interpreter_reviewed_at"),
   interpreterNotes: text("interpreter_notes"),
   
+  readingLevel: integer("reading_level").notNull().default(5),
+
   // Approval tracking
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
@@ -229,6 +231,27 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
 
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
+
+// Team invitations
+export const teamInvitations = pgTable("team_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("clinician"),
+  tenantId: varchar("tenant_id").references(() => tenants.id),
+  invitedBy: varchar("invited_by").references(() => users.id),
+  token: text("token").notNull().unique(),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTeamInvitationSchema = createInsertSchema(teamInvitations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTeamInvitation = z.infer<typeof insertTeamInvitationSchema>;
+export type TeamInvitation = typeof teamInvitations.$inferSelect;
 
 // Supported languages for translation (GPT-4 supports 100+ languages)
 export const SUPPORTED_LANGUAGES = [
