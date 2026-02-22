@@ -3493,7 +3493,7 @@ ${contextText}`
       });
 
       // Fetch patient names for stale care plans
-      const stalePatientIds = staleCarePlansFiltered.map(p => p.patientId).filter(Boolean);
+      const stalePatientIds = staleCarePlansFiltered.map(p => p.patientId).filter((id): id is string => id !== null);
       let patientNameMap = new Map<string, string>();
       if (stalePatientIds.length > 0) {
         const stalePatients = await db.select({ id: patients.id, name: patients.name }).from(patients).where(inArray(patients.id, stalePatientIds));
@@ -3503,7 +3503,7 @@ ${contextText}`
       const staleCarePlans = staleCarePlansFiltered.map(plan => ({
         id: plan.id,
         patientId: plan.patientId,
-        patientName: patientNameMap.get(plan.patientId) || 'Unknown',
+        patientName: (plan.patientId && patientNameMap.get(plan.patientId)) || 'Unknown',
         diagnosis: plan.diagnosis || null,
         status: plan.status,
         createdAt: plan.createdAt,
@@ -3692,9 +3692,29 @@ ${contextText}`
     };
 
     try {
-      const client = await getUncachableResendClient();
-      diagnostics.clientReady = !!client;
+      const resendData = await getUncachableResendClient();
+      diagnostics.clientReady = !!resendData;
+      diagnostics.resolvedFromEmail = resendData.fromEmail;
       diagnostics.testResult = "Email client initialized successfully";
+
+      const testTo = req.query.sendTo as string | undefined;
+      if (testTo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testTo)) {
+        const sendResult = await resendData.client.emails.send({
+          from: resendData.fromEmail,
+          to: testTo,
+          subject: "Litera Health - Email Verification Test",
+          html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+            <h2 style="color: #1e40af;">Litera Health Email Test</h2>
+            <p>This is a verification email from <strong>Litera Health</strong> confirming that your email delivery is working correctly.</p>
+            <p style="color: #666; font-size: 14px;">Sent from: ${resendData.fromEmail}</p>
+            <p style="color: #666; font-size: 14px;">Timestamp: ${new Date().toISOString()}</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+            <p style="color: #999; font-size: 12px;">This is an automated test email from Litera Health (literahealth.tech).</p>
+          </div>`,
+        });
+        diagnostics.sendTestResult = sendResult;
+        diagnostics.sentTo = testTo;
+      }
     } catch (error: any) {
       diagnostics.testResult = `Client init failed: ${error.message}`;
     }
