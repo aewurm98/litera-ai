@@ -551,8 +551,14 @@ export default function PatientPortal() {
       fetch(`/api/patient/${token}`, { credentials: "include" })
         .then(r => r.json())
         .then(data => {
-          if (data.requiresVerification && data.requiresDateOfBirth) {
-            setRequiresDateOfBirth(true);
+          if (data.requiresVerification) {
+            if (data.requiresDateOfBirth) {
+              setRequiresDateOfBirth(true);
+            }
+            if (data.hasPassword) {
+              setHasPatientPassword(true);
+              setUsePasswordLogin(true);
+            }
           }
           if (!data.requiresVerification && !data.error) {
             setIsVerified(true);

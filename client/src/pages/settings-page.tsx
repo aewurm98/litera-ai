@@ -140,7 +140,7 @@ export default function SettingsPage() {
           </div>
           <div>
             <Label className="text-xs text-muted-foreground uppercase">Role</Label>
-            <Badge variant="secondary" className="capitalize" data-testid="badge-account-role">{user.role}</Badge>
+            <p className="mt-1"><Badge variant="secondary" className="capitalize" data-testid="badge-account-role">{user.role}</Badge></p>
           </div>
         </CardContent>
       </Card>

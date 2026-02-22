@@ -1838,6 +1838,7 @@ export async function registerRoutes(
           requiresVerification: true,
           translatedLanguage: carePlan.translatedLanguage,
           requiresDateOfBirth: !!(patient?.dateOfBirth),
+          hasPassword: !!(patient?.password),
         });
       }
 
