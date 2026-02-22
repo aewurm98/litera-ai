@@ -52,4 +52,4 @@ DEMO_MODE = "false"
 RESEND_FROM_EMAIL = "Litera Health <noreply@literahealth.tech>"
 
 [userenv.production]
-APP_URL = "https://workspace.alexwurm.replit.app"
+APP_URL = "https://literahealth.tech"

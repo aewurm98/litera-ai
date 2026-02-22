@@ -3697,8 +3697,9 @@ ${contextText}`
       diagnostics.resolvedFromEmail = resendData.fromEmail;
       diagnostics.testResult = "Email client initialized successfully";
 
-      const testTo = req.query.sendTo as string | undefined;
+      const testTo = req.query.sendTestTo as string | undefined;
       if (testTo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testTo)) {
+        console.log(`[Resend] Admin ${user?.name} sending test email to ${testTo}`);
         const sendResult = await resendData.client.emails.send({
           from: resendData.fromEmail,
           to: testTo,
