@@ -19,6 +19,7 @@ export const tenants = pgTable("tenants", {
   interpreterReviewMode: text("interpreter_review_mode").notNull().default("required"), // required | optional
   contactEmail: text("contact_email"),
   contactPhone: text("contact_phone"),
+  clinicPhoneNumbers: jsonb("clinic_phone_numbers").$type<Array<{ label: string; number: string }>>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

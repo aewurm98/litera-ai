@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Settings, Building2, Shield, Loader2, UserPlus, Mail, Clock, User } from "lucide-react";
+import { Settings, Building2, Shield, Loader2, UserPlus, Mail, Clock, User, Phone, Plus, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+
+type PhoneEntry = { label: string; number: string };
 
 type UserData = {
   id: string;
@@ -24,6 +26,7 @@ type UserData = {
     slug: string;
     isDemo: boolean;
     interpreterReviewMode: string;
+    clinicPhoneNumbers?: PhoneEntry[];
   } | null;
 };
 
@@ -150,6 +153,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {isAdmin && <ClinicPhoneNumbersSection phoneNumbers={user.tenant?.clinicPhoneNumbers || []} />}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -255,6 +260,113 @@ export default function SettingsPage() {
 
       {isAdmin && <TeamInviteSection />}
     </div>
+  );
+}
+
+function ClinicPhoneNumbersSection({ phoneNumbers }: { phoneNumbers: PhoneEntry[] }) {
+  const { toast } = useToast();
+  const [phones, setPhones] = useState<PhoneEntry[]>(phoneNumbers);
+  const [newLabel, setNewLabel] = useState("");
+  const [newNumber, setNewNumber] = useState("");
+
+  useEffect(() => {
+    setPhones(phoneNumbers);
+  }, [phoneNumbers]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: { clinicPhoneNumbers: PhoneEntry[] }) => {
+      const res = await apiRequest("PATCH", "/api/tenant/settings", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({ title: "Phone numbers saved" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const addPhone = () => {
+    if (!newLabel.trim() || !newNumber.trim()) return;
+    const updated = [...phones, { label: newLabel.trim(), number: newNumber.trim() }];
+    setPhones(updated);
+    setNewLabel("");
+    setNewNumber("");
+    saveMutation.mutate({ clinicPhoneNumbers: updated });
+  };
+
+  const removePhone = (index: number) => {
+    const updated = phones.filter((_, i) => i !== index);
+    setPhones(updated);
+    saveMutation.mutate({ clinicPhoneNumbers: updated });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Phone className="h-5 w-5" />
+          Clinic Phone Numbers
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Add phone numbers for your clinic or departments. These will be included in simplified discharge instructions so patients know who to call for appointments.
+        </p>
+
+        {phones.length > 0 && (
+          <div className="space-y-2">
+            {phones.map((phone, index) => (
+              <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/50" data-testid={`phone-entry-${index}`}>
+                <div className="flex items-center gap-3">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <span className="text-sm font-medium">{phone.label}</span>
+                    <span className="text-sm text-muted-foreground ml-2">{phone.number}</span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => removePhone(index)}
+                  disabled={saveMutation.isPending}
+                  data-testid={`button-remove-phone-${index}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Input
+            placeholder="Department (e.g. General Practice)"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            className="flex-1"
+            data-testid="input-phone-label"
+          />
+          <Input
+            placeholder="Phone number"
+            value={newNumber}
+            onChange={(e) => setNewNumber(e.target.value)}
+            className="w-44"
+            data-testid="input-phone-number"
+          />
+          <Button
+            size="icon"
+            onClick={addPhone}
+            disabled={!newLabel.trim() || !newNumber.trim() || saveMutation.isPending}
+            data-testid="button-add-phone"
+          >
+            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

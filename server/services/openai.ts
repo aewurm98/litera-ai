@@ -54,7 +54,7 @@ After your inventory, output valid JSON with this exact structure:
   "patientName": "Full name of the patient",
   "diagnosis": "Primary diagnosis and conditions",
   "medications": [{"name": "Drug name", "dose": "Amount", "frequency": "How often", "instructions": "Special notes including any precautions or side effects mentioned anywhere in the document for this medication"}],
-  "appointments": [{"date": "Date or timeframe like 'Within 2 business days'", "time": "Time or 'To be scheduled' or 'Patient will receive a call'", "provider": "Doctor name", "location": "Full address or clinic name - NEVER redact", "purpose": "Reason for visit", "phone": "Phone number if provided", "schedulingInstructions": "How the appointment gets scheduled", "itemsToBring": "Items patient should bring to the appointment"}],
+  "appointments": [{"date": "Date or timeframe like 'Within 2 business days'", "time": "Time or 'To be scheduled' or 'Patient will receive a call'", "provider": "Doctor name", "location": "Full address or clinic name - NEVER redact", "purpose": "Appointment 1: Reason for visit (label each distinct appointment sequentially)", "phone": "Phone number if provided", "schedulingInstructions": "How the appointment gets scheduled", "itemsToBring": "Items patient should bring to the appointment"}],
   "instructions": "ALL care instructions and activity restrictions from the entire document, consolidated",
   "warnings": "ALL warning signs, red flags, and reasons to seek immediate medical attention — gathered from EVERY part of the document, not just a section labeled 'Warnings'"
 }
@@ -123,10 +123,26 @@ export async function extractFromImage(base64Image: string): Promise<ExtractedCo
   return JSON.parse(content) as ExtractedContent;
 }
 
+interface SimplifyOptions {
+  readingLevel?: number;
+  clinicPhoneNumbers?: Array<{ label: string; number: string }>;
+}
+
 // Simplify content to 5th grade reading level
-export async function simplifyContent(extracted: ExtractedContent, readingLevel: number = 5): Promise<SimplifiedContent> {
+export async function simplifyContent(extracted: ExtractedContent, readingLevelOrOptions: number | SimplifyOptions = 5): Promise<SimplifiedContent> {
+  const options: SimplifyOptions = typeof readingLevelOrOptions === "number"
+    ? { readingLevel: readingLevelOrOptions }
+    : readingLevelOrOptions;
+  const readingLevel = options.readingLevel ?? 5;
+  const clinicPhones = options.clinicPhoneNumbers || [];
+
   const gradeSuffix = readingLevel === 1 ? "st" : readingLevel === 2 ? "nd" : readingLevel === 3 ? "rd" : "th";
   const gradeLabel = `${readingLevel}${gradeSuffix} grade`;
+
+  const phoneBlock = clinicPhones.length > 0
+    ? `\n\nCLINIC PHONE NUMBERS (include the most relevant number in each appointment's "phone" field):\n${clinicPhones.map(p => `- ${p.label}: ${p.number}`).join("\n")}`
+    : "";
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [
@@ -138,19 +154,19 @@ RULES:
 1. Use ${gradeLabel} reading level (simple words, short sentences)
 2. Keep drug names EXACTLY as written (do not simplify medication names)
 3. Use "you" and active voice
-4. Break complex instructions into numbered steps
+4. Use numbered steps (1. 2. 3. …) for all instructions, medication instructions, and ordered lists. NEVER convert numbered lists to bullet points or vice versa. Preserve the original list format: if the source uses "1. 2. 3." keep numbered steps; if it uses "- " bullets, keep bullets. Within a single field, be consistent — default to numbered steps for procedural instructions and bullets for unordered lists of symptoms/signs.
 5. Replace medical jargon with everyday words
 6. Keep ALL critical safety information — every warning sign, red flag, and "call your doctor if" statement must be preserved in the "warnings" field. Do NOT drop any warnings even if they were originally embedded in medication or instruction sections.
 7. NEVER remove, redact, or replace specific details like clinic names, addresses, phone numbers, doctor names, or dates with placeholders like [REDACTED]. Keep all specific details exactly as they appear.
-8. For appointments: preserve ALL scheduling details including exact dates/timeframes, who will call whom, phone numbers to call, what to bring, and clinic locations. If the original says "patient will receive a call within 2 days", keep that exact detail.
-9. Include phone, schedulingInstructions, and itemsToBring fields in each appointment object when available.
+8. For appointments: each distinct follow-up appointment MUST be its own object in the appointments array. Label each appointment's "purpose" field with a prefix: "Appointment 1: …", "Appointment 2: …", etc. Preserve ALL scheduling details including exact dates/timeframes, who will call whom, phone numbers to call, what to bring, and clinic locations.
+9. Include phone, schedulingInstructions, and itemsToBring fields in each appointment object when available.${clinicPhones.length > 0 ? " If clinic phone numbers are provided below and the source document does not already include phone numbers for an appointment, select the most relevant clinic phone number and include it in the appointment's phone field." : ""}
 10. The "warnings" field is critical for patient safety. Ensure it contains ALL danger signs from the input — simplify the language but never omit a warning.
 
 Output valid JSON with the same structure as input.`,
       },
       {
         role: "user",
-        content: `Simplify this medical content to ${gradeLabel} reading level:\n\n${JSON.stringify(extracted, null, 2)}`,
+        content: `Simplify this medical content to ${gradeLabel} reading level:\n\n${JSON.stringify(extracted, null, 2)}${phoneBlock}`,
       },
     ],
     response_format: { type: "json_object" },
@@ -181,7 +197,8 @@ RULES:
 4. Preserve all medical accuracy
 5. Use culturally appropriate phrasing
 6. NEVER remove, redact, or replace specific details like clinic names, addresses, phone numbers, doctor names, or dates. Keep all specific details exactly as they appear.
-7. For appointment objects: preserve ALL fields including phone, schedulingInstructions, and itemsToBring when present.
+7. For appointment objects: preserve ALL fields including phone, schedulingInstructions, and itemsToBring when present. Keep the "Appointment 1:", "Appointment 2:" prefix labels — translate the word "Appointment" but keep the numbering.
+8. Preserve numbered list formatting exactly. If the English source uses "1. 2. 3." numbered steps, the translation must also use "1. 2. 3." numbered steps. Do NOT convert between numbered lists and bullet points during translation.
 
 Output valid JSON with the same structure.`,
       },

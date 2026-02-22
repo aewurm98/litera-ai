@@ -54,6 +54,15 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 - "Send Test to Me" now uses staff member's recovery email as default destination (falls back to generated address)
 - Fixed DOM nesting warning: Badge in settings page now wrapped in `div` instead of `p`
 
+### Phase G - AI Prompt Improvements & Clinic Phone Numbers (Complete)
+- Experiments comprehension view updated with edited simplified pneumonia discharge content (numbered medication instructions, breathing exercises, discharge date, appointment phone numbers)
+- AI prompts (extraction, simplification, translation) updated to preserve numbered list formatting consistently — no converting between bullets and numbers
+- AI prompts now label each follow-up appointment as "Appointment 1:", "Appointment 2:", etc. in the purpose field
+- Added `clinicPhoneNumbers` jsonb column to tenants table (array of `{label, number}` pairs)
+- Settings page: Admin-only "Clinic Phone Numbers" card to add/remove department phone numbers
+- Clinic phone numbers are passed into the simplification prompt so AI includes the most relevant number in each appointment's phone field
+- "Send Test to Me" flow now shows read-only preview mode (no password setup, no check-ins, preview banner)
+
 ## System Architecture
 
 Litera.ai is built with a clear separation between its frontend, backend, and shared components.

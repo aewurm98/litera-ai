@@ -631,7 +631,7 @@ export async function registerRoutes(
       role: req.session.userRole,
       roles,
       tenantId: req.session.tenantId,
-      tenant: tenant ? { id: tenant.id, name: tenant.name, slug: tenant.slug, isDemo: tenant.isDemo, interpreterReviewMode: tenant.interpreterReviewMode } : null,
+      tenant: tenant ? { id: tenant.id, name: tenant.name, slug: tenant.slug, isDemo: tenant.isDemo, interpreterReviewMode: tenant.interpreterReviewMode, clinicPhoneNumbers: (tenant as any).clinicPhoneNumbers || [] } : null,
       recoveryEmail: currentUser?.recoveryEmail || null,
     });
   });
@@ -714,7 +714,11 @@ export async function registerRoutes(
       }
 
       const schema = z.object({
-        interpreterReviewMode: z.enum(["disabled", "optional", "required"]),
+        interpreterReviewMode: z.enum(["disabled", "optional", "required"]).optional(),
+        clinicPhoneNumbers: z.array(z.object({
+          label: z.string().min(1),
+          number: z.string().min(1),
+        })).optional(),
       });
 
       const parsed = schema.safeParse(req.body);
@@ -724,11 +728,17 @@ export async function registerRoutes(
 
       const oldTenant = await storage.getTenant(tenantId);
       const oldMode = oldTenant?.interpreterReviewMode;
-      const newMode = parsed.data.interpreterReviewMode;
+      const newMode = parsed.data.interpreterReviewMode || oldMode;
 
-      const updated = await storage.updateTenant(tenantId, {
-        interpreterReviewMode: newMode,
-      });
+      const updateData: any = {};
+      if (parsed.data.interpreterReviewMode) {
+        updateData.interpreterReviewMode = parsed.data.interpreterReviewMode;
+      }
+      if (parsed.data.clinicPhoneNumbers !== undefined) {
+        updateData.clinicPhoneNumbers = parsed.data.clinicPhoneNumbers;
+      }
+
+      const updated = await storage.updateTenant(tenantId, updateData);
 
       if (!updated) {
         return res.status(404).json({ error: "Tenant not found" });
@@ -755,7 +765,7 @@ export async function registerRoutes(
         }
       }
 
-      res.json({ success: true, interpreterReviewMode: updated.interpreterReviewMode });
+      res.json({ success: true, interpreterReviewMode: updated.interpreterReviewMode, clinicPhoneNumbers: (updated as any).clinicPhoneNumbers });
     } catch (error) {
       console.error("Error updating tenant settings:", error);
       res.status(500).json({ error: "Failed to update settings" });
@@ -967,7 +977,9 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Simplify content — include extractedPatientName so the AI has patient context
+      const tenant = tenantId ? await storage.getTenant(tenantId) : undefined;
+      const clinicPhoneNumbers = (tenant as any)?.clinicPhoneNumbers as Array<{ label: string; number: string }> | undefined;
+
       const simplified = await simplifyContent({
         patientName: carePlan.extractedPatientName || "",
         diagnosis: carePlan.diagnosis || "",
@@ -975,7 +987,7 @@ export async function registerRoutes(
         appointments: carePlan.appointments || [],
         instructions: carePlan.instructions || "",
         warnings: carePlan.warnings || "",
-      }, readingLevel);
+      }, { readingLevel, clinicPhoneNumbers: clinicPhoneNumbers || [] });
 
       // For English, skip translation - just use simplified content
       // For other languages, translate the simplified content
