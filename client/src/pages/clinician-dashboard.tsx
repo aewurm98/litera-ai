@@ -511,8 +511,12 @@ export default function ClinicianDashboard() {
     staleTime: 1000 * 30,
   });
 
+  const [showTestPatients, setShowTestPatients] = useState(false);
+  const testPatientCount = carePlansRaw.filter(p => p.patient?.isTestPatient).length;
+
   // Sort and filter care plans
   const carePlans = carePlansRaw
+    .filter((plan) => showTestPatients || !plan.patient?.isTestPatient)
     .filter((plan) => filterStatus === "all" || plan.status === filterStatus)
     .sort((a, b) => {
       if (sortBy === "name") {
@@ -1157,6 +1161,21 @@ export default function ClinicianDashboard() {
             )}
           </div>
         </div>
+
+        {testPatientCount > 0 && (
+          <div className="px-3 py-2 border-t bg-muted/30">
+            <button
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+              onClick={() => setShowTestPatients(!showTestPatients)}
+              data-testid="toggle-test-patients"
+            >
+              <span className={`h-3 w-3 rounded border flex items-center justify-center text-[8px] ${showTestPatients ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"}`}>
+                {showTestPatients ? "✓" : ""}
+              </span>
+              Show test patients ({testPatientCount})
+            </button>
+          </div>
+        )}
 
         {/* Demo Reset Button - only show in demo mode */}
         {isDemoMode && (
