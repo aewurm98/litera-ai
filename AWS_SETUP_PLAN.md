@@ -1,7 +1,7 @@
 # Litera.ai — AWS Backend Setup Plan
 
 **Created**: 2026-02-23
-**Purpose**: Step-by-step guide to set up every AWS service needed to run Litera.ai in production, from local tool installation through to a fully running containerized application.
+**Purpose**: Step-by-step guide to migrate Litera.ai from Replit/GitHub to AWS — from cloning the repo and installing local tools through to a fully running containerized application.
 
 **Region**: `ca-central-1` (Canada Central) — required for PHIPA data residency compliance.
 **ECR Repository**: `379245767730.dkr.ecr.ca-central-1.amazonaws.com/litera-app-repo` (already created)
@@ -31,7 +31,23 @@
 
 Install these on your development machine before starting.
 
-### 1.1 Install AWS CLI v2
+### 1.1 Clone the Repository from GitHub
+
+Your project currently lives on GitHub and Replit — you don't have a local copy. You'll need one on the machine where you'll build Docker images and run AWS CLI commands.
+
+```bash
+# Install git if you don't have it
+# macOS: brew install git
+# Linux: sudo apt-get install git
+
+# Clone the repo
+git clone https://github.com/aewurm98/litera-ai.git
+cd litera-ai
+```
+
+> **Note**: All subsequent commands in this guide assume you are in the `litera-ai/` directory unless stated otherwise.
+
+### 1.2 Install AWS CLI v2
 
 ```bash
 # macOS
@@ -47,7 +63,7 @@ aws --version
 # Should show aws-cli/2.x.x
 ```
 
-### 1.2 Install Docker Desktop
+### 1.3 Install Docker Desktop
 
 - **macOS / Windows**: Download from https://www.docker.com/products/docker-desktop
 - **Linux**: Follow https://docs.docker.com/engine/install/
@@ -58,7 +74,7 @@ docker --version
 # Should show Docker version 24+ or 27+
 ```
 
-### 1.3 Install Node.js 20+
+### 1.4 Install Node.js 20+
 
 ```bash
 # Using nvm (recommended)
@@ -70,7 +86,7 @@ node --version
 # Should show v20.x.x
 ```
 
-### 1.4 Configure AWS CLI
+### 1.5 Configure AWS CLI
 
 ```bash
 aws configure
@@ -104,7 +120,7 @@ If you don't have one yet:
 7. Choose "Command Line Interface (CLI)"
 8. Save the Access Key ID and Secret Access Key securely
 
-Now run `aws configure` with these credentials (see step 1.4).
+Now run `aws configure` with these credentials (see step 1.5).
 
 ### 2.3 Create an ECS Task Execution Role
 
@@ -161,15 +177,15 @@ aws ecr get-login-password --region ca-central-1 | \
 You should see: `Login Succeeded`
 
 **Troubleshooting**:
-- "Unable to locate credentials" → Run `aws configure` (step 1.4)
+- "Unable to locate credentials" → Run `aws configure` (step 1.5)
 - "An error occurred (AccessDeniedException)" → Your IAM user needs `ecr:GetAuthorizationToken` permission
 
 ### 3.2 Build the Docker Image
 
-From the repo root (where `Dockerfile` is):
+From the repo root (where `Dockerfile` is — the directory you cloned in step 1.1):
 
 ```bash
-cd /path/to/litera-ai
+cd litera-ai   # if you're not already in the cloned repo
 docker build -t litera-app-repo .
 ```
 
@@ -720,9 +736,12 @@ curl -s -o /dev/null -w "%{http_code}" https://litera.yourdomain.com
 
 ### 12.1 Deploying Updates
 
-When you push code changes, rebuild and redeploy:
+When you push code changes (e.g., from Replit to GitHub), pull the latest and rebuild:
 
 ```bash
+# Pull the latest code from GitHub
+git pull origin main
+
 # Build new image
 docker build -t litera-app-repo .
 
@@ -848,7 +867,7 @@ Scale up to `db.t3.small` ($25/mo) and 2 Fargate tasks ($30-40/mo) for a real pi
 
 Follow these steps in order, checking off as you go:
 
-- [ ] **Step 1**: Install AWS CLI, Docker, Node.js on your machine
+- [ ] **Step 1**: Clone the repo from GitHub, install AWS CLI, Docker, Node.js on your machine
 - [ ] **Step 2**: Set up IAM user, configure `aws configure`, create ECS execution role
 - [ ] **Step 3**: Build Docker image, push to ECR
 - [ ] **Step 4**: Create RDS PostgreSQL instance
