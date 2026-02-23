@@ -16,6 +16,7 @@ export const tenants = pgTable("tenants", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   isDemo: boolean("is_demo").notNull().default(false),
+  sandboxMode: boolean("sandbox_mode").notNull().default(false),
   interpreterReviewMode: text("interpreter_review_mode").notNull().default("required"), // required | optional
   contactEmail: text("contact_email"),
   contactPhone: text("contact_phone"),

@@ -15,6 +15,7 @@ import {
 import { sendCarePlanEmail, sendCheckInEmail, sendTeamInviteEmail, sendPasswordResetEmail, getUncachableResendClient } from "./services/resend";
 import { SUPPORTED_LANGUAGES, insertPatientSchema, type Patient } from "@shared/schema";
 import { isDemoMode } from "./index";
+import { isSandboxTenant, getAdminEmailForTenant, pseudonymizePatientData, scrubCarePlanData, createSandboxAdapter, findSandboxCarePlanByToken } from "./sandbox";
 
 // Helper to generate a 4-digit PIN for patient verification
 function generatePin(): string {
@@ -38,16 +39,21 @@ async function createCarePlanFromExtracted(
   req: Request,
   auditMethod?: string,
 ) {
+  const sandbox = tenantId ? await isSandboxTenant(tenantId) : false;
+  const store = sandbox && tenantId ? createSandboxAdapter(tenantId) : storage;
+
   let matchedPatientId: string | undefined = undefined;
   if (extracted.patientName) {
-    const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
+    const matchedPatient = await store.findPatientByName(extracted.patientName, tenantId);
     if (matchedPatient) {
       matchedPatientId = matchedPatient.id;
       console.log(`Auto-matched patient: ${matchedPatient.name} (${matchedPatient.id})`);
     }
   }
 
-  const carePlan = await storage.createCarePlan({
+  const pseudoName = matchedPatientId ? (await store.getPatient(matchedPatientId))?.name : undefined;
+
+  let cpData: any = {
     clinicianId,
     patientId: matchedPatientId,
     tenantId,
@@ -61,26 +67,32 @@ async function createCarePlanFromExtracted(
     appointments: extracted.appointments,
     instructions: extracted.instructions,
     warnings: extracted.warnings,
-  });
+  };
+
+  if (sandbox) {
+    cpData = { ...cpData, ...scrubCarePlanData(cpData, pseudoName || extracted.patientName) };
+  }
+
+  const carePlan = await store.createCarePlan(cpData);
 
   const auditDetails: Record<string, unknown> = {
-    fileName: file.originalname,
+    fileName: sandbox ? "upload.pdf" : file.originalname,
     fileType: file.mimetype,
-    patientName: extracted.patientName,
+    patientName: sandbox ? (pseudoName || "Unknown") : extracted.patientName,
     autoMatchedPatientId: matchedPatientId,
   };
   if (auditMethod) auditDetails.method = auditMethod;
 
-  await storage.createAuditLog({
+  await store.createAuditLog({
     carePlanId: carePlan.id,
     userId: clinicianId,
     action: "uploaded",
     details: auditDetails,
-    ipAddress: req.ip || null,
-    userAgent: req.get("user-agent") || null,
+    ipAddress: sandbox ? null : (req.ip || null),
+    userAgent: sandbox ? null : (req.get("user-agent") || null),
   });
 
-  const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
+  const matchedPatient = matchedPatientId ? await store.getPatient(matchedPatientId) : undefined;
   return { ...carePlan, patient: matchedPatient };
 }
 
@@ -383,6 +395,15 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  async function getStore(req: Request): Promise<typeof storage> {
+    const tenantId = req.session?.tenantId;
+    if (tenantId) {
+      const sandbox = await isSandboxTenant(tenantId);
+      if (sandbox) return createSandboxAdapter(tenantId);
+    }
+    return storage;
+  }
+
   // ============= Serve Mock PDFs =============
   // Route to serve PDF files from attached_assets/mock_pdfs
   app.get("/api/documents/:filename", requireClinicianAuth, async (req: Request, res: Response) => {
@@ -418,7 +439,14 @@ export async function registerRoutes(
       const id = req.params.id as string;
       const { token } = req.query; // Patient access token from query param
       
-      const carePlan = await storage.getCarePlan(id);
+      const store = await getStore(req);
+      let carePlan = await store.getCarePlan(id);
+      if (!carePlan && token) {
+        const sandboxResult = findSandboxCarePlanByToken(token as string);
+        if (sandboxResult && sandboxResult.carePlan.id === id) {
+          carePlan = sandboxResult.carePlan;
+        }
+      }
       
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
@@ -631,7 +659,7 @@ export async function registerRoutes(
       role: req.session.userRole,
       roles,
       tenantId: req.session.tenantId,
-      tenant: tenant ? { id: tenant.id, name: tenant.name, slug: tenant.slug, isDemo: tenant.isDemo, interpreterReviewMode: tenant.interpreterReviewMode, clinicPhoneNumbers: (tenant as any).clinicPhoneNumbers || [] } : null,
+      tenant: tenant ? { id: tenant.id, name: tenant.name, slug: tenant.slug, isDemo: tenant.isDemo, sandboxMode: tenant.sandboxMode, interpreterReviewMode: tenant.interpreterReviewMode, clinicPhoneNumbers: (tenant as any).clinicPhoneNumbers || [] } : null,
       recoveryEmail: currentUser?.recoveryEmail || null,
     });
   });
@@ -715,6 +743,7 @@ export async function registerRoutes(
 
       const schema = z.object({
         interpreterReviewMode: z.enum(["disabled", "optional", "required"]).optional(),
+        sandboxMode: z.boolean().optional(),
         clinicPhoneNumbers: z.array(z.object({
           label: z.string().min(1),
           number: z.string().min(1),
@@ -733,6 +762,9 @@ export async function registerRoutes(
       const updateData: any = {};
       if (parsed.data.interpreterReviewMode) {
         updateData.interpreterReviewMode = parsed.data.interpreterReviewMode;
+      }
+      if (parsed.data.sandboxMode !== undefined) {
+        updateData.sandboxMode = parsed.data.sandboxMode;
       }
       if (parsed.data.clinicPhoneNumbers !== undefined) {
         updateData.clinicPhoneNumbers = parsed.data.clinicPhoneNumbers;
@@ -777,11 +809,12 @@ export async function registerRoutes(
   // Get all care plans (for clinician dashboard)
   app.get("/api/care-plans", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const clinicianId = req.session.userId;
       const userRole = req.session.userRole;
       const tenantId = req.session.tenantId;
       
-      let carePlans = await storage.getAllCarePlans(tenantId);
+      let carePlans = await store.getAllCarePlans(tenantId);
       
       // Clinicians only see their own care plans; admins see all
       if (userRole === "clinician" && clinicianId) {
@@ -791,8 +824,8 @@ export async function registerRoutes(
       // Enrich with patient data
       const enrichedPlans = await Promise.all(
         carePlans.map(async (plan) => {
-          const patient = plan.patientId ? await storage.getPatient(plan.patientId) : undefined;
-          const checkIns = await storage.getCheckInsByCarePlanId(plan.id);
+          const patient = plan.patientId ? await store.getPatient(plan.patientId) : undefined;
+          const checkIns = await store.getCheckInsByCarePlanId(plan.id);
           return { ...plan, patient, checkIns };
         })
       );
@@ -890,23 +923,37 @@ export async function registerRoutes(
       const { text, method, existingPatientId, patientName: inputPatientName, patientEmail: inputPatientEmail, patientYearOfBirth: inputYob, patientDateOfBirth: inputDob, preferredLanguage: inputLang } = parsed.data;
       const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
+      const store = await getStore(req);
+      const sandbox = tenantId ? await isSandboxTenant(tenantId) : false;
 
       const extracted = await extractDischargeContent(text);
 
       let matchedPatientId: string | undefined = undefined;
 
       if (existingPatientId) {
-        const existingPatient = await storage.getPatient(existingPatientId);
+        const existingPatient = await store.getPatient(existingPatientId);
         if (existingPatient && existingPatient.tenantId === tenantId) {
           matchedPatientId = existingPatient.id;
         }
       } else if (inputPatientName && inputPatientEmail && (inputYob || inputDob)) {
         const effectiveYob = inputDob ? new Date(inputDob).getFullYear() : inputYob!;
-        let patient = await storage.getPatientByEmail(inputPatientEmail, tenantId);
+        let effectiveName = inputPatientName;
+        let effectiveEmail = inputPatientEmail;
+        if (sandbox && tenantId) {
+          const adminEmail = await getAdminEmailForTenant(tenantId);
+          const pseudoData = pseudonymizePatientData(
+            { name: inputPatientName, email: inputPatientEmail, yearOfBirth: effectiveYob, dateOfBirth: inputDob || null, phone: null, preferredLanguage: inputLang || "en", tenantId: tenantId },
+            tenantId,
+            adminEmail
+          );
+          effectiveName = pseudoData.name;
+          effectiveEmail = adminEmail;
+        }
+        let patient = await store.getPatientByEmail(effectiveEmail, tenantId);
         if (!patient) {
-          patient = await storage.createPatient({
-            name: inputPatientName,
-            email: inputPatientEmail,
+          patient = await store.createPatient({
+            name: effectiveName,
+            email: effectiveEmail,
             phone: null,
             yearOfBirth: effectiveYob,
             dateOfBirth: inputDob || null,
@@ -917,13 +964,13 @@ export async function registerRoutes(
         }
         matchedPatientId = patient.id;
       } else if (extracted.patientName) {
-        const matchedPatient = await storage.findPatientByName(extracted.patientName, tenantId);
+        const matchedPatient = await store.findPatientByName(extracted.patientName, tenantId);
         if (matchedPatient) {
           matchedPatientId = matchedPatient.id;
         }
       }
 
-      const carePlan = await storage.createCarePlan({
+      let cpData: any = {
         clinicianId,
         patientId: matchedPatientId,
         tenantId,
@@ -936,18 +983,25 @@ export async function registerRoutes(
         appointments: extracted.appointments,
         instructions: extracted.instructions,
         warnings: extracted.warnings,
-      });
+      };
 
-      await storage.createAuditLog({
+      if (sandbox) {
+        const pseudoName = matchedPatientId ? (await store.getPatient(matchedPatientId))?.name : undefined;
+        cpData = { ...cpData, ...scrubCarePlanData(cpData, pseudoName || extracted.patientName) };
+      }
+
+      const carePlan = await store.createCarePlan(cpData);
+
+      await store.createAuditLog({
         carePlanId: carePlan.id,
         userId: clinicianId,
         action: "uploaded",
-        details: { method, textLength: text.length, patientName: extracted.patientName, autoMatchedPatientId: matchedPatientId },
-        ipAddress: req.ip || null,
-        userAgent: req.get("user-agent") || null,
+        details: { method, textLength: text.length, patientName: sandbox ? "Unknown" : extracted.patientName, autoMatchedPatientId: matchedPatientId },
+        ipAddress: sandbox ? null : (req.ip || null),
+        userAgent: sandbox ? null : (req.get("user-agent") || null),
       });
 
-      const matchedPatient = matchedPatientId ? await storage.getPatient(matchedPatientId) : undefined;
+      const matchedPatient = matchedPatientId ? await store.getPatient(matchedPatientId) : undefined;
       res.json({ ...carePlan, patient: matchedPatient });
     } catch (error: any) {
       console.error("Error creating care plan from text:", error);
@@ -961,13 +1015,14 @@ export async function registerRoutes(
   // Process care plan (simplify + translate)
   app.post("/api/care-plans/:id/process", requireClinicianAuth, validateBody(processCarePlanSchema), async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const { language, readingLevel: reqReadingLevel } = req.body;
       const readingLevel = typeof reqReadingLevel === "number" && reqReadingLevel >= 1 && reqReadingLevel <= 12 ? reqReadingLevel : 5;
       const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
-      const carePlan = await storage.getCarePlan(id);
+      const carePlan = await store.getCarePlan(id);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -977,7 +1032,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const tenant = tenantId ? await storage.getTenant(tenantId) : undefined;
+      const tenant = tenantId ? await store.getTenant(tenantId) : undefined;
       const clinicPhoneNumbers = (tenant as any)?.clinicPhoneNumbers as Array<{ label: string; number: string }> | undefined;
 
       const simplified = await simplifyContent({
@@ -1010,7 +1065,7 @@ export async function registerRoutes(
       }
 
       // Update care plan
-      const updated = await storage.updateCarePlan(id, {
+      const updated = await store.updateCarePlan(id, {
         status: "pending_review",
         readingLevel,
         simplifiedDiagnosis: simplified.diagnosis,
@@ -1029,7 +1084,7 @@ export async function registerRoutes(
         backTranslatedWarnings: translated.backTranslatedWarnings,
       });
 
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
         action: "processed",
@@ -1053,11 +1108,12 @@ export async function registerRoutes(
   // Re-translate care plan after clinician edits
   app.post("/api/care-plans/:id/save-draft", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
-      const carePlan = await storage.getCarePlan(id);
+      const carePlan = await store.getCarePlan(id);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -1118,9 +1174,9 @@ export async function registerRoutes(
         updateData.simplifiedAppointments = updatedApts;
       }
 
-      const updated = await storage.updateCarePlan(id, updateData);
+      const updated = await store.updateCarePlan(id, updateData);
 
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
         action: "draft_saved",
@@ -1138,11 +1194,12 @@ export async function registerRoutes(
 
   app.post("/api/care-plans/:id/retranslate", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
-      const carePlan = await storage.getCarePlan(id);
+      const carePlan = await store.getCarePlan(id);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -1228,7 +1285,7 @@ export async function registerRoutes(
 
       // Reset status to require re-approval after re-translation
       if (carePlan.status === "interpreter_approved" || carePlan.status === "approved" || carePlan.status === "sent") {
-        const tenant = tenantId ? await storage.getTenant(tenantId) : null;
+        const tenant = tenantId ? await store.getTenant(tenantId) : null;
         if (tenant?.interpreterReviewMode === "required") {
           updateData.status = "interpreter_review";
           updateData.interpreterReviewedBy = null;
@@ -1241,9 +1298,9 @@ export async function registerRoutes(
         updateData.approvedAt = null;
       }
 
-      const updated = await storage.updateCarePlan(id, updateData);
+      const updated = await store.updateCarePlan(id, updateData);
 
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
         action: "retranslated",
@@ -1265,11 +1322,12 @@ export async function registerRoutes(
   // Approve care plan
   app.post("/api/care-plans/:id/approve", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
-      const carePlan = await storage.getCarePlan(id);
+      const carePlan = await store.getCarePlan(id);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -1290,7 +1348,7 @@ export async function registerRoutes(
       const overrideJustification = req.body?.overrideJustification;
       
       if (isNonEnglish && carePlan.tenantId) {
-        const tenant = await storage.getTenant(carePlan.tenantId);
+        const tenant = await store.getTenant(carePlan.tenantId);
         if (tenant?.interpreterReviewMode === "required") {
           newStatus = "interpreter_review";
         } else if (tenant?.interpreterReviewMode === "optional" && !skipInterpreterReview) {
@@ -1369,7 +1427,7 @@ export async function registerRoutes(
         }
       }
 
-      const updated = await storage.updateCarePlan(id, updateData);
+      const updated = await store.updateCarePlan(id, updateData);
 
       const action = newStatus === "interpreter_review" ? "sent_to_interpreter_review" : "approved";
       const auditDetails: any = {};
@@ -1380,7 +1438,7 @@ export async function registerRoutes(
       if (Object.keys(editedFields).length > 0) {
         auditDetails.clinicianEdits = editedFields;
       }
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
         action,
@@ -1399,12 +1457,14 @@ export async function registerRoutes(
   // Send care plan to patient
   app.post("/api/care-plans/:id/send", requireClinicianAuth, validateBody(sendCarePlanSchema), async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const { name, email, phone, yearOfBirth, dateOfBirth, preferredLanguage } = req.body;
       const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
+      const sandbox = tenantId ? await isSandboxTenant(tenantId) : false;
 
-      const carePlan = await storage.getCarePlan(id);
+      const carePlan = await store.getCarePlan(id);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -1425,25 +1485,38 @@ export async function registerRoutes(
       const lastName = extractLastName(name);
       const effectiveYob = dateOfBirth ? new Date(dateOfBirth).getFullYear() : yearOfBirth;
       
+      let effectiveEmail = email;
+      let effectiveName = name;
+      if (sandbox && tenantId) {
+        const adminEmail = await getAdminEmailForTenant(tenantId);
+        effectiveEmail = adminEmail;
+        const pseudoData = pseudonymizePatientData(
+          { name, lastName, email, yearOfBirth: effectiveYob, dateOfBirth, phone, preferredLanguage, tenantId },
+          tenantId,
+          adminEmail
+        );
+        effectiveName = pseudoData.name;
+      }
+
       let patient: Patient | undefined;
-      const existingByEmail = await storage.getPatientByEmail(email, tenantId);
+      const existingByEmail = await store.getPatientByEmail(effectiveEmail, tenantId);
       
       if (existingByEmail) {
-        patient = await storage.updatePatient(existingByEmail.id, {
-          name,
-          lastName,
+        patient = await store.updatePatient(existingByEmail.id, {
+          name: effectiveName,
+          lastName: extractLastName(effectiveName),
           yearOfBirth: effectiveYob,
           dateOfBirth: dateOfBirth || null,
-          phone: phone || existingByEmail.phone,
+          phone: sandbox ? null : (phone || existingByEmail.phone),
           preferredLanguage: preferredLanguage || existingByEmail.preferredLanguage,
           pin: await bcrypt.hash(patientPin, 10),
         });
       } else {
-        patient = await storage.createPatient({
-          name,
-          lastName,
-          email,
-          phone,
+        patient = await store.createPatient({
+          name: effectiveName,
+          lastName: extractLastName(effectiveName),
+          email: effectiveEmail,
+          phone: sandbox ? null : phone,
           yearOfBirth: effectiveYob,
           dateOfBirth: dateOfBirth || null,
           pin: await bcrypt.hash(patientPin, 10),
@@ -1463,7 +1536,7 @@ export async function registerRoutes(
       accessTokenExpiry.setDate(accessTokenExpiry.getDate() + 30); // 30 days
 
       // Update care plan
-      const updated = await storage.updateCarePlan(id, {
+      const updated = await store.updateCarePlan(id, {
         status: "sent",
         patientId: patient.id,
         accessToken,
@@ -1475,7 +1548,7 @@ export async function registerRoutes(
       const scheduledFor = new Date();
       scheduledFor.setHours(scheduledFor.getHours() + 24);
       
-      await storage.createCheckIn({
+      await store.createCheckIn({
         carePlanId: id,
         patientId: patient.id,
         scheduledFor,
@@ -1491,7 +1564,7 @@ export async function registerRoutes(
       let emailSent = true;
       let emailError: any = null;
       try {
-        await sendCarePlanEmail(email, name, accessLink, patientPin);
+        await sendCarePlanEmail(effectiveEmail, effectiveName, accessLink, patientPin);
       } catch (err: any) {
         console.error("Email sending failed:", err?.message || err);
         emailSent = false;
@@ -1499,17 +1572,17 @@ export async function registerRoutes(
       }
 
 
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
         action: "sent",
-        details: { patientEmail: email },
-        ipAddress: req.ip || null,
-        userAgent: req.get("user-agent") || null,
+        details: { patientEmail: sandbox ? effectiveEmail : email },
+        ipAddress: sandbox ? null : (req.ip || null),
+        userAgent: sandbox ? null : (req.get("user-agent") || null),
       });
 
       // Return enriched plan
-      const checkIns = await storage.getCheckInsByCarePlanId(id);
+      const checkIns = await store.getCheckInsByCarePlanId(id);
       res.json({ ...updated, patient, checkIns, emailSent, emailError: emailError || undefined });
     } catch (error) {
       console.error("Error sending care plan:", error);
@@ -1520,16 +1593,17 @@ export async function registerRoutes(
   // Send test email to clinician (preview the patient experience with real patient data)
   app.post("/api/care-plans/:id/send-test", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
-      const user = await storage.getUser(clinicianId);
+      const user = await store.getUser(clinicianId);
 
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
 
-      const carePlan = await storage.getCarePlan(id);
+      const carePlan = await store.getCarePlan(id);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -1546,7 +1620,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: `Cannot send test for this care plan (status: "${carePlan.status}").` });
       }
 
-      const patient = await storage.getPatient(carePlan.patientId);
+      const patient = await store.getPatient(carePlan.patientId);
       if (!patient) {
         return res.status(404).json({ error: "Patient not found for this care plan." });
       }
@@ -1559,13 +1633,13 @@ export async function registerRoutes(
 
       const testPin = generatePin();
       const hashedPin = await bcrypt.hash(testPin, 10);
-      await storage.updatePatient(patient.id, { pin: hashedPin });
+      await store.updatePatient(patient.id, { pin: hashedPin });
 
       const accessToken = generateAccessToken();
       const accessTokenExpiry = new Date();
       accessTokenExpiry.setDate(accessTokenExpiry.getDate() + 30);
 
-      await storage.updateCarePlan(id, {
+      await store.updateCarePlan(id, {
         accessToken,
         accessTokenExpiry,
       });
@@ -1582,7 +1656,7 @@ export async function registerRoutes(
         emailSent = false;
       }
 
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: id,
         userId: clinicianId,
         action: "test_sent",
@@ -1628,9 +1702,10 @@ export async function registerRoutes(
   // Generate demo token for clinician preview (requires clinician auth)
   app.post("/api/care-plans/:id/demo-token", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const tenantId = req.session.tenantId;
-      const carePlan = await storage.getCarePlan(id);
+      const carePlan = await store.getCarePlan(id);
       
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
@@ -1675,9 +1750,10 @@ export async function registerRoutes(
   // Delete care plan
   app.delete("/api/care-plans/:id", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const tenantId = req.session.tenantId;
-      const carePlan = await storage.getCarePlan(id);
+      const carePlan = await store.getCarePlan(id);
       
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
@@ -1693,7 +1769,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Cannot delete a care plan that has been sent to the patient or is under interpreter review" });
       }
       
-      const deleted = await storage.deleteCarePlan(id);
+      const deleted = await store.deleteCarePlan(id);
       if (deleted) {
         res.json({ success: true });
       } else {
@@ -1746,7 +1822,13 @@ export async function registerRoutes(
         });
       }
 
-      const carePlan = await storage.getCarePlanByToken(token);
+      let carePlan = await storage.getCarePlanByToken(token);
+      let store: typeof storage = storage;
+      const sandboxResult = !carePlan ? findSandboxCarePlanByToken(token) : undefined;
+      if (sandboxResult) {
+        carePlan = sandboxResult.carePlan;
+        store = createSandboxAdapter(sandboxResult.tenantId);
+      }
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -1756,7 +1838,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access link has expired" });
       }
 
-      const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
+      const patient = carePlan.patientId ? await store.getPatient(carePlan.patientId) : null;
       if (!patient) {
         return res.status(404).json({ error: "Patient not found" });
       }
@@ -1820,7 +1902,7 @@ export async function registerRoutes(
       if (!isValid) {
         const result = recordVerificationAttempt(token, false);
         
-        await storage.createAuditLog({
+        await store.createAuditLog({
           carePlanId: carePlan.id,
           action: "verification_failed",
           details: { attemptsRemaining: result.attemptsRemaining, mode: isDemoMode ? "demo" : "production" },
@@ -1849,7 +1931,7 @@ export async function registerRoutes(
       // can confirm the patient has passed authentication before returning data.
       req.session.verifiedTokens = { ...(req.session.verifiedTokens || {}), [token]: true };
 
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: carePlan.id,
         action: "verified",
         details: { mode: isDemoMode ? "demo" : "production" },
@@ -1871,7 +1953,13 @@ export async function registerRoutes(
     try {
       const token = req.params.token as string;
 
-      const carePlan = await storage.getCarePlanByToken(token);
+      let carePlan = await storage.getCarePlanByToken(token);
+      let store: typeof storage = storage;
+      const sandboxResult = !carePlan ? findSandboxCarePlanByToken(token) : undefined;
+      if (sandboxResult) {
+        carePlan = sandboxResult.carePlan;
+        store = createSandboxAdapter(sandboxResult.tenantId);
+      }
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -1886,7 +1974,7 @@ export async function registerRoutes(
       // server-side to prevent direct API access bypassing the verify step.
       const isVerified = req.session.verifiedTokens?.[token] === true;
       if (!isVerified) {
-        const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
+        const patient = carePlan.patientId ? await store.getPatient(carePlan.patientId) : null;
         return res.status(403).json({
           error: "Verification required",
           requiresVerification: true,
@@ -1898,15 +1986,15 @@ export async function registerRoutes(
       }
 
       // [M1.5] Only log views for verified (authenticated) access
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: carePlan.id,
         action: "viewed",
         ipAddress: req.ip || null,
         userAgent: req.get("user-agent") || null,
       });
 
-      const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
-      const checkIns = await storage.getCheckInsByCarePlanId(carePlan.id);
+      const patient = carePlan.patientId ? await store.getPatient(carePlan.patientId) : null;
+      const checkIns = await store.getCheckInsByCarePlanId(carePlan.id);
 
       const safePatient = patient ? {
         id: patient.id,
@@ -1941,17 +2029,23 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Verification required" });
       }
 
-      const carePlan = await storage.getCarePlanByToken(token);
+      let carePlan = await storage.getCarePlanByToken(token);
+      let store: typeof storage = storage;
+      const sandboxResult = !carePlan ? findSandboxCarePlanByToken(token) : undefined;
+      if (sandboxResult) {
+        carePlan = sandboxResult.carePlan;
+        store = createSandboxAdapter(sandboxResult.tenantId);
+      }
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
 
       // Find pending check-in
-      const checkIns = await storage.getCheckInsByCarePlanId(carePlan.id);
+      const checkIns = await store.getCheckInsByCarePlanId(carePlan.id);
       const pendingCheckIn = checkIns.find(c => !c.respondedAt);
 
       if (pendingCheckIn) {
-        await storage.updateCheckIn(pendingCheckIn.id, {
+        await store.updateCheckIn(pendingCheckIn.id, {
           response,
           respondedAt: new Date(),
           alertCreated: response === "yellow" || response === "red",
@@ -1959,12 +2053,12 @@ export async function registerRoutes(
 
         // Update care plan status if completed
         if (response === "green") {
-          await storage.updateCarePlan(carePlan.id, {
+          await store.updateCarePlan(carePlan.id, {
             status: "completed",
           });
         }
 
-        await storage.createAuditLog({
+        await store.createAuditLog({
           carePlanId: carePlan.id,
           action: "check_in_responded",
           details: { response },
@@ -2013,7 +2107,13 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Question is too long (max 2000 characters)" });
       }
 
-      const carePlan = await storage.getCarePlanByToken(token);
+      let carePlan = await storage.getCarePlanByToken(token);
+      let store: typeof storage = storage;
+      const sandboxResult = !carePlan ? findSandboxCarePlanByToken(token) : undefined;
+      if (sandboxResult) {
+        carePlan = sandboxResult.carePlan;
+        store = createSandboxAdapter(sandboxResult.tenantId);
+      }
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -2064,7 +2164,7 @@ ${contextText}`
 
       const answer = response.choices[0]?.message?.content || "I'm sorry, I couldn't answer that question.";
 
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: carePlan.id,
         action: "patient_chat",
         details: { language: responseLang },
@@ -2090,7 +2190,13 @@ ${contextText}`
         return res.status(403).json({ error: "Verification required" });
       }
 
-      const carePlan = await storage.getCarePlanByToken(token);
+      let carePlan = await storage.getCarePlanByToken(token);
+      let store: typeof storage = storage;
+      const sandboxResult = !carePlan ? findSandboxCarePlanByToken(token) : undefined;
+      if (sandboxResult) {
+        carePlan = sandboxResult.carePlan;
+        store = createSandboxAdapter(sandboxResult.tenantId);
+      }
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -2100,16 +2206,16 @@ ${contextText}`
         return res.status(403).json({ error: "Access link has expired" });
       }
 
-      const patient = carePlan.patientId ? await storage.getPatient(carePlan.patientId) : null;
+      const patient = carePlan.patientId ? await store.getPatient(carePlan.patientId) : null;
       if (!patient) {
         return res.status(404).json({ error: "Patient not found" });
       }
       
       // Hash the password and save
       const hashedPassword = await bcrypt.hash(password, 10);
-      await storage.updatePatientPassword(patient.id, hashedPassword);
+      await store.updatePatientPassword(patient.id, hashedPassword);
       
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: carePlan.id,
         action: "password_set",
         details: { patientId: patient.id },
@@ -2127,16 +2233,17 @@ ${contextText}`
   // Get all care plans with full details (admin view)
   app.get("/api/admin/care-plans", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = req.session.tenantId;
-      const carePlans = await storage.getAllCarePlans(tenantId);
+      const carePlans = await store.getAllCarePlans(tenantId);
       
       const enrichedPlans = await Promise.all(
         carePlans.map(async (plan) => {
-          const patient = plan.patientId ? await storage.getPatient(plan.patientId) : undefined;
-          const clinician = plan.clinicianId ? await storage.getUser(plan.clinicianId) : undefined;
-          const approver = plan.approvedBy ? await storage.getUser(plan.approvedBy) : undefined;
-          const checkIns = await storage.getCheckInsByCarePlanId(plan.id);
-          const auditLogs = await storage.getAuditLogsByCarePlanId(plan.id);
+          const patient = plan.patientId ? await store.getPatient(plan.patientId) : undefined;
+          const clinician = plan.clinicianId ? await store.getUser(plan.clinicianId) : undefined;
+          const approver = plan.approvedBy ? await store.getUser(plan.approvedBy) : undefined;
+          const checkIns = await store.getCheckInsByCarePlanId(plan.id);
+          const auditLogs = await store.getAuditLogsByCarePlanId(plan.id);
           return { 
             ...plan, 
             patient, 
@@ -2158,8 +2265,9 @@ ${contextText}`
   // Get alerts
   app.get("/api/admin/alerts", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = req.session.tenantId;
-      const alerts = await storage.getAlerts(tenantId);
+      const alerts = await store.getAlerts(tenantId);
       res.json(alerts);
     } catch (error) {
       console.error("Error fetching alerts:", error);
@@ -2170,23 +2278,24 @@ ${contextText}`
   // Resolve alert
   app.post("/api/admin/alerts/:id/resolve", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const adminId = (req as any).adminId || "admin-1";
       const tenantId = req.session.tenantId;
       
-      const checkIn = await storage.getCheckIn(id);
+      const checkIn = await store.getCheckIn(id);
       if (!checkIn) {
         return res.status(404).json({ error: "Alert not found" });
       }
       
       if (tenantId) {
-        const carePlan = await storage.getCarePlan(checkIn.carePlanId);
+        const carePlan = await store.getCarePlan(checkIn.carePlanId);
         if (!carePlan || carePlan.tenantId !== tenantId) {
           return res.status(403).json({ error: "Access denied" });
         }
       }
       
-      await storage.resolveAlert(id, adminId);
+      await store.resolveAlert(id, adminId);
       
       res.json({ success: true });
     } catch (error) {
@@ -2198,18 +2307,19 @@ ${contextText}`
   // Export CSV
   app.post("/api/admin/export", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = req.session.tenantId;
-      const carePlans = await storage.getAllCarePlans(tenantId);
+      const carePlans = await store.getAllCarePlans(tenantId);
       
       const rows: string[] = [
         "patient_name,mrn,discharge_date,discharge_diagnosis,approved_by,approved_at,sent_at,first_contact_at,response_at,response_type,audit_log_id,suggested_cpt_code",
       ];
 
       for (const plan of carePlans) {
-        const patient = plan.patientId ? await storage.getPatient(plan.patientId) : null;
-        const checkIns = await storage.getCheckInsByCarePlanId(plan.id);
+        const patient = plan.patientId ? await store.getPatient(plan.patientId) : null;
+        const checkIns = await store.getCheckInsByCarePlanId(plan.id);
         const respondedCheckIn = checkIns.find(c => c.respondedAt);
-        const auditLogs = await storage.getAuditLogsByCarePlanId(plan.id);
+        const auditLogs = await store.getAuditLogsByCarePlanId(plan.id);
         
         const row = [
           patient?.name || "",
@@ -2642,8 +2752,9 @@ ${contextText}`
   // ============= Admin Preview Access (auth bypass for staff viewing patient portal) =============
   app.post("/api/admin/preview-access/:accessToken", requireAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const accessToken = req.params.accessToken as string;
-      const carePlan = await storage.getCarePlanByToken(accessToken);
+      const carePlan = await store.getCarePlanByToken(accessToken);
       if (!carePlan) {
         return res.status(404).json({ error: "Care plan not found" });
       }
@@ -2662,12 +2773,13 @@ ${contextText}`
 
   app.get("/api/admin/patients", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = req.session.tenantId;
-      const allPatients = await storage.getAllPatients(tenantId);
+      const allPatients = await store.getAllPatients(tenantId);
       
       const enrichedPatients = await Promise.all(
         allPatients.map(async (patient) => {
-          const patientCarePlans = await storage.getCarePlansByPatientId(patient.id, tenantId);
+          const patientCarePlans = await store.getCarePlansByPatientId(patient.id, tenantId);
           const lastCarePlan = patientCarePlans.length > 0 ? patientCarePlans[0] : null;
           return {
             id: patient.id,
@@ -2698,6 +2810,7 @@ ${contextText}`
 
   app.post("/api/admin/patients", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = req.session.tenantId;
       const { name, email, phone, yearOfBirth, dateOfBirth, preferredLanguage } = req.body;
       
@@ -2718,7 +2831,7 @@ ${contextText}`
         return res.status(400).json({ error: "Year of birth must be between 1900 and 2100" });
       }
       
-      const existing = await storage.getPatientByEmail(email, tenantId);
+      const existing = await store.getPatientByEmail(email, tenantId);
       if (existing) {
         return res.status(409).json({ 
           error: "A patient with this email already exists in your clinic",
@@ -2735,7 +2848,7 @@ ${contextText}`
       const pin = Math.floor(1000 + Math.random() * 9000).toString();
       const hashedPin = await bcrypt.hash(pin, 10);
       
-      const patient = await storage.createPatient({
+      const patient = await store.createPatient({
         name: sanitizedName,
         lastName,
         email,
@@ -2747,7 +2860,7 @@ ${contextText}`
         tenantId,
       });
       
-      await storage.createAuditLog({
+      await store.createAuditLog({
         userId: req.session.userId,
         action: "patient_created",
         details: { patientId: patient.id, patientName: patient.name, patientEmail: patient.email },
@@ -2767,10 +2880,11 @@ ${contextText}`
 
   app.patch("/api/admin/patients/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const tenantId = req.session.tenantId;
       
-      const patient = await storage.getPatient(id);
+      const patient = await store.getPatient(id);
       if (!patient) {
         return res.status(404).json({ error: "Patient not found" });
       }
@@ -2795,7 +2909,7 @@ ${contextText}`
       }
 
       if (email && email !== patient.email) {
-        const existing = await storage.getPatientByEmail(email, tenantId);
+        const existing = await store.getPatientByEmail(email, tenantId);
         if (existing && existing.id !== id) {
           return res.status(409).json({ error: "Another patient with this email already exists" });
         }
@@ -2816,9 +2930,9 @@ ${contextText}`
       if (yearOfBirth !== undefined && !dateOfBirth) updateData.yearOfBirth = yearOfBirth;
       if (preferredLanguage !== undefined) updateData.preferredLanguage = preferredLanguage;
       
-      const updated = await storage.updatePatient(id, updateData);
+      const updated = await store.updatePatient(id, updateData);
       
-      await storage.createAuditLog({
+      await store.createAuditLog({
         userId: req.session.userId,
         action: "patient_updated",
         details: { patientId: id, changes: Object.keys(updateData) },
@@ -2838,21 +2952,22 @@ ${contextText}`
 
   app.delete("/api/admin/patients/test/cleanup", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = req.session.tenantId;
-      const allPatients = await storage.getAllPatients(tenantId);
+      const allPatients = await store.getAllPatients(tenantId);
       const testPatients = allPatients.filter(p => p.isTestPatient);
       let deleted = 0;
 
       for (const patient of testPatients) {
-        const linkedCarePlans = await storage.getCarePlansByPatientId(patient.id, tenantId);
+        const linkedCarePlans = await store.getCarePlansByPatientId(patient.id, tenantId);
         for (const cp of linkedCarePlans) {
-          await storage.deleteCarePlan(cp.id);
+          await store.deleteCarePlan(cp.id);
         }
-        await storage.deletePatient(patient.id);
+        await store.deletePatient(patient.id);
         deleted++;
       }
 
-      await storage.createAuditLog({
+      await store.createAuditLog({
         userId: req.session.userId,
         action: "test_patients_cleanup",
         details: { deleted },
@@ -2869,10 +2984,11 @@ ${contextText}`
 
   app.delete("/api/admin/patients/:id", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const tenantId = req.session.tenantId;
       
-      const patient = await storage.getPatient(id);
+      const patient = await store.getPatient(id);
       if (!patient) {
         return res.status(404).json({ error: "Patient not found" });
       }
@@ -2881,16 +2997,16 @@ ${contextText}`
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const linkedCarePlans = await storage.getCarePlansByPatientId(id, tenantId);
+      const linkedCarePlans = await store.getCarePlansByPatientId(id, tenantId);
       if (linkedCarePlans.length > 0) {
         return res.status(409).json({ 
           error: `Cannot delete patient with ${linkedCarePlans.length} linked care plan(s). Remove or reassign care plans first.` 
         });
       }
       
-      await storage.deletePatient(id);
+      await store.deletePatient(id);
       
-      await storage.createAuditLog({
+      await store.createAuditLog({
         userId: req.session.userId,
         action: "patient_deleted",
         details: { patientId: id, patientName: patient.name },
@@ -2907,10 +3023,11 @@ ${contextText}`
 
   app.get("/api/admin/patients/:id/care-plans", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const id = req.params.id as string;
       const tenantId = req.session.tenantId;
       
-      const patient = await storage.getPatient(id);
+      const patient = await store.getPatient(id);
       if (!patient) {
         return res.status(404).json({ error: "Patient not found" });
       }
@@ -2919,12 +3036,12 @@ ${contextText}`
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const patientCarePlans = await storage.getCarePlansByPatientId(id, tenantId);
+      const patientCarePlans = await store.getCarePlansByPatientId(id, tenantId);
 
       const enriched = await Promise.all(
         patientCarePlans.map(async (plan) => {
-          const clinician = plan.clinicianId ? await storage.getUser(plan.clinicianId) : undefined;
-          const checkIns = await storage.getCheckInsByCarePlanId(plan.id);
+          const clinician = plan.clinicianId ? await store.getUser(plan.clinicianId) : undefined;
+          const checkIns = await store.getCheckInsByCarePlanId(plan.id);
           return {
             ...plan,
             clinician: clinician ? { id: clinician.id, name: clinician.name } : undefined,
@@ -2943,8 +3060,9 @@ ${contextText}`
   // Also expose patient list for clinicians (for patient selector dropdown)
   app.get("/api/patients", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = req.session.tenantId;
-      const allPatients = await storage.getAllPatients(tenantId);
+      const allPatients = await store.getAllPatients(tenantId);
       
       const safePatients = allPatients.map(p => ({
         id: p.id,
@@ -2968,6 +3086,7 @@ ${contextText}`
   // Bulk patient import (CSV)
   app.post("/api/admin/patients/import", requireAdminAuth, csvUpload.single("file"), async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = req.session.tenantId;
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -3026,7 +3145,7 @@ ${contextText}`
           continue;
         }
         
-        const existing = await storage.getPatientByEmail(email, tenantId);
+        const existing = await store.getPatientByEmail(email, tenantId);
         if (existing) {
           const needsUpdate = (phone && phone !== existing.phone) || 
                              (lang && lang !== existing.preferredLanguage) ||
@@ -3039,7 +3158,7 @@ ${contextText}`
             }
             if (phone && phone !== existing.phone) updateData.phone = phone;
             if (lang && lang !== existing.preferredLanguage) updateData.preferredLanguage = lang;
-            await storage.updatePatient(existing.id, updateData);
+            await store.updatePatient(existing.id, updateData);
             updated++;
           } else {
             skipped++;
@@ -3051,7 +3170,7 @@ ${contextText}`
         const pin = Math.floor(1000 + Math.random() * 9000).toString();
         const hashedPin = await bcrypt.hash(pin, 10);
         
-        await storage.createPatient({
+        await store.createPatient({
           name,
           lastName,
           email,
@@ -3065,7 +3184,7 @@ ${contextText}`
         created++;
       }
       
-      await storage.createAuditLog({
+      await store.createAuditLog({
         userId: req.session.userId,
         action: "patients_imported",
         details: { created, skipped, updated, errorCount: errors.length },
@@ -3182,11 +3301,12 @@ ${contextText}`
   // Update own tenant settings (admin)
   app.patch("/api/admin/my-tenant", requireAdminAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = (req as any).tenantId;
       if (!tenantId) return res.status(400).json({ error: "No tenant assigned" });
       
       const { interpreterReviewMode } = req.body;
-      const oldTenant = await storage.getTenant(tenantId);
+      const oldTenant = await store.getTenant(tenantId);
       const oldMode = oldTenant?.interpreterReviewMode;
 
       const updateData: any = {};
@@ -3197,21 +3317,21 @@ ${contextText}`
         updateData.interpreterReviewMode = interpreterReviewMode;
       }
       
-      const tenant = await storage.updateTenant(tenantId, updateData);
+      const tenant = await store.updateTenant(tenantId, updateData);
       if (!tenant) return res.status(404).json({ error: "Tenant not found" });
 
       if (interpreterReviewMode !== undefined && oldMode !== interpreterReviewMode) {
-        const allPlans = await storage.getAllCarePlans(tenantId);
+        const allPlans = await store.getAllCarePlans(tenantId);
         for (const plan of allPlans) {
           if (plan.status === "interpreter_review") {
             if (interpreterReviewMode === "disabled" || (interpreterReviewMode === "optional" && oldMode === "required")) {
-              await storage.updateCarePlan(plan.id, { status: "approved" });
+              await store.updateCarePlan(plan.id, { status: "approved" });
             }
           }
         }
       }
       
-      await storage.createAuditLog({
+      await store.createAuditLog({
         userId: (req as any).adminId,
         action: "tenant_settings_updated",
         details: updateData,
@@ -3231,11 +3351,12 @@ ${contextText}`
   // Get interpreter review queue (care plans in interpreter_review status for this interpreter's tenant + languages)
   app.get("/api/interpreter/queue", requireInterpreterAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = (req as any).tenantId;
       const interpreterId = (req as any).interpreterId;
-      const interpreter = await storage.getUser(interpreterId);
+      const interpreter = await store.getUser(interpreterId);
       
-      const allPlans = await storage.getAllCarePlans(tenantId);
+      const allPlans = await store.getAllCarePlans(tenantId);
       const queue = allPlans.filter(cp => cp.status === "interpreter_review");
       
       // Optionally filter by interpreter's languages
@@ -3245,8 +3366,8 @@ ${contextText}`
       
       // Enrich with patient and clinician info
       const enriched = await Promise.all(filteredQueue.map(async (cp) => {
-        const patient = cp.patientId ? await storage.getPatient(cp.patientId) : null;
-        const clinician = cp.clinicianId ? await storage.getUser(cp.clinicianId) : null;
+        const patient = cp.patientId ? await store.getPatient(cp.patientId) : null;
+        const clinician = cp.clinicianId ? await store.getUser(cp.clinicianId) : null;
         return {
           ...cp,
           patient: patient ? { name: patient.name, email: patient.email, preferredLanguage: patient.preferredLanguage } : null,
@@ -3264,17 +3385,18 @@ ${contextText}`
   // Get recently reviewed care plans
   app.get("/api/interpreter/reviewed", requireInterpreterAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const tenantId = (req as any).tenantId;
       const interpreterId = (req as any).interpreterId;
       
-      const allPlans = await storage.getAllCarePlans(tenantId);
+      const allPlans = await store.getAllCarePlans(tenantId);
       const reviewed = allPlans.filter(cp => 
         cp.interpreterReviewedBy === interpreterId && 
         (cp.status === "interpreter_approved" || cp.status === "approved" || cp.status === "sent" || cp.status === "completed")
       );
       
       const enriched = await Promise.all(reviewed.slice(0, 20).map(async (cp) => {
-        const patient = cp.patientId ? await storage.getPatient(cp.patientId) : null;
+        const patient = cp.patientId ? await store.getPatient(cp.patientId) : null;
         return {
           ...cp,
           patient: patient ? { name: patient.name, email: patient.email, preferredLanguage: patient.preferredLanguage } : null,
@@ -3291,11 +3413,12 @@ ${contextText}`
   // Interpreter approves a care plan (with optional edits)
   app.post("/api/interpreter/care-plans/:id/approve", requireInterpreterAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const { id } = req.params;
       const interpreterId = (req as any).interpreterId;
       const tenantId = (req as any).tenantId;
       
-      const carePlan = await storage.getCarePlan(id as string);
+      const carePlan = await store.getCarePlan(id as string);
       if (!carePlan) return res.status(404).json({ error: "Care plan not found" });
       if (tenantId && carePlan.tenantId !== tenantId) return res.status(403).json({ error: "Access denied" });
       if (carePlan.status !== "interpreter_review") {
@@ -3303,7 +3426,7 @@ ${contextText}`
       }
       
       // M3.4: Enforce interpreter language match
-      const interpreter = await storage.getUser(interpreterId);
+      const interpreter = await store.getUser(interpreterId);
       if (interpreter?.languages?.length && carePlan.translatedLanguage) {
         if (!interpreter.languages.includes(carePlan.translatedLanguage)) {
           return res.status(403).json({ error: "Language not in interpreter's specialties" });
@@ -3337,9 +3460,9 @@ ${contextText}`
       if (translatedMedications !== undefined) updateData.translatedMedications = stripHtml(translatedMedications);
       if (translatedAppointments !== undefined) updateData.translatedAppointments = stripHtml(translatedAppointments);
       
-      const updated = await storage.updateCarePlan(id as string, updateData);
+      const updated = await store.updateCarePlan(id as string, updateData);
       
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: id as string,
         userId: interpreterId,
         action: "interpreter_approved",
@@ -3358,11 +3481,12 @@ ${contextText}`
   // Interpreter requests changes (sends back to clinician)
   app.post("/api/interpreter/care-plans/:id/request-changes", requireInterpreterAuth, async (req: Request, res: Response) => {
     try {
+      const store = await getStore(req);
       const { id } = req.params;
       const interpreterId = (req as any).interpreterId;
       const tenantId = (req as any).tenantId;
       
-      const carePlan = await storage.getCarePlan(id as string);
+      const carePlan = await store.getCarePlan(id as string);
       if (!carePlan) return res.status(404).json({ error: "Care plan not found" });
       if (tenantId && carePlan.tenantId !== tenantId) return res.status(403).json({ error: "Access denied" });
       if (carePlan.status !== "interpreter_review") {
@@ -3372,12 +3496,12 @@ ${contextText}`
       const { reason } = req.body;
       if (!reason?.trim()) return res.status(400).json({ error: "Reason is required" });
       
-      const updated = await storage.updateCarePlan(id as string, {
+      const updated = await store.updateCarePlan(id as string, {
         status: "pending_review",
         interpreterNotes: reason,
       });
       
-      await storage.createAuditLog({
+      await store.createAuditLog({
         carePlanId: id as string,
         userId: interpreterId,
         action: "interpreter_changes_requested",
