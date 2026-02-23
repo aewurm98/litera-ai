@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Heart, BookOpen, LogIn, Languages, ArrowRight, FlaskConical } from "lucide-react";
+import { BookOpen, LogIn, Languages, ArrowRight } from "lucide-react";
 
 const experiments = [
   {
@@ -37,13 +37,10 @@ export default function ExperimentsHub() {
       <header className="border-b bg-card">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-              <FlaskConical className="h-5 w-5 text-primary-foreground" />
-            </div>
+            <img src="/images/logo-icon.png" alt="Litera" className="w-10 h-10 rounded-lg" />
             <div>
               <div className="flex items-center gap-2">
-                <Heart className="h-5 w-5 text-primary" />
-                <span className="font-bold text-lg text-primary">Litera.ai</span>
+                <span className="font-heading font-semibold text-lg text-primary">Litera</span>
               </div>
               <p className="text-xs text-muted-foreground">Experiments Sandbox</p>
             </div>

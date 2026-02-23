@@ -2016,7 +2016,7 @@ export default function ClinicianDashboard() {
             <div className="text-center max-w-md">
               <Stethoscope className="h-16 w-16 text-primary/30 mx-auto mb-4" />
               <h2 className="text-xl font-semibold mb-2">
-                Welcome to Litera.ai
+                Welcome to Litera
               </h2>
               <p className="text-muted-foreground mb-6">
                 Add discharge instructions to create simplified, translated care

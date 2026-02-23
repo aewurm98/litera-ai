@@ -3753,7 +3753,7 @@ ${contextText}`
           to: testTo,
           subject: "Litera Health - Email Verification Test",
           html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-            <h2 style="color: #1e40af;">Litera Health Email Test</h2>
+            <h2 style="color: #1E78FF;">Litera Health Email Test</h2>
             <p>This is a verification email from <strong>Litera Health</strong> confirming that your email delivery is working correctly.</p>
             <p style="color: #666; font-size: 14px;">Sent from: ${resendData.fromEmail}</p>
             <p style="color: #666; font-size: 14px;">Timestamp: ${new Date().toISOString()}</p>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Heart, Loader2, CheckCircle } from "lucide-react";
+import { Loader2, CheckCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
 export default function ResetPassword() {
@@ -75,14 +75,13 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white dark:from-gray-900 dark:to-gray-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/40 dark:from-gray-900 dark:to-gray-800 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Heart className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold text-primary">Litera.ai</span>
+          <div className="flex items-center justify-center mb-4">
+            <img src="/images/logo-blue-text.png" alt="Litera" className="h-12" />
           </div>
-          <CardTitle>{step === "request" ? "Forgot Password" : "Set New Password"}</CardTitle>
+          <CardTitle className="font-heading">{step === "request" ? "Forgot Password" : "Set New Password"}</CardTitle>
           <CardDescription>
             {step === "request"
               ? "Enter the recovery email linked to your account."

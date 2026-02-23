@@ -14,53 +14,53 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  /* Litera.ai Color Palette - Trust Blue Theme */
-  --background: 210 40% 98%; /* #f8fafc - soft off-white */
-  --foreground: 215 25% 17%; /* #1e293b - primary text */
+  /* Litera Brand Palette */
+  --background: 210 33% 98%; /* #F7F8FA - brand neutral lightest */
+  --foreground: 220 27% 6%; /* #0B0D12 - brand neutral darkest */
 
-  --border: 214 32% 91%; /* #e2e8f0 - subtle border */
+  --border: 216 12% 90%; /* #E5E7EB - brand neutral border */
 
   --card: 0 0% 100%; /* #ffffff - pure white cards */
-  --card-foreground: 215 25% 17%; /* #1e293b */
-  --card-border: 214 32% 91%; /* #e2e8f0 */
+  --card-foreground: 220 27% 6%; /* #0B0D12 */
+  --card-border: 216 12% 90%; /* #E5E7EB */
 
-  --sidebar: 213 96% 95%; /* Aero blue tint for sidebar */
-  --sidebar-foreground: 215 25% 17%;
-  --sidebar-border: 214 32% 88%;
-  --sidebar-primary: 224 76% 40%; /* Trust Blue #1e40af */
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 217 91% 60%; /* Interactive Blue #2563eb */
+  --sidebar: 224 60% 15%; /* Deep blue sidebar */
+  --sidebar-foreground: 210 33% 98%;
+  --sidebar-border: 224 50% 20%;
+  --sidebar-primary: 174 80% 45%; /* Brand Primary Teal #17CFCB */
+  --sidebar-primary-foreground: 220 27% 6%;
+  --sidebar-accent: 216 100% 56%; /* Brand Secondary Blue #1E78FF */
   --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-ring: 217 91% 60%;
+  --sidebar-ring: 216 100% 56%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 215 25% 17%;
-  --popover-border: 214 32% 91%;
+  --popover-foreground: 220 27% 6%;
+  --popover-border: 216 12% 90%;
 
-  --primary: 224 76% 40%; /* Trust Blue #1e40af */
+  --primary: 216 100% 56%; /* Brand Secondary Blue #1E78FF - main interactive color */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 270 67% 85%; /* Lavender #c4b5fd */
-  --secondary-foreground: 215 25% 17%;
+  --secondary: 174 80% 45%; /* Brand Primary Teal #17CFCB */
+  --secondary-foreground: 220 27% 6%;
 
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%; /* #64748b - secondary text */
+  --muted: 210 20% 95%;
+  --muted-foreground: 218 11% 47%; /* #6B7280 - brand neutral mid */
 
-  --accent: 160 84% 39%; /* Teal/Mint success #10b981 */
+  --accent: 160 84% 39%; /* Semantic Success Green #10B981 */
   --accent-foreground: 0 0% 100%;
 
-  --destructive: 0 84% 60%; /* Alert Red #ef4444 */
+  --destructive: 0 84% 60%; /* Semantic Red #EF4444 */
   --destructive-foreground: 0 0% 100%;
 
-  --input: 214 32% 91%;
-  --ring: 217 91% 60%; /* Interactive Blue */
+  --input: 216 12% 90%;
+  --ring: 216 100% 56%; /* Brand Blue */
   
   /* Chart colors */
-  --chart-1: 224 76% 40%; /* Trust Blue */
-  --chart-2: 160 84% 39%; /* Teal success */
-  --chart-3: 38 92% 50%; /* Warning Yellow #f59e0b */
-  --chart-4: 0 84% 60%; /* Alert Red */
-  --chart-5: 330 81% 60%; /* Pink/Magenta #ec4899 */
+  --chart-1: 216 100% 56%; /* Brand Blue #1E78FF */
+  --chart-2: 174 80% 45%; /* Brand Teal #17CFCB */
+  --chart-3: 38 92% 50%; /* Warning Yellow #F59E0B */
+  --chart-4: 0 84% 60%; /* Semantic Red #EF4444 */
+  --chart-5: 217 91% 60%; /* Info Blue #3B82F6 */
 
   /* Status colors for traffic light */
   --status-green: 160 84% 39%;
@@ -68,6 +68,7 @@
   --status-red: 0 84% 60%;
 
   --font-sans: 'Inter', system-ui, sans-serif;
+  --font-heading: 'Barlow Condensed', 'Inter', system-ui, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
   --radius: .5rem; /* 8px */
@@ -114,37 +115,37 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* Dark mode - Litera.ai */
-  --background: 222 47% 11%; /* Dark slate */
-  --foreground: 210 40% 98%;
+  /* Dark mode - Litera Brand */
+  --background: 224 30% 8%; /* #0B0D12 brand neutral darkest */
+  --foreground: 210 33% 98%;
 
-  --border: 217 33% 17%;
+  --border: 224 20% 18%;
 
-  --card: 222 47% 14%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 33% 20%;
+  --card: 224 25% 12%;
+  --card-foreground: 210 33% 98%;
+  --card-border: 224 20% 20%;
 
-  --sidebar: 222 47% 12%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 33% 17%;
-  --sidebar-primary: 217 91% 60%; /* Interactive Blue */
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 217 91% 50%;
+  --sidebar: 224 40% 10%;
+  --sidebar-foreground: 210 33% 98%;
+  --sidebar-border: 224 20% 16%;
+  --sidebar-primary: 174 80% 45%; /* Brand Teal */
+  --sidebar-primary-foreground: 220 27% 6%;
+  --sidebar-accent: 216 100% 60%; /* Brand Blue lighter */
   --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-ring: 217 91% 60%;
+  --sidebar-ring: 216 100% 60%;
 
-  --popover: 222 47% 14%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 33% 20%;
+  --popover: 224 25% 12%;
+  --popover-foreground: 210 33% 98%;
+  --popover-border: 224 20% 20%;
 
-  --primary: 217 91% 60%; /* Interactive Blue */
+  --primary: 216 100% 60%; /* Brand Blue */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 270 50% 35%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 174 80% 35%; /* Brand Teal darker */
+  --secondary-foreground: 210 33% 98%;
 
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 224 20% 17%;
+  --muted-foreground: 218 11% 65%;
 
   --accent: 160 84% 39%;
   --accent-foreground: 0 0% 100%;
@@ -152,13 +153,13 @@
   --destructive: 0 72% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 217 33% 22%;
-  --ring: 217 91% 60%;
-  --chart-1: 217 91% 60%;
-  --chart-2: 160 84% 45%;
+  --input: 224 20% 22%;
+  --ring: 216 100% 60%;
+  --chart-1: 216 100% 60%;
+  --chart-2: 174 80% 50%;
   --chart-3: 38 92% 55%;
   --chart-4: 0 72% 55%;
-  --chart-5: 330 81% 65%;
+  --chart-5: 217 91% 65%;
 
   --status-green: 160 84% 45%;
   --status-yellow: 38 92% 55%;

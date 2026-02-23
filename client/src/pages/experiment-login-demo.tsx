@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Heart, Loader2, Stethoscope, Shield, Languages, LayoutDashboard, FlaskConical } from "lucide-react";
+import { Loader2, Stethoscope, Shield, Languages, LayoutDashboard, FlaskConical } from "lucide-react";
 
 type RoleTab = "clinician" | "admin" | "interpreter" | "patient";
 
@@ -99,7 +99,7 @@ export default function ExperimentLoginDemo() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/40 dark:from-gray-900 dark:to-gray-800">
       <div className="bg-amber-500 text-amber-950 text-center py-2 px-4 text-sm font-medium flex items-center justify-center gap-2">
         <FlaskConical className="h-4 w-4" />
         Experiment: Embeddable Login Demo
@@ -107,10 +107,7 @@ export default function ExperimentLoginDemo() {
 
       <div className="max-w-lg mx-auto px-4 pt-6 pb-8">
         <div className="flex items-center gap-2 mb-6">
-          <div className="flex items-center gap-2">
-            <Heart className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold text-primary">Litera.ai</span>
-          </div>
+          <img src="/images/logo-blue-text.png" alt="Litera" className="h-9" />
         </div>
 
         <Card>

@@ -101,14 +101,14 @@ export async function sendCarePlanEmail(
   const { client, fromEmail } = await getUncachableResendClient();
   
   const pinSection = pin ? `
-  <div style="background: #dbeafe; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-    <p style="margin: 0 0 8px; color: #1e40af; font-size: 14px; font-weight: 600;">
+  <div style="background: #e0f7fa; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+    <p style="margin: 0 0 8px; color: #0B0D12; font-size: 14px; font-weight: 600;">
       Your Secure Access PIN
     </p>
-    <p style="margin: 0; color: #1e40af; font-size: 32px; font-weight: 700; letter-spacing: 4px; text-align: center;">
+    <p style="margin: 0; color: #1E78FF; font-size: 32px; font-weight: 700; letter-spacing: 4px; text-align: center;">
       ${pin}
     </p>
-    <p style="margin: 8px 0 0; color: #1e40af; font-size: 12px; text-align: center;">
+    <p style="margin: 8px 0 0; color: #6B7280; font-size: 12px; text-align: center;">
       Keep this PIN private. You'll need it along with your last name and year of birth.
     </p>
   </div>
@@ -132,17 +132,17 @@ export async function sendCarePlanEmail(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #0B0D12; max-width: 600px; margin: 0 auto; padding: 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
-    <div style="width: 60px; height: 60px; background: #1e40af; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-      <span style="font-size: 28px;">❤️</span>
+    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #2146D0, #17CFCB); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+      <span style="font-size: 28px; color: white;">+</span>
     </div>
-    <h1 style="color: #1e40af; margin: 0; font-size: 24px;">Litera.ai</h1>
-    <p style="color: #64748b; margin: 8px 0 0;">Healthcare Companion</p>
+    <h1 style="color: #1E78FF; margin: 0; font-size: 24px; font-family: 'Barlow Condensed', sans-serif;">Litera</h1>
+    <p style="color: #6B7280; margin: 8px 0 0;">Healthcare Companion</p>
   </div>
   
-  <div style="background: #f8fafc; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-    <h2 style="margin: 0 0 16px; color: #1e293b;">Hi ${patientName},</h2>
+  <div style="background: #F7F8FA; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+    <h2 style="margin: 0 0 16px; color: #0B0D12;">Hi ${patientName},</h2>
     <p style="margin: 0 0 16px;">Your care instructions from your recent hospital visit are now ready. These instructions have been simplified and translated for you.</p>
     <p style="margin: 0;">Click the button below to view your personalized care plan:</p>
   </div>
@@ -150,7 +150,7 @@ export async function sendCarePlanEmail(
   ${pinSection}
   
   <div style="text-align: center; margin: 32px 0;">
-    <a href="${accessLink}" style="display: inline-block; background: #2563eb; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 18px;">
+    <a href="${accessLink}" style="display: inline-block; background: #1E78FF; color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 18px;">
       View My Care Plan
     </a>
   </div>
@@ -161,14 +161,14 @@ export async function sendCarePlanEmail(
     </p>
   </div>
   
-  <p style="color: #64748b; font-size: 14px; margin: 24px 0;">
+  <p style="color: #6B7280; font-size: 14px; margin: 24px 0;">
     If you have any questions or concerns, please contact your care team directly.
   </p>
   
-  <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+  <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;">
   
-  <p style="color: #94a3b8; font-size: 12px; text-align: center;">
-    This message was sent by Litera.ai on behalf of your healthcare provider.
+  <p style="color: #6B7280; font-size: 12px; text-align: center;">
+    This message was sent by Litera on behalf of your healthcare provider.
     <br>Please do not reply to this email.
   </p>
 </body>
@@ -220,16 +220,16 @@ export async function sendCheckInEmail(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #0B0D12; max-width: 600px; margin: 0 auto; padding: 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
-    <div style="width: 60px; height: 60px; background: #1e40af; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-      <span style="font-size: 28px;">❤️</span>
+    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #2146D0, #17CFCB); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+      <span style="font-size: 28px; color: white;">+</span>
     </div>
-    <h1 style="color: #1e40af; margin: 0; font-size: 24px;">Litera.ai</h1>
+    <h1 style="color: #1E78FF; margin: 0; font-size: 24px; font-family: 'Barlow Condensed', sans-serif;">Litera</h1>
   </div>
   
-  <div style="background: #f8fafc; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-    <h2 style="margin: 0 0 16px; color: #1e293b;">Hi ${patientName},</h2>
+  <div style="background: #F7F8FA; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+    <h2 style="margin: 0 0 16px; color: #0B0D12;">Hi ${patientName},</h2>
     <p style="margin: 0 0 16px;">We're checking in to see how you're doing after your recent hospital visit.</p>
     <p style="margin: 0;">Please take a moment to let us know how you're feeling:</p>
   </div>
@@ -240,14 +240,14 @@ export async function sendCheckInEmail(
     </a>
   </div>
   
-  <p style="color: #64748b; font-size: 14px; margin: 24px 0; text-align: center;">
+  <p style="color: #6B7280; font-size: 14px; margin: 24px 0; text-align: center;">
     Your response helps your care team ensure you're recovering well.
   </p>
   
-  <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+  <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;">
   
-  <p style="color: #94a3b8; font-size: 12px; text-align: center;">
-    This message was sent by Litera.ai on behalf of your healthcare provider.
+  <p style="color: #6B7280; font-size: 12px; text-align: center;">
+    This message was sent by Litera on behalf of your healthcare provider.
   </p>
 </body>
 </html>
@@ -282,7 +282,7 @@ export async function sendTeamInviteEmail(
     const result = await client.emails.send({
       from: fromEmail,
       to: toEmail,
-      subject: `You've been invited to join Litera.ai`,
+      subject: `You've been invited to join Litera`,
       html: `
 <!DOCTYPE html>
 <html>
@@ -290,35 +290,35 @@ export async function sendTeamInviteEmail(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px;">
+<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #0B0D12; max-width: 600px; margin: 0 auto; padding: 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
-    <div style="width: 60px; height: 60px; background: #1e40af; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-      <span style="font-size: 28px;">❤️</span>
+    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #2146D0, #17CFCB); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+      <span style="font-size: 28px; color: white;">+</span>
     </div>
-    <h1 style="color: #1e40af; margin: 0; font-size: 24px;">Litera.ai</h1>
-    <p style="color: #64748b; margin: 4px 0 0; font-size: 14px;">Healthcare Communication Platform</p>
+    <h1 style="color: #1E78FF; margin: 0; font-size: 24px; font-family: 'Barlow Condensed', sans-serif;">Litera</h1>
+    <p style="color: #6B7280; margin: 4px 0 0; font-size: 14px;">Healthcare Communication Platform</p>
   </div>
 
-  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; margin-bottom: 24px;">
-    <h2 style="margin: 0 0 16px; font-size: 20px; color: #0f172a;">You've been invited!</h2>
-    <p style="margin: 0 0 16px; color: #475569;">
-      <strong>${inviterName}</strong> has invited you to join Litera.ai as a <strong>${role}</strong>.
+  <div style="background: #F7F8FA; border: 1px solid #E5E7EB; border-radius: 12px; padding: 32px; margin-bottom: 24px;">
+    <h2 style="margin: 0 0 16px; font-size: 20px; color: #0B0D12;">You've been invited!</h2>
+    <p style="margin: 0 0 16px; color: #1F2430;">
+      <strong>${inviterName}</strong> has invited you to join Litera as a <strong>${role}</strong>.
     </p>
-    <p style="margin: 0 0 24px; color: #475569;">
-      Litera.ai helps clinicians create simplified, translated discharge instructions for patients with limited English proficiency.
+    <p style="margin: 0 0 24px; color: #1F2430;">
+      Litera helps clinicians create simplified, translated discharge instructions for patients with limited English proficiency.
     </p>
     <div style="text-align: center;">
-      <a href="${inviteLink}" style="display: inline-block; background: #1e40af; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+      <a href="${inviteLink}" style="display: inline-block; background: #1E78FF; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
         Accept Invitation
       </a>
     </div>
-    <p style="margin: 16px 0 0; color: #94a3b8; font-size: 12px; text-align: center;">
+    <p style="margin: 16px 0 0; color: #6B7280; font-size: 12px; text-align: center;">
       This invitation expires in 7 days.
     </p>
   </div>
 
-  <div style="text-align: center; color: #94a3b8; font-size: 12px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
-    <p style="margin: 0;">Powered by Litera.ai</p>
+  <div style="text-align: center; color: #6B7280; font-size: 12px; padding-top: 16px; border-top: 1px solid #E5E7EB;">
+    <p style="margin: 0;">Powered by Litera</p>
   </div>
 </body>
 </html>
@@ -349,28 +349,28 @@ export async function sendPasswordResetEmail(
     const result = await client.emails.send({
       from: fromEmail,
       to: toEmail,
-      subject: "Litera.ai — Password Reset",
+      subject: "Litera — Password Reset",
       html: `
 <!DOCTYPE html>
 <html>
-<body style="margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f1f5f9;">
+<body style="margin: 0; padding: 24px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #F7F8FA;">
   <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
     <div style="text-align: center; margin-bottom: 24px;">
-      <span style="font-size: 24px; font-weight: 700; color: #1e40af;">Litera.ai</span>
+      <span style="font-size: 24px; font-weight: 700; color: #1E78FF; font-family: 'Barlow Condensed', sans-serif;">Litera</span>
     </div>
-    <h2 style="margin: 0 0 16px; font-size: 20px; color: #0f172a;">Password Reset</h2>
-    <p style="margin: 0 0 16px; color: #475569;">
+    <h2 style="margin: 0 0 16px; font-size: 20px; color: #0B0D12;">Password Reset</h2>
+    <p style="margin: 0 0 16px; color: #1F2430;">
       Hi <strong>${userName}</strong>, we received a request to reset your password.
     </p>
-    <p style="margin: 0 0 24px; color: #475569;">
+    <p style="margin: 0 0 24px; color: #1F2430;">
       Click the button below to set a new password. This link expires in 1 hour.
     </p>
     <div style="text-align: center; margin-bottom: 24px;">
-      <a href="${resetLink}" style="display: inline-block; background: #1e40af; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+      <a href="${resetLink}" style="display: inline-block; background: #1E78FF; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
         Reset Password
       </a>
     </div>
-    <p style="margin: 0; color: #94a3b8; font-size: 13px;">
+    <p style="margin: 0; color: #6B7280; font-size: 13px;">
       If you didn't request this, you can safely ignore this email.
     </p>
   </div>

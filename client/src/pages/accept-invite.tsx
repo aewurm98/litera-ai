@@ -100,10 +100,10 @@ export default function AcceptInvite() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center mx-auto mb-2">
-            <Heart className="h-6 w-6 text-primary-foreground" />
+          <div className="flex justify-center mb-2">
+            <img src="/images/logo-blue-text.png" alt="Litera" className="h-10" />
           </div>
-          <CardTitle>Join Litera.ai</CardTitle>
+          <CardTitle className="font-heading">Join Litera</CardTitle>
           <CardDescription>
             You've been invited to join{invitation.tenantName ? ` ${invitation.tenantName}` : ""} as a <strong className="capitalize">{invitation.role}</strong>.
           </CardDescription>

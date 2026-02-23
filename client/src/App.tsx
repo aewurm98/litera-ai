@@ -322,11 +322,9 @@ function AppSidebar({ user }: { user: User }) {
     <Sidebar>
       <SidebarHeader className="p-4 border-b">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-            <Heart className="h-6 w-6 text-primary-foreground" />
-          </div>
+          <img src="/images/logo-icon.png" alt="Litera" className="w-10 h-10 rounded-lg" />
           <div>
-            <h1 className="font-bold text-lg">Litera.ai</h1>
+            <h1 className="font-heading font-semibold text-lg">Litera</h1>
             <p className="text-xs text-muted-foreground">Healthcare Companion</p>
           </div>
         </div>
