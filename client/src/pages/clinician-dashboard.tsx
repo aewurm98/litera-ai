@@ -158,69 +158,76 @@ function MedicationsList({
               data-testid={`medication-${columnId}-${index}`}
               onClick={() => editable && setActiveCard(index)}
             >
-              <div className="flex items-start justify-between gap-2 flex-wrap">
-                {showInputs ? (
-                  <input
-                    className="font-medium text-sm bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 min-w-0 focus:border-primary"
-                    value={getFieldVal(index, "name", med.name)}
-                    onChange={(e) => onEdit!(`simplifiedMedications_${index}_name`, e.target.value)}
-                    autoFocus
-                    data-testid={`input-med-name-${columnId}-${index}`}
-                  />
-                ) : (
-                  <span className="font-medium text-sm">{getFieldVal(index, "name", med.name)}</span>
-                )}
-                {(med.dose || showInputs) && (
-                  showInputs ? (
-                    <input
-                      className="text-xs bg-transparent border-b border-dashed border-primary/40 outline-none w-24 text-right focus:border-primary"
-                      value={getFieldVal(index, "dose", med.dose || "")}
-                      onChange={(e) => onEdit!(`simplifiedMedications_${index}_dose`, e.target.value)}
-                      placeholder="dose"
-                      data-testid={`input-med-dose-${columnId}-${index}`}
-                    />
-                  ) : (
-                    <Badge variant="outline" className="text-xs flex-shrink-0">
-                      {getFieldVal(index, "dose", med.dose || "")}
-                    </Badge>
-                  )
-                )}
-              </div>
-              {(med.frequency || showInputs) && (
-                <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3 flex-shrink-0" />
-                  {showInputs ? (
-                    <input
-                      className="bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 text-xs focus:border-primary"
-                      value={getFieldVal(index, "frequency", med.frequency || "")}
-                      onChange={(e) => onEdit!(`simplifiedMedications_${index}_frequency`, e.target.value)}
-                      placeholder="frequency"
-                      data-testid={`input-med-freq-${columnId}-${index}`}
-                    />
-                  ) : (
-                    <span>{getFieldVal(index, "frequency", med.frequency || "")}</span>
+              {(() => {
+                const doseVal = getFieldVal(index, "dose", med.dose || "");
+                const freqVal = getFieldVal(index, "frequency", med.frequency || "");
+                const instrVal = getFieldVal(index, "instructions", med.instructions || "");
+                return (<>
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    {showInputs ? (
+                      <input
+                        className="font-medium text-sm bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 min-w-0 focus:border-primary"
+                        value={getFieldVal(index, "name", med.name)}
+                        onChange={(e) => onEdit!(`simplifiedMedications_${index}_name`, e.target.value)}
+                        autoFocus
+                        data-testid={`input-med-name-${columnId}-${index}`}
+                      />
+                    ) : (
+                      <span className="font-medium text-sm">{getFieldVal(index, "name", med.name)}</span>
+                    )}
+                    {(doseVal || showInputs) && (
+                      showInputs ? (
+                        <input
+                          className="text-xs bg-transparent border-b border-dashed border-primary/40 outline-none w-24 text-right focus:border-primary"
+                          value={doseVal}
+                          onChange={(e) => onEdit!(`simplifiedMedications_${index}_dose`, e.target.value)}
+                          placeholder="dose"
+                          data-testid={`input-med-dose-${columnId}-${index}`}
+                        />
+                      ) : (
+                        <Badge variant="outline" className="text-xs flex-shrink-0">
+                          {doseVal}
+                        </Badge>
+                      )
+                    )}
+                  </div>
+                  {(freqVal || showInputs) && (
+                    <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3 flex-shrink-0" />
+                      {showInputs ? (
+                        <input
+                          className="bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 text-xs focus:border-primary"
+                          value={freqVal}
+                          onChange={(e) => onEdit!(`simplifiedMedications_${index}_frequency`, e.target.value)}
+                          placeholder="frequency"
+                          data-testid={`input-med-freq-${columnId}-${index}`}
+                        />
+                      ) : (
+                        <span>{freqVal}</span>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-              {(med.instructions || showInputs) && (
-                showInputs ? (
-                  <textarea
-                    className="text-xs text-muted-foreground mt-1 bg-transparent border border-dashed border-primary/40 outline-none w-full rounded p-1.5 focus:border-primary resize-none min-h-[60px]"
-                    value={getFieldVal(index, "instructions", med.instructions || "")}
-                    onChange={(e) => onEdit!(`simplifiedMedications_${index}_instructions`, e.target.value)}
-                    placeholder="instructions"
-                    rows={4}
-                    data-testid={`input-med-instr-${columnId}-${index}`}
-                  />
-                ) : (
-                  <ol className="text-xs text-muted-foreground mt-1 list-decimal list-inside space-y-0.5">
-                    {getFieldVal(index, "instructions", med.instructions || "").split('\n').map((line: string, i: number) => {
-                      const cleaned = line.replace(/^\d+\.\s*/, '').trim();
-                      return cleaned ? <li key={i}>{cleaned}</li> : null;
-                    })}
-                  </ol>
-                )
-              )}
+                  {(instrVal || showInputs) && (
+                    showInputs ? (
+                      <textarea
+                        className="text-xs text-muted-foreground mt-1 bg-transparent border border-dashed border-primary/40 outline-none w-full rounded p-1.5 focus:border-primary resize-none min-h-[60px]"
+                        value={instrVal}
+                        onChange={(e) => onEdit!(`simplifiedMedications_${index}_instructions`, e.target.value)}
+                        placeholder="instructions"
+                        rows={4}
+                        data-testid={`input-med-instr-${columnId}-${index}`}
+                      />
+                    ) : (
+                      <ol className="text-xs text-muted-foreground mt-1 list-decimal list-inside space-y-0.5">
+                        {instrVal.split('\n').map((line: string, i: number) => {
+                          const cleaned = line.replace(/^\d+\.\s*/, '').trim();
+                          return cleaned ? <li key={i}>{cleaned}</li> : null;
+                        })}
+                      </ol>
+                    )
+                  )}
+                </>);
+              })()}
             </div>
           );
         })}
@@ -327,10 +334,10 @@ function AppointmentsList({
               </div>
               <EditableField index={index} field="location" original={apt.location || ""} icon={MapPin} placeholder="location" isActive={!!isActive} />
               <EditableField index={index} field="phone" original={apt.phone || ""} icon={ExternalLink} placeholder="phone" isActive={!!isActive} />
-              {(apt.schedulingInstructions || isActive) && (
+              {(apt.schedulingInstructions || getFieldVal(index, "schedulingInstructions", "") || isActive) && (
                 <EditableField index={index} field="schedulingInstructions" original={apt.schedulingInstructions || ""} placeholder="scheduling notes" isActive={!!isActive} />
               )}
-              {(apt.itemsToBring || isActive) && (
+              {(apt.itemsToBring || getFieldVal(index, "itemsToBring", "") || isActive) && (
                 <EditableField index={index} field="itemsToBring" original={apt.itemsToBring || ""} placeholder="items to bring" isActive={!!isActive} />
               )}
             </div>
