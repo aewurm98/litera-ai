@@ -63,6 +63,19 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 - Clinic phone numbers are passed into the simplification prompt so AI includes the most relevant number in each appointment's phone field
 - "Send Test to Me" flow now shows read-only preview mode (no password setup, no check-ins, preview banner)
 
+### Phase H - PHIPA-Compliant Sandbox Mode (Complete)
+- Per-tenant `sandboxMode` boolean toggle in settings (admin-only)
+- `server/sandbox.ts`: In-memory storage adapter for patients, care plans, check-ins, audit logs, and chat messages — no PHI persisted to database
+- Pseudonymization: Patient names replaced with "Patient A/B/C...", emails/phones scrubbed, DOB generalized to year-only
+- Storage adapter pattern: `getStore(req)` routes operations to sandbox or database storage transparently
+- Email redirection: All patient emails in sandbox mode redirect to tenant admin's recovery email
+- AI integration: Initial extraction unavoidable, but all downstream AI calls (simplification, translation, chatbot) use pseudonymized data only
+- `SandboxBanner` component: Persistent amber banner ("Simulation Mode — No data is saved") across clinician dashboard, patient portal, and admin pages
+- Session-only reference notes: Collapsible textarea on care plan review using `sessionStorage` — never sent to server, vanishes on browser close
+- Settings page: "Simulation Mode" card with enable/disable toggle, active state indicator
+- Patient portal: Dual-lookup pattern (database first, then sandbox in-memory) since portal lacks tenant session context
+- Non-sandbox tenants completely unaffected — all sandbox logic is conditional/additive
+
 ### QA Audit & Code Cleanup (Complete)
 - **Security fixes**: Closed unprotected internal scheduler endpoint (requires `INTERNAL_API_SECRET`), removed hardcoded `clinician-1` fallback from 8 routes, enforced consistent password policy in reset flow (8+ chars with complexity), fixed `Math.random()` → `crypto.randomInt()` for PIN generation, added `credentials: "include"` to upload and invite fetch calls, added context size limits to experiment chat endpoint
 - **Dead code removal**: Deleted `server/services/twilio.ts` and uninstalled `twilio` npm package (SMS removed in Phase A)
