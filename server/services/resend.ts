@@ -87,6 +87,16 @@ export async function getUncachableResendClient() {
   };
 }
 
+function getLogoUrl(): string {
+  const base = process.env.APP_URL
+    || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "http://localhost:5000");
+  return `${base}/images/logo-icon.png`;
+}
+
+function logoImgTag(): string {
+  return `<img src="${getLogoUrl()}" alt="Litera" width="60" height="60" style="width: 60px; height: 60px; border-radius: 12px; margin-bottom: 16px;" />`;
+}
+
 // Email templates
 export async function sendCarePlanEmail(
   toEmail: string,
@@ -134,9 +144,7 @@ export async function sendCarePlanEmail(
 </head>
 <body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #0B0D12; max-width: 600px; margin: 0 auto; padding: 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
-    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #2146D0, #17CFCB); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-      <span style="font-size: 28px; color: white;">+</span>
-    </div>
+    ${logoImgTag()}
     <h1 style="color: #1E78FF; margin: 0; font-size: 24px; font-family: 'Barlow Condensed', sans-serif;">Litera</h1>
     <p style="color: #6B7280; margin: 8px 0 0;">Healthcare Companion</p>
   </div>
@@ -222,9 +230,7 @@ export async function sendCheckInEmail(
 </head>
 <body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #0B0D12; max-width: 600px; margin: 0 auto; padding: 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
-    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #2146D0, #17CFCB); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-      <span style="font-size: 28px; color: white;">+</span>
-    </div>
+    ${logoImgTag()}
     <h1 style="color: #1E78FF; margin: 0; font-size: 24px; font-family: 'Barlow Condensed', sans-serif;">Litera</h1>
   </div>
   
@@ -292,9 +298,7 @@ export async function sendTeamInviteEmail(
 </head>
 <body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #0B0D12; max-width: 600px; margin: 0 auto; padding: 20px;">
   <div style="text-align: center; margin-bottom: 32px;">
-    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #2146D0, #17CFCB); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-      <span style="font-size: 28px; color: white;">+</span>
-    </div>
+    ${logoImgTag()}
     <h1 style="color: #1E78FF; margin: 0; font-size: 24px; font-family: 'Barlow Condensed', sans-serif;">Litera</h1>
     <p style="color: #6B7280; margin: 4px 0 0; font-size: 14px;">Healthcare Communication Platform</p>
   </div>
@@ -356,7 +360,8 @@ export async function sendPasswordResetEmail(
 <body style="margin: 0; padding: 24px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #F7F8FA;">
   <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
     <div style="text-align: center; margin-bottom: 24px;">
-      <span style="font-size: 24px; font-weight: 700; color: #1E78FF; font-family: 'Barlow Condensed', sans-serif;">Litera</span>
+      ${logoImgTag()}
+      <div style="font-size: 24px; font-weight: 700; color: #1E78FF; font-family: 'Barlow Condensed', sans-serif;">Litera</div>
     </div>
     <h2 style="margin: 0 0 16px; font-size: 20px; color: #0B0D12;">Password Reset</h2>
     <p style="margin: 0 0 16px; color: #1F2430;">
