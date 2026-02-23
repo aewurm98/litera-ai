@@ -193,7 +193,14 @@ export default function ExperimentComprehension() {
                     <Clock className="h-4 w-4" />
                     <span>{med.frequency}</span>
                   </div>
-                  {med.instructions && <p className="text-sm text-muted-foreground">{med.instructions}</p>}
+                  {med.instructions && (
+                    <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 mt-1">
+                      {med.instructions.split('\n').map((line, i) => {
+                        const cleaned = line.replace(/^\d+\.\s*/, '').trim();
+                        return cleaned ? <li key={i}>{cleaned}</li> : null;
+                      })}
+                    </ol>
+                  )}
                 </div>
               ))}
             </CardContent>

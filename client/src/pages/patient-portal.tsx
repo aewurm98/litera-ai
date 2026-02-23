@@ -1560,7 +1560,12 @@ export default function PatientPortal() {
                     <span>{med.frequency}</span>
                   </div>
                   {med.instructions && (
-                    <p className="text-sm text-muted-foreground">{med.instructions}</p>
+                    <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 mt-1">
+                      {med.instructions.split('\n').map((line: string, i: number) => {
+                        const cleaned = line.replace(/^\d+\.\s*/, '').trim();
+                        return cleaned ? <li key={i}>{cleaned}</li> : null;
+                      })}
+                    </ol>
                   )}
                 </div>
               ))}

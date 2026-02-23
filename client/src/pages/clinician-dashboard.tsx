@@ -111,6 +111,21 @@ function MedicationsList({
   editValues?: Record<string, string>;
   onEdit?: (field: string, value: string) => void;
 }) {
+  const [activeCard, setActiveCard] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (activeCard === null) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const cards = document.querySelectorAll(`[data-testid^="medication-${columnId}-"]`);
+      const activeEl = cards[activeCard];
+      if (activeEl && !activeEl.contains(e.target as Node)) {
+        setActiveCard(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [activeCard, columnId]);
+
   if (!medications || medications.length === 0) return null;
 
   const getFieldVal = (index: number, field: string, original: string) => {
@@ -133,72 +148,82 @@ function MedicationsList({
         )}
       </Label>
       <div className="space-y-2">
-        {medications.map((med, index) => (
-          <div
-            key={index}
-            className="bg-muted/50 rounded-lg p-3 border border-border/50"
-            data-testid={`medication-${columnId}-${index}`}
-          >
-            <div className="flex items-start justify-between gap-2 flex-wrap">
-              {editable && onEdit ? (
-                <input
-                  className="font-medium text-sm bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 min-w-0 focus:border-primary"
-                  value={getFieldVal(index, "name", med.name)}
-                  onChange={(e) => onEdit(`simplifiedMedications_${index}_name`, e.target.value)}
-                  data-testid={`input-med-name-${columnId}-${index}`}
-                />
-              ) : (
-                <span className="font-medium text-sm">{med.name}</span>
-              )}
-              {(med.dose || editable) && (
-                editable && onEdit ? (
+        {medications.map((med, index) => {
+          const isActive = editable && activeCard === index;
+          const showInputs = isActive && onEdit;
+          return (
+            <div
+              key={index}
+              className={`bg-muted/50 rounded-lg p-3 border transition-colors ${isActive ? "border-primary/40 ring-1 ring-primary/20" : "border-border/50"} ${editable ? "cursor-text" : ""}`}
+              data-testid={`medication-${columnId}-${index}`}
+              onClick={() => editable && setActiveCard(index)}
+            >
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                {showInputs ? (
                   <input
-                    className="text-xs bg-transparent border-b border-dashed border-primary/40 outline-none w-24 text-right focus:border-primary"
-                    value={getFieldVal(index, "dose", med.dose || "")}
-                    onChange={(e) => onEdit(`simplifiedMedications_${index}_dose`, e.target.value)}
-                    placeholder="dose"
-                    data-testid={`input-med-dose-${columnId}-${index}`}
-                  />
-                ) : med.dose ? (
-                  <Badge variant="outline" className="text-xs flex-shrink-0">
-                    {med.dose}
-                  </Badge>
-                ) : null
-              )}
-            </div>
-            {(med.frequency || editable) && (
-              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3 flex-shrink-0" />
-                {editable && onEdit ? (
-                  <input
-                    className="bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 text-xs focus:border-primary"
-                    value={getFieldVal(index, "frequency", med.frequency || "")}
-                    onChange={(e) => onEdit(`simplifiedMedications_${index}_frequency`, e.target.value)}
-                    placeholder="frequency"
-                    data-testid={`input-med-freq-${columnId}-${index}`}
+                    className="font-medium text-sm bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 min-w-0 focus:border-primary"
+                    value={getFieldVal(index, "name", med.name)}
+                    onChange={(e) => onEdit!(`simplifiedMedications_${index}_name`, e.target.value)}
+                    autoFocus
+                    data-testid={`input-med-name-${columnId}-${index}`}
                   />
                 ) : (
-                  med.frequency
+                  <span className="font-medium text-sm">{getFieldVal(index, "name", med.name)}</span>
+                )}
+                {(med.dose || showInputs) && (
+                  showInputs ? (
+                    <input
+                      className="text-xs bg-transparent border-b border-dashed border-primary/40 outline-none w-24 text-right focus:border-primary"
+                      value={getFieldVal(index, "dose", med.dose || "")}
+                      onChange={(e) => onEdit!(`simplifiedMedications_${index}_dose`, e.target.value)}
+                      placeholder="dose"
+                      data-testid={`input-med-dose-${columnId}-${index}`}
+                    />
+                  ) : (
+                    <Badge variant="outline" className="text-xs flex-shrink-0">
+                      {getFieldVal(index, "dose", med.dose || "")}
+                    </Badge>
+                  )
                 )}
               </div>
-            )}
-            {(med.instructions || editable) && (
-              editable && onEdit ? (
-                <input
-                  className="text-xs text-muted-foreground mt-1 italic bg-transparent border-b border-dashed border-primary/40 outline-none w-full focus:border-primary"
-                  value={getFieldVal(index, "instructions", med.instructions || "")}
-                  onChange={(e) => onEdit(`simplifiedMedications_${index}_instructions`, e.target.value)}
-                  placeholder="instructions"
-                  data-testid={`input-med-instr-${columnId}-${index}`}
-                />
-              ) : med.instructions ? (
-                <p className="text-xs text-muted-foreground mt-1 italic">
-                  {med.instructions}
-                </p>
-              ) : null
-            )}
-          </div>
-        ))}
+              {(med.frequency || showInputs) && (
+                <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3 flex-shrink-0" />
+                  {showInputs ? (
+                    <input
+                      className="bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 text-xs focus:border-primary"
+                      value={getFieldVal(index, "frequency", med.frequency || "")}
+                      onChange={(e) => onEdit!(`simplifiedMedications_${index}_frequency`, e.target.value)}
+                      placeholder="frequency"
+                      data-testid={`input-med-freq-${columnId}-${index}`}
+                    />
+                  ) : (
+                    <span>{getFieldVal(index, "frequency", med.frequency || "")}</span>
+                  )}
+                </div>
+              )}
+              {(med.instructions || showInputs) && (
+                showInputs ? (
+                  <textarea
+                    className="text-xs text-muted-foreground mt-1 bg-transparent border border-dashed border-primary/40 outline-none w-full rounded p-1.5 focus:border-primary resize-none min-h-[60px]"
+                    value={getFieldVal(index, "instructions", med.instructions || "")}
+                    onChange={(e) => onEdit!(`simplifiedMedications_${index}_instructions`, e.target.value)}
+                    placeholder="instructions"
+                    rows={4}
+                    data-testid={`input-med-instr-${columnId}-${index}`}
+                  />
+                ) : (
+                  <ol className="text-xs text-muted-foreground mt-1 list-decimal list-inside space-y-0.5">
+                    {getFieldVal(index, "instructions", med.instructions || "").split('\n').map((line: string, i: number) => {
+                      const cleaned = line.replace(/^\d+\.\s*/, '').trim();
+                      return cleaned ? <li key={i}>{cleaned}</li> : null;
+                    })}
+                  </ol>
+                )
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -220,6 +245,21 @@ function AppointmentsList({
   editValues?: Record<string, string>;
   onEdit?: (field: string, value: string) => void;
 }) {
+  const [activeCard, setActiveCard] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (activeCard === null) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const cards = document.querySelectorAll(`[data-testid^="appointment-${columnId}-"]`);
+      const activeEl = cards[activeCard];
+      if (activeEl && !activeEl.contains(e.target as Node)) {
+        setActiveCard(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [activeCard, columnId]);
+
   if (!appointments || appointments.length === 0) return null;
 
   const getFieldVal = (index: number, field: string, original: string) => {
@@ -233,15 +273,16 @@ function AppointmentsList({
     aptFields.some(f => `simplifiedAppointments_${i}_${f}` in editValues!)
   );
 
-  const EditableField = ({ index, field, original, icon: Icon, placeholder, bold }: {
-    index: number; field: string; original: string; icon?: any; placeholder: string; bold?: boolean;
+  const EditableField = ({ index, field, original, icon: Icon, placeholder, bold, isActive: fieldActive }: {
+    index: number; field: string; original: string; icon?: any; placeholder: string; bold?: boolean; isActive: boolean;
   }) => {
-    if (!editable || !onEdit) {
-      if (!original) return null;
+    const val = getFieldVal(index, field, original);
+    if (!fieldActive || !onEdit) {
+      if (!val && !original) return null;
       return (
         <div className={`flex items-center gap-1 ${bold ? "font-medium text-sm" : "text-xs text-muted-foreground"} ${!bold ? "mt-1" : ""}`}>
           {Icon && <Icon className="h-3 w-3 flex-shrink-0" />}
-          {original}
+          {val || original}
         </div>
       );
     }
@@ -250,7 +291,7 @@ function AppointmentsList({
         {Icon && <Icon className="h-3 w-3 flex-shrink-0 text-muted-foreground" />}
         <input
           className={`bg-transparent border-b border-dashed border-primary/40 outline-none flex-1 text-xs focus:border-primary ${bold ? "font-medium text-sm" : "text-muted-foreground"}`}
-          value={getFieldVal(index, field, original)}
+          value={val}
           onChange={(e) => onEdit(`simplifiedAppointments_${index}_${field}`, e.target.value)}
           placeholder={placeholder}
           data-testid={`input-apt-${field}-${columnId}-${index}`}
@@ -269,28 +310,32 @@ function AppointmentsList({
         )}
       </Label>
       <div className="space-y-2">
-        {appointments.map((apt, index) => (
-          <div
-            key={index}
-            className="bg-muted/50 rounded-lg p-3 border border-border/50"
-            data-testid={`appointment-${columnId}-${index}`}
-          >
-            <EditableField index={index} field="purpose" original={apt.purpose || ""} placeholder="purpose" bold />
-            <div className="flex flex-wrap gap-3 mt-1">
-              <EditableField index={index} field="date" original={apt.date || ""} icon={Calendar} placeholder="date" />
-              <EditableField index={index} field="time" original={apt.time || ""} icon={Clock} placeholder="time" />
-              <EditableField index={index} field="provider" original={apt.provider || ""} icon={User} placeholder="doctor" />
+        {appointments.map((apt, index) => {
+          const isActive = editable && activeCard === index;
+          return (
+            <div
+              key={index}
+              className={`bg-muted/50 rounded-lg p-3 border transition-colors ${isActive ? "border-primary/40 ring-1 ring-primary/20" : "border-border/50"} ${editable ? "cursor-text" : ""}`}
+              data-testid={`appointment-${columnId}-${index}`}
+              onClick={() => editable && setActiveCard(index)}
+            >
+              <EditableField index={index} field="purpose" original={apt.purpose || ""} placeholder="purpose" bold isActive={!!isActive} />
+              <div className="flex flex-wrap gap-3 mt-1">
+                <EditableField index={index} field="date" original={apt.date || ""} icon={Calendar} placeholder="date" isActive={!!isActive} />
+                <EditableField index={index} field="time" original={apt.time || ""} icon={Clock} placeholder="time" isActive={!!isActive} />
+                <EditableField index={index} field="provider" original={apt.provider || ""} icon={User} placeholder="doctor" isActive={!!isActive} />
+              </div>
+              <EditableField index={index} field="location" original={apt.location || ""} icon={MapPin} placeholder="location" isActive={!!isActive} />
+              <EditableField index={index} field="phone" original={apt.phone || ""} icon={ExternalLink} placeholder="phone" isActive={!!isActive} />
+              {(apt.schedulingInstructions || isActive) && (
+                <EditableField index={index} field="schedulingInstructions" original={apt.schedulingInstructions || ""} placeholder="scheduling notes" isActive={!!isActive} />
+              )}
+              {(apt.itemsToBring || isActive) && (
+                <EditableField index={index} field="itemsToBring" original={apt.itemsToBring || ""} placeholder="items to bring" isActive={!!isActive} />
+              )}
             </div>
-            <EditableField index={index} field="location" original={apt.location || ""} icon={MapPin} placeholder="location" />
-            <EditableField index={index} field="phone" original={apt.phone || ""} icon={ExternalLink} placeholder="phone" />
-            {(apt.schedulingInstructions || editable) && (
-              <EditableField index={index} field="schedulingInstructions" original={apt.schedulingInstructions || ""} placeholder="scheduling notes" />
-            )}
-            {(apt.itemsToBring || editable) && (
-              <EditableField index={index} field="itemsToBring" original={apt.itemsToBring || ""} placeholder="items to bring" />
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
