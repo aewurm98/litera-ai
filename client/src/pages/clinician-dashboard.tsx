@@ -76,6 +76,7 @@ import {
   ChevronDown,
   ChevronRight,
   UserPlus,
+  StickyNote,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
@@ -354,7 +355,7 @@ type UserWithTenant = {
   name: string;
   role: string;
   tenantId?: string | null;
-  tenant?: { id: string; name: string; slug: string; isDemo: boolean; interpreterReviewMode?: string } | null;
+  tenant?: { id: string; name: string; slug: string; isDemo: boolean; sandboxMode?: boolean; interpreterReviewMode?: string } | null;
 };
 
 export default function ClinicianDashboard() {
@@ -436,6 +437,31 @@ export default function ClinicianDashboard() {
 
   const [clinicianEdits, setClinicianEdits] = useState<Record<string, string>>({});
   const [postApprovalEditMode, setPostApprovalEditMode] = useState(false);
+  const [referenceNotes, setReferenceNotes] = useState("");
+  const [showReferenceNotes, setShowReferenceNotes] = useState(false);
+
+  useEffect(() => {
+    if (selectedCarePlan?.id) {
+      const saved = sessionStorage.getItem(`ref-notes-${selectedCarePlan.id}`);
+      setReferenceNotes(saved || "");
+      setShowReferenceNotes(!!saved);
+    } else {
+      setReferenceNotes("");
+      setShowReferenceNotes(false);
+    }
+  }, [selectedCarePlan?.id]);
+
+  const handleReferenceNotesChange = (value: string) => {
+    setReferenceNotes(value);
+    if (selectedCarePlan?.id) {
+      if (value) {
+        sessionStorage.setItem(`ref-notes-${selectedCarePlan.id}`, value);
+      } else {
+        sessionStorage.removeItem(`ref-notes-${selectedCarePlan.id}`);
+      }
+    }
+  };
+
   const isPreApprovalEditable = selectedCarePlan?.status === "pending_review" || selectedCarePlan?.status === "interpreter_approved";
   const isPostApproval = selectedCarePlan?.status === "approved" || selectedCarePlan?.status === "sent";
   const isEditable = isPreApprovalEditable || (isPostApproval && postApprovalEditMode);
@@ -1580,6 +1606,36 @@ export default function ClinicianDashboard() {
                   Interpreter Notes
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">{selectedCarePlan.interpreterNotes}</p>
+              </div>
+            )}
+
+            {currentUser?.tenant?.sandboxMode && (
+              <div className="mx-4 mt-4">
+                <Collapsible open={showReferenceNotes} onOpenChange={setShowReferenceNotes}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="flex items-center gap-2 text-muted-foreground hover:text-foreground" data-testid="button-toggle-reference-notes">
+                      <StickyNote className="h-4 w-4" />
+                      Reference Notes
+                      {referenceNotes && <span className="h-2 w-2 rounded-full bg-amber-500" />}
+                      <ChevronsUpDown className="h-3 w-3" />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="mt-2 p-3 border border-dashed border-amber-300 rounded-md bg-amber-50/50 dark:bg-amber-950/20">
+                      <Textarea
+                        placeholder="Private notes for this session only — never saved or sent anywhere..."
+                        value={referenceNotes}
+                        onChange={(e) => handleReferenceNotesChange(e.target.value)}
+                        className="min-h-[80px] bg-transparent border-none focus-visible:ring-0 resize-none text-sm"
+                        data-testid="input-reference-notes"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Session only — vanishes when you close the browser
+                      </p>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             )}
 
