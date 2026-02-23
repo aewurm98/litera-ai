@@ -23,7 +23,8 @@
 11. [Verify & Smoke Test](#11-verify--smoke-test)
 12. [Operational Essentials](#12-operational-essentials)
 13. [Cost Estimate](#13-cost-estimate)
-14. [Architecture Diagram](#14-architecture-diagram)
+14. [Static Assets & Email Logo](#14-static-assets--email-logo)
+15. [Architecture Diagram](#15-architecture-diagram)
 
 ---
 
@@ -821,7 +822,51 @@ Scale up to `db.t3.small` ($25/mo) and 2 Fargate tasks ($30-40/mo) for a real pi
 
 ---
 
-## 14. Architecture Diagram
+## 14. Static Assets & Email Logo
+
+### How It Works
+The Litera logo and other static assets (favicons, images) are served from `client/public/images/` and bundled into the Docker image at build time. The production container serves these at `/images/*` via Express static file middleware.
+
+### Email Logo
+All outgoing emails (care plan delivery, check-in reminders, team invitations, password resets) display the Litera logo at the top. The logo is loaded via an `<img>` tag pointing to:
+
+```
+{APP_URL}/images/logo-icon.png
+```
+
+This means:
+- `APP_URL` **must** be set correctly in Secrets Manager (see step 5.2)
+- The value should be your production domain with HTTPS, e.g., `https://litera.yourdomain.com`
+- The container must be accessible at that URL for email clients to load the logo image
+- If `APP_URL` is wrong or the app is unreachable, emails will show a broken image placeholder
+
+### Logo Files in the Container
+| File | Path in Container | Purpose |
+|------|------------------|---------|
+| `logo-icon.png` | `/images/logo-icon.png` | Email headers (60x60, rounded) |
+| `logo-blue-text.png` | `/images/logo-blue-text.png` | Login page, sidebar |
+| `logo-white-text.png` | `/images/logo-white-text.png` | Dark backgrounds |
+| `logo-black-text.png` | `/images/logo-black-text.png` | Print / light backgrounds |
+| `logo-icon-bw.png` | `/images/logo-icon-bw.png` | Monochrome variant |
+| `favicon.ico` | `/favicon.ico` | Browser tab icon |
+
+### Verifying After Deployment
+After deploying to AWS, verify the logo is accessible:
+```bash
+curl -s -o /dev/null -w "%{http_code}" https://litera.yourdomain.com/images/logo-icon.png
+# Expected: 200
+```
+
+### (Optional) CloudFront CDN for Static Assets
+For better performance and to reduce load on ECS, you can optionally serve static assets via CloudFront:
+
+1. Create a CloudFront distribution with the ALB as origin
+2. Set up a cache behavior for `/images/*` and `/assets/*` with long TTL
+3. This is optional — the ALB + ECS setup works fine for low-to-moderate traffic
+
+---
+
+## 15. Architecture Diagram
 
 ```
                     Internet
