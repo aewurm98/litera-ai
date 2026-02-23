@@ -1,5 +1,11 @@
 import { useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,33 +28,116 @@ import CarePlanChatbot from "@/components/care-plan-chatbot";
 const SAMPLE_CARE_PLAN = {
   patientName: "Maria Garcia",
   en: {
-    diagnosis: "You have pneumonia in the lower part of your right lung. This kind of pneumonia is called community-acquired pneumonia. You also have mild asthma that comes and goes, and allergies from seasons like springtime. When you came to the hospital, your oxygen was low, but it's better now. You were discharged from the hospital on Feb 18th and should follow the instructions below.",
-    instructions: "1. Rest but increase your activity a little bit when you feel stronger.\n2. Sleep with your head raised to help you breathe.\n3. Drink 6–8 glasses of water each day. Avoid alcohol until you finish all of your antibiotics.\n4. Do breathing exercises three times a day to help your lungs. Breathe slowly through your nose for 4 seconds, hold for 2 seconds, then exhale slowly through your mouth for 6 seconds. Repeat ten times.\n5. Only go back to work or heavy activities when the doctor says it's okay.\n6. Stay away from cigarette smoke, dust, and strong smells while you are recovering.\n7. Call your doctor or go to the hospital if your symptoms get worse or you are not getting better.",
-    warnings: "1. Call 911 or go to the emergency room right away for:\n- Severe shortness of breath while resting.\n- Blue or grey lips or fingers.\n- Sharp chest pain that moves to your arm or jaw.\n- Fever over 39.5°C that doesn't go down with medicine.\n- Coughing up a lot of blood.\n- Feeling confused or passing out.\n\n2. Call your doctor if:\n- You still have a fever over 38°C after 2 days on antibiotics.\n- You get a rash or reaction to medicine.\n- Your wheezing does not stop even after using an inhaler.\n- Your cough gets worse or you have other new symptoms like swelling in your leg.",
+    diagnosis:
+      "You have pneumonia in the lower part of your right lung. This kind of pneumonia is called community-acquired pneumonia. You also have mild asthma that comes and goes, and allergies from seasons like springtime. When you came to the hospital, your oxygen was low, but it's better now. You were discharged from the hospital on Feb 18th and should follow the instructions below.",
+    instructions:
+      "1. Rest but increase your activity a little bit when you feel stronger.\n2. Sleep with your head raised to help you breathe.\n3. Drink 6–8 glasses of water each day. Avoid alcohol until you finish all of your antibiotics.\n4. Do breathing exercises three times a day to help your lungs. Breathe slowly through your nose for 4 seconds, hold for 2 seconds, then exhale slowly through your mouth for 6 seconds. Repeat ten times.\n5. Only go back to work or heavy activities when the doctor says it's okay.\n6. Stay away from cigarette smoke, dust, and strong smells while you are recovering.\n7. Call your doctor or go to the hospital if your symptoms get worse or you are not getting better.",
+    warnings:
+      "1. Call 911 or go to the emergency room right away for:\n- Severe shortness of breath while resting.\n- Blue or grey lips or fingers.\n- Sharp chest pain that moves to your arm or jaw.\n- Fever over 39.5°C that doesn't go down with medicine.\n- Coughing up a lot of blood.\n- Feeling confused or passing out.\n\n2. Call your doctor if:\n- You still have a fever over 38°C after 2 days on antibiotics.\n- You get a rash or reaction to medicine.\n- Your wheezing does not stop even after using an inhaler.\n- Your cough gets worse or you have other new symptoms like swelling in your leg.",
     medications: [
-      { name: "Azithromycin", dose: "250 mg", frequency: "Once daily", instructions: "1. Take 1 tablet every day at the same time.\n2. You can take it with or without food.\n3. Take all 4 days of medicine. Do not stop early, even if you feel better.\n4. Do not take antacids with aluminum or magnesium for 1 hour before or 2 hours after this medicine.\n5. Call your doctor if you have bad diarrhea or blood in your poop.\n6. Do not take this medicine if you are allergic to azithromycin, erythromycin, or macrolides.\n7. Do not take this medicine if you use heart medicines like amiodarone or sotalol." },
-      { name: "Prednisone", dose: "40 mg", frequency: "Once daily (morning, with food)", instructions: "1. Take 1 tablet in the morning with food or milk.\n2. Take it for 3 days exactly and finish all doses.\n3. Do not take it on an empty stomach.\n4. Stay away from anyone who has chickenpox or shingles.\n5. Tell your doctor before getting any vaccines.\n6. This medicine may make you hungrier, cranky, have trouble sleeping, make your face red, or increase blood sugar.\n7. Do not take this medicine if you have an untreated fungal infection or are allergic to corticosteroids." },
-      { name: "Salbutamol", dose: "2 puffs (90mcg/puff)", frequency: "Every 4–6 hours as needed", instructions: "1. Shake the inhaler well before each use.\n2. Breathe out fully.\n3. Inhale 2 puffs slowly and hold your breath for 10 seconds each time.\n4. Wait 1 minute between each puff.\n5. Rinse your mouth after using the inhaler if you experience discomfort in your throat.\n6. Go to the emergency room if you use more than 8 puffs in 24 hours and still feel bad, or if your symptoms do not get better in 20 minutes.\n7. Do not use the inhaler too much." },
-      { name: "Cetirizine", dose: "10 mg", frequency: "Once daily", instructions: "1. Take 1 tablet every day at the same time.\n2. You can take it with or without food.\n3. This medicine can make you sleepy. Do not drive or use machines if you feel sleepy.\n4. Do not drink alcohol while on this medicine because it will make you drowsier.\n5. Do not take this medicine if you have severe kidney problems or are allergic to cetirizine or levocetirizine." },
+      {
+        name: "Azithromycin",
+        dose: "250 mg",
+        frequency: "Once daily",
+        instructions:
+          "1. Take 1 tablet every day at the same time.\n2. You can take it with or without food.\n3. Take all 4 days of medicine. Do not stop early, even if you feel better.\n4. Do not take antacids with aluminum or magnesium for 1 hour before or 2 hours after this medicine.\n5. Call your doctor if you have bad diarrhea or blood in your poop.",
+      },
+      {
+        name: "Prednisone",
+        dose: "40 mg",
+        frequency: "Once daily (morning, with food)",
+        instructions:
+          "1. Take 1 tablet in the morning with food or milk.\n2. Take it for 3 days exactly and finish all doses.\n3. Do not take it on an empty stomach.",
+      },
+      {
+        name: "Salbutamol",
+        dose: "2 puffs (90mcg/puff)",
+        frequency: "Every 4–6 hours as needed",
+        instructions:
+          "1. Shake the inhaler well before each use.\n2. Breathe out fully.\n3. Inhale 2 puffs slowly and hold your breath for 10 seconds each time.\n4. Wait 1 minute between each puff.\n5. Rinse your mouth after using the inhaler if you experience discomfort in your throat.\n6. Go to the emergency room if you use more than 8 puffs in 24 hours and still feel bad, or if your symptoms do not get better in 20 minutes.\n7. Do not use the inhaler too much.",
+      },
+      {
+        name: "Cetirizine",
+        dose: "10 mg",
+        frequency: "Once daily",
+        instructions:
+          "1. Take 1 tablet every day at the same time.\n2. You can take it with or without food.\n3. This medicine can make you sleepy. Do not drive or use machines if you feel sleepy.\n4. Do not drink alcohol while on this medicine because it will make you drowsier.",
+      },
     ],
     appointments: [
-      { purpose: "Appointment 1: You need a check-up after pneumonia in your GP clinic. The doctor will make sure you are better, look at your chest X-ray, check that you have taken all your antibiotics, ask if you have symptoms, and go over your asthma plan.", date: "On or before February 28, 2026", time: "To be confirmed", location: "General Doctor (GP)", phone: "(555) 204-9300 (Call GP to book)" },
-      { purpose: "Appointment 2: You need to check your breathing and asthma in an outpatient respiratory clinic. The doctor will do tests to see how your lungs work and decide if you need long-term asthma medicine.", date: "To be confirmed within 4-6 weeks", time: "To be scheduled", location: "Lung Clinic (Outpatient Respiratory Clinic)", phone: "(555) 204-7700 (Contact number if not called by March 7)" },
+      {
+        purpose:
+          "Appointment 1: You need a check-up after pneumonia in your GP clinic. The doctor will make sure you are better, look at your chest X-ray, check that you have taken all your antibiotics, ask if you have symptoms, and go over your asthma plan.",
+        date: "On or before February 28, 2026",
+        time: "To be confirmed",
+        location: "General Doctor (GP)",
+        phone: "(555) 204-9300 (Call GP to book)",
+      },
+      {
+        purpose:
+          "Appointment 2: You need to check your breathing and asthma in an outpatient respiratory clinic. The doctor will do tests to see how your lungs work and decide if you need long-term asthma medicine.",
+        date: "To be confirmed within 4-6 weeks",
+        time: "To be scheduled",
+        location: "Lung Clinic (Outpatient Respiratory Clinic)",
+        phone: "(555) 204-7700 (Contact number if not called by March 7)",
+      },
     ],
   },
   es: {
-    diagnosis: "Usted tiene neumonía en la parte baja de su pulmón derecho. Este tipo de neumonía se llama neumonía adquirida en la comunidad. También tiene asma leve que va y viene, y alergias de temporada como la primavera. Cuando llegó al hospital, su oxígeno estaba bajo, pero ahora está mejor. Fue dada de alta del hospital el 18 de febrero y debe seguir las instrucciones a continuación.",
-    instructions: "1. Descanse pero aumente su actividad un poco cuando se sienta más fuerte.\n2. Duerma con la cabeza elevada para ayudarle a respirar.\n3. Tome de 6 a 8 vasos de agua cada día. Evite el alcohol hasta que termine todos sus antibióticos.\n4. Haga ejercicios de respiración tres veces al día para ayudar a sus pulmones. Respire lentamente por la nariz durante 4 segundos, mantenga por 2 segundos, luego exhale lentamente por la boca durante 6 segundos. Repita diez veces.\n5. Solo vuelva al trabajo o a actividades pesadas cuando el doctor se lo permita.\n6. Manténgase alejado del humo de cigarrillo, el polvo y los olores fuertes mientras se recupera.\n7. Llame a su doctor o vaya al hospital si sus síntomas empeoran o no mejora.",
-    warnings: "1. Llame al 911 o vaya a la sala de emergencias de inmediato si:\n- Tiene dificultad grave para respirar mientras descansa.\n- Sus labios o dedos están azules o grises.\n- Tiene dolor agudo en el pecho que se mueve al brazo o la mandíbula.\n- Tiene fiebre de más de 39.5°C que no baja con medicina.\n- Está tosiendo mucha sangre.\n- Se siente confundido o se desmaya.\n\n2. Llame a su doctor si:\n- Todavía tiene fiebre de más de 38°C después de 2 días con antibióticos.\n- Le sale un sarpullido o tiene reacción a la medicina.\n- Su silbido al respirar no se detiene aún después de usar el inhalador.\n- Su tos empeora o tiene otros síntomas nuevos como hinchazón en la pierna.",
+    diagnosis:
+      "Usted tiene neumonía en la parte baja de su pulmón derecho. Este tipo de neumonía se llama neumonía adquirida en la comunidad. También tiene asma leve que va y viene, y alergias de temporada como la primavera. Cuando llegó al hospital, su oxígeno estaba bajo, pero ahora está mejor. Fue dada de alta del hospital el 18 de febrero y debe seguir las instrucciones a continuación.",
+    instructions:
+      "1. Descanse pero aumente su actividad un poco cuando se sienta más fuerte.\n2. Duerma con la cabeza elevada para ayudarle a respirar.\n3. Tome de 6 a 8 vasos de agua cada día. Evite el alcohol hasta que termine todos sus antibióticos.\n4. Haga ejercicios de respiración tres veces al día para ayudar a sus pulmones. Respire lentamente por la nariz durante 4 segundos, mantenga por 2 segundos, luego exhale lentamente por la boca durante 6 segundos. Repita diez veces.\n5. Solo vuelva al trabajo o a actividades pesadas cuando el doctor se lo permita.\n6. Manténgase alejado del humo de cigarrillo, el polvo y los olores fuertes mientras se recupera.\n7. Llame a su doctor o vaya al hospital si sus síntomas empeoran o no mejora.",
+    warnings:
+      "1. Llame al 911 o vaya a la sala de emergencias de inmediato si:\n- Tiene dificultad grave para respirar mientras descansa.\n- Sus labios o dedos están azules o grises.\n- Tiene dolor agudo en el pecho que se mueve al brazo o la mandíbula.\n- Tiene fiebre de más de 39.5°C que no baja con medicina.\n- Está tosiendo mucha sangre.\n- Se siente confundido o se desmaya.\n\n2. Llame a su doctor si:\n- Todavía tiene fiebre de más de 38°C después de 2 días con antibióticos.\n- Le sale un sarpullido o tiene reacción a la medicina.\n- Su silbido al respirar no se detiene aún después de usar el inhalador.\n- Su tos empeora o tiene otros síntomas nuevos como hinchazón en la pierna.",
     medications: [
-      { name: "Azitromicina", dose: "250 mg", frequency: "Una vez al día", instructions: "1. Tome 1 tableta todos los días a la misma hora.\n2. Puede tomarla con o sin comida.\n3. Tome los 4 días completos de medicina. No deje de tomarla antes, aunque se sienta mejor.\n4. No tome antiácidos con aluminio o magnesio 1 hora antes o 2 horas después de esta medicina.\n5. Llame a su doctor si tiene diarrea fuerte o sangre en las heces.\n6. No tome esta medicina si es alérgico a la azitromicina, eritromicina o macrólidos.\n7. No tome esta medicina si usa medicinas para el corazón como amiodarona o sotalol." },
-      { name: "Prednisona", dose: "40 mg", frequency: "Una vez al día (mañana, con comida)", instructions: "1. Tome 1 tableta por la mañana con comida o leche.\n2. Tómela exactamente por 3 días y termine todas las dosis.\n3. No la tome con el estómago vacío.\n4. Manténgase alejado de personas con varicela o herpes zóster.\n5. Dígale a su doctor antes de recibir vacunas.\n6. Esta medicina puede aumentar el hambre, causar irritabilidad, dificultad para dormir, enrojecimiento facial o aumento del azúcar en la sangre.\n7. No tome esta medicina si tiene una infección por hongos sin tratar o es alérgico a los corticosteroides." },
-      { name: "Salbutamol", dose: "2 inhalaciones (90mcg/inhalación)", frequency: "Cada 4–6 horas según sea necesario", instructions: "1. Agite bien el inhalador antes de cada uso.\n2. Exhale completamente.\n3. Inhale 2 veces lentamente y sostenga la respiración por 10 segundos cada vez.\n4. Espere 1 minuto entre cada inhalación.\n5. Enjuague su boca después de usar el inhalador si siente molestia en la garganta.\n6. Vaya a la sala de emergencias si usa más de 8 inhalaciones en 24 horas y aún se siente mal, o si sus síntomas no mejoran en 20 minutos.\n7. No use el inhalador en exceso." },
-      { name: "Cetirizina", dose: "10 mg", frequency: "Una vez al día", instructions: "1. Tome 1 tableta todos los días a la misma hora.\n2. Puede tomarla con o sin comida.\n3. Esta medicina puede causar sueño. No conduzca ni use máquinas si tiene sueño.\n4. No beba alcohol mientras toma esta medicina porque le dará más sueño.\n5. No tome esta medicina si tiene problemas graves de riñón o es alérgico a la cetirizina o levocetirizina." },
+      {
+        name: "Azitromicina",
+        dose: "250 mg",
+        frequency: "Una vez al día",
+        instructions:
+          "1. Tome 1 tableta todos los días a la misma hora.\n2. Puede tomarla con o sin comida.\n3. Tome los 4 días completos de medicina. No deje de tomarla antes, aunque se sienta mejor.\n4. No tome antiácidos con aluminio o magnesio 1 hora antes o 2 horas después de esta medicina.\n5. Llame a su doctor si tiene diarrea fuerte o sangre en las heces.\n6. No tome esta medicina si es alérgico a la azitromicina, eritromicina o macrólidos.\n7. No tome esta medicina si usa medicinas para el corazón como amiodarona o sotalol.",
+      },
+      {
+        name: "Prednisona",
+        dose: "40 mg",
+        frequency: "Una vez al día (mañana, con comida)",
+        instructions:
+          "1. Tome 1 tableta por la mañana con comida o leche.\n2. Tómela exactamente por 3 días y termine todas las dosis.\n3. No la tome con el estómago vacío.\n4. Manténgase alejado de personas con varicela o herpes zóster.\n5. Dígale a su doctor antes de recibir vacunas.\n6. Esta medicina puede aumentar el hambre, causar irritabilidad, dificultad para dormir, enrojecimiento facial o aumento del azúcar en la sangre.\n7. No tome esta medicina si tiene una infección por hongos sin tratar o es alérgico a los corticosteroides.",
+      },
+      {
+        name: "Salbutamol",
+        dose: "2 inhalaciones (90mcg/inhalación)",
+        frequency: "Cada 4–6 horas según sea necesario",
+        instructions:
+          "1. Agite bien el inhalador antes de cada uso.\n2. Exhale completamente.\n3. Inhale 2 veces lentamente y sostenga la respiración por 10 segundos cada vez.\n4. Espere 1 minuto entre cada inhalación.\n5. Enjuague su boca después de usar el inhalador si siente molestia en la garganta.\n6. Vaya a la sala de emergencias si usa más de 8 inhalaciones en 24 horas y aún se siente mal, o si sus síntomas no mejoran en 20 minutos.\n7. No use el inhalador en exceso.",
+      },
+      {
+        name: "Cetirizina",
+        dose: "10 mg",
+        frequency: "Una vez al día",
+        instructions:
+          "1. Tome 1 tableta todos los días a la misma hora.\n2. Puede tomarla con o sin comida.\n3. Esta medicina puede causar sueño. No conduzca ni use máquinas si tiene sueño.\n4. No beba alcohol mientras toma esta medicina porque le dará más sueño.\n5. No tome esta medicina si tiene problemas graves de riñón o es alérgico a la cetirizina o levocetirizina.",
+      },
     ],
     appointments: [
-      { purpose: "Cita 1: Necesita un control después de la neumonía en su clínica de médico general. El doctor se asegurará de que está mejor, revisará su radiografía de pecho, verificará que haya tomado todos sus antibióticos, le preguntará si tiene síntomas y revisará su plan de asma.", date: "En o antes del 28 de febrero de 2026", time: "Por confirmar", location: "Médico General", phone: "(555) 204-9300 (Llame al médico general para agendar)" },
-      { purpose: "Cita 2: Necesita revisar su respiración y asma en una clínica respiratoria ambulatoria. El doctor hará pruebas para ver cómo funcionan sus pulmones y decidirá si necesita medicina para el asma a largo plazo.", date: "Por confirmar dentro de 4-6 semanas", time: "Por agendar", location: "Clínica Pulmonar (Clínica Respiratoria Ambulatoria)", phone: "(555) 204-7700 (Número de contacto si no le llaman antes del 7 de marzo)" },
+      {
+        purpose:
+          "Cita 1: Necesita un control después de la neumonía en su clínica de médico general. El doctor se asegurará de que está mejor, revisará su radiografía de pecho, verificará que haya tomado todos sus antibióticos, le preguntará si tiene síntomas y revisará su plan de asma.",
+        date: "En o antes del 28 de febrero de 2026",
+        time: "Por confirmar",
+        location: "Médico General",
+        phone: "(555) 204-9300 (Llame al médico general para agendar)",
+      },
+      {
+        purpose:
+          "Cita 2: Necesita revisar su respiración y asma en una clínica respiratoria ambulatoria. El doctor hará pruebas para ver cómo funcionan sus pulmones y decidirá si necesita medicina para el asma a largo plazo.",
+        date: "Por confirmar dentro de 4-6 semanas",
+        time: "Por agendar",
+        location: "Clínica Pulmonar (Clínica Respiratoria Ambulatoria)",
+        phone:
+          "(555) 204-7700 (Número de contacto si no le llaman antes del 7 de marzo)",
+      },
     ],
   },
 };
@@ -56,7 +145,8 @@ const SAMPLE_CARE_PLAN = {
 export default function ExperimentComprehension() {
   const [showEnglish, setShowEnglish] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const isTTSSupported = typeof window !== "undefined" && "speechSynthesis" in window;
+  const isTTSSupported =
+    typeof window !== "undefined" && "speechSynthesis" in window;
 
   const lang = showEnglish ? "en" : "es";
   const content = SAMPLE_CARE_PLAN[lang];
@@ -89,21 +179,26 @@ export default function ExperimentComprehension() {
 
   const t = ui[uiLang];
 
-  const speakSection = useCallback((text: string) => {
-    if (!text || !isTTSSupported) return;
-    window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = showEnglish ? "en-US" : "es-ES";
-    utterance.rate = 0.9;
-    const voices = window.speechSynthesis.getVoices();
-    const matchingVoice = voices.find(v => v.lang.startsWith(showEnglish ? "en" : "es"));
-    if (matchingVoice) utterance.voice = matchingVoice;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    setIsSpeaking(true);
-    window.speechSynthesis.speak(utterance);
-  }, [showEnglish, isTTSSupported]);
+  const speakSection = useCallback(
+    (text: string) => {
+      if (!text || !isTTSSupported) return;
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = showEnglish ? "en-US" : "es-ES";
+      utterance.rate = 0.9;
+      const voices = window.speechSynthesis.getVoices();
+      const matchingVoice = voices.find((v) =>
+        v.lang.startsWith(showEnglish ? "en" : "es"),
+      );
+      if (matchingVoice) utterance.voice = matchingVoice;
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      setIsSpeaking(true);
+      window.speechSynthesis.speak(utterance);
+    },
+    [showEnglish, isTTSSupported],
+  );
 
   const speakAll = useCallback(() => {
     if (isSpeaking) {
@@ -111,7 +206,14 @@ export default function ExperimentComprehension() {
       setIsSpeaking(false);
       return;
     }
-    const allText = [content.diagnosis, content.medications.map(m => `${m.name}, ${m.dose}, ${m.frequency}. ${m.instructions}`).join(" "), content.instructions, content.warnings].join(". ");
+    const allText = [
+      content.diagnosis,
+      content.medications
+        .map((m) => `${m.name}, ${m.dose}, ${m.frequency}. ${m.instructions}`)
+        .join(" "),
+      content.instructions,
+      content.warnings,
+    ].join(". ");
     speakSection(allText);
   }, [content, isSpeaking, speakSection]);
 
@@ -128,7 +230,9 @@ export default function ExperimentComprehension() {
             <div className="flex items-center gap-3">
               <div>
                 <h1 className="text-xl font-semibold">{t.yourCarePlan}</h1>
-                <p className="text-primary-foreground/80 text-sm">{SAMPLE_CARE_PLAN.patientName}</p>
+                <p className="text-primary-foreground/80 text-sm">
+                  {SAMPLE_CARE_PLAN.patientName}
+                </p>
               </div>
             </div>
             <Button
@@ -155,7 +259,13 @@ export default function ExperimentComprehension() {
                   {t.whatsWrong}
                 </div>
                 {isTTSSupported && (
-                  <Button variant="ghost" size="icon" onClick={() => speakSection(content.diagnosis)} data-testid="button-speak-diagnosis" className="h-8 w-8">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => speakSection(content.diagnosis)}
+                    data-testid="button-speak-diagnosis"
+                    className="h-8 w-8"
+                  >
                     <Volume2 className="h-4 w-4" />
                   </Button>
                 )}
@@ -176,7 +286,22 @@ export default function ExperimentComprehension() {
                   {t.medications}
                 </div>
                 {isTTSSupported && (
-                  <Button variant="ghost" size="icon" onClick={() => speakSection(content.medications.map(m => `${m.name}, ${m.dose}, ${m.frequency}. ${m.instructions}`).join(" "))} data-testid="button-speak-medications" className="h-8 w-8">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      speakSection(
+                        content.medications
+                          .map(
+                            (m) =>
+                              `${m.name}, ${m.dose}, ${m.frequency}. ${m.instructions}`,
+                          )
+                          .join(" "),
+                      )
+                    }
+                    data-testid="button-speak-medications"
+                    className="h-8 w-8"
+                  >
                     <Volume2 className="h-4 w-4" />
                   </Button>
                 )}
@@ -193,11 +318,26 @@ export default function ExperimentComprehension() {
                     <Clock className="h-4 w-4" />
                     <span>{med.frequency}</span>
                   </div>
-                  {med.instructions && (() => {
-                    const lines = med.instructions.split('\n').map((l: string) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
-                    if (lines.length <= 1) return <p className="text-sm text-muted-foreground mt-1">{lines[0] || ""}</p>;
-                    return <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 mt-1">{lines.map((l: string, i: number) => <li key={i}>{l}</li>)}</ol>;
-                  })()}
+                  {med.instructions &&
+                    (() => {
+                      const lines = med.instructions
+                        .split("\n")
+                        .map((l: string) => l.replace(/^\d+\.\s*/, "").trim())
+                        .filter(Boolean);
+                      if (lines.length <= 1)
+                        return (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {lines[0] || ""}
+                          </p>
+                        );
+                      return (
+                        <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 mt-1">
+                          {lines.map((l: string, i: number) => (
+                            <li key={i}>{l}</li>
+                          ))}
+                        </ol>
+                      );
+                    })()}
                 </div>
               ))}
             </CardContent>
@@ -219,7 +359,9 @@ export default function ExperimentComprehension() {
                   <div className="space-y-2 text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      <span>{apt.date} at {apt.time}</span>
+                      <span>
+                        {apt.date} at {apt.time}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4" />
@@ -247,7 +389,13 @@ export default function ExperimentComprehension() {
                   {t.whatToDo}
                 </div>
                 {isTTSSupported && (
-                  <Button variant="ghost" size="icon" onClick={() => speakSection(content.instructions)} data-testid="button-speak-instructions" className="h-8 w-8">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => speakSection(content.instructions)}
+                    data-testid="button-speak-instructions"
+                    className="h-8 w-8"
+                  >
                     <Volume2 className="h-4 w-4" />
                   </Button>
                 )}
@@ -255,7 +403,9 @@ export default function ExperimentComprehension() {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg dark:prose-invert max-w-none">
-                <p className="whitespace-pre-wrap leading-relaxed">{formatContent(content.instructions)}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">
+                  {formatContent(content.instructions)}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -270,7 +420,13 @@ export default function ExperimentComprehension() {
                   {t.warningSigns}
                 </div>
                 {isTTSSupported && (
-                  <Button variant="ghost" size="icon" onClick={() => speakSection(content.warnings)} data-testid="button-speak-warnings" className="h-8 w-8 text-destructive">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => speakSection(content.warnings)}
+                    data-testid="button-speak-warnings"
+                    className="h-8 w-8 text-destructive"
+                  >
                     <Volume2 className="h-4 w-4" />
                   </Button>
                 )}
@@ -279,7 +435,9 @@ export default function ExperimentComprehension() {
             </CardHeader>
             <CardContent>
               <div className="prose prose-lg dark:prose-invert max-w-none">
-                <p className="whitespace-pre-wrap leading-relaxed text-destructive/90">{formatContent(content.warnings)}</p>
+                <p className="whitespace-pre-wrap leading-relaxed text-destructive/90">
+                  {formatContent(content.warnings)}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -294,9 +452,15 @@ export default function ExperimentComprehension() {
             data-testid="button-read-aloud"
           >
             {isSpeaking ? (
-              <><VolumeX className="h-5 w-5" />{t.stopReading}</>
+              <>
+                <VolumeX className="h-5 w-5" />
+                {t.stopReading}
+              </>
             ) : (
-              <><Volume2 className="h-5 w-5" />{t.readAloud}</>
+              <>
+                <Volume2 className="h-5 w-5" />
+                {t.readAloud}
+              </>
             )}
           </Button>
         </div>
