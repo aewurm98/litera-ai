@@ -504,6 +504,7 @@ export default function PatientPortal() {
   const isClinicianPreview = (demoParam === "1" && isAppDemoMode) || !!previewToken || isPreviewMode;
   
   const [isVerified, setIsVerified] = useState(false);
+  const [isVerifyingPreview, setIsVerifyingPreview] = useState(!!previewToken);
   const [yearOfBirth, setYearOfBirth] = useState("");
   const [dateOfBirthInput, setDateOfBirthInput] = useState("");
   const [requiresDateOfBirth, setRequiresDateOfBirth] = useState(true);
@@ -557,7 +558,7 @@ export default function PatientPortal() {
         body: JSON.stringify({ previewToken }),
       }).then(r => r.json()).then(data => {
         if (data.verified) setIsVerified(true);
-      }).catch(() => {});
+      }).catch(() => {}).finally(() => setIsVerifyingPreview(false));
     }
   }, [previewToken, token]);
   const [showEnglish, setShowEnglish] = useState(false);
@@ -1012,6 +1013,17 @@ export default function PatientPortal() {
       )
     : birthFieldValid;
   
+  if (isVerifyingPreview) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading preview...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isVerified) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background flex items-center justify-center p-4">
