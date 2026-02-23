@@ -1,0 +1,16 @@
+node_modules
+dist
+.git
+.gitignore
+.replit
+replit.nix
+*.md
+*.tar.gz
+.DS_Store
+.env
+.env.*
+DEMO_CREDENTIALS.md
+TESTING_CREDENTIALS.md
+PRODUCTION_NOTES.md
+tests
+attached_assets
