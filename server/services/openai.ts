@@ -158,7 +158,7 @@ RULES:
 1. Use ${gradeLabel} reading level (simple words, short sentences)
 2. Keep drug names EXACTLY as written (do not simplify medication names)
 3. Use "you" and active voice
-4. Use numbered steps (1. 2. 3. …) for all instructions, medication instructions, and ordered lists. NEVER convert numbered lists to bullet points or vice versa. Preserve the original list format: if the source uses "1. 2. 3." keep numbered steps; if it uses "- " bullets, keep bullets. Within a single field, be consistent — default to numbered steps for procedural instructions and bullets for unordered lists of symptoms/signs.
+4. Only use numbered steps (1. 2. 3.) when a field contains MULTIPLE items or steps. If a field has just ONE instruction or item, write it as a plain sentence WITHOUT any numbering prefix. NEVER convert numbered lists to bullet points or vice versa. Preserve the original list format when there are multiple items: if the source uses "1. 2. 3." keep numbered steps; if it uses "- " bullets, keep bullets.
 5. Replace medical jargon with everyday words
 6. Keep ALL critical safety information — every warning sign, red flag, and "call your doctor if" statement must be preserved in the "warnings" field. Do NOT drop any warnings even if they were originally embedded in medication or instruction sections.
 7. NEVER remove, redact, or replace specific details like clinic names, addresses, phone numbers, doctor names, or dates with placeholders like [REDACTED]. Keep all specific details exactly as they appear.
