@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Settings, Building2, Shield, Loader2, UserPlus, Mail, Clock, User, Phone, Plus, Trash2 } from "lucide-react";
+import { Settings, Building2, Shield, Loader2, UserPlus, Mail, Clock, User, Phone, Plus, Trash2, AlertTriangle, FlaskConical } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 
@@ -25,6 +25,7 @@ type UserData = {
     name: string;
     slug: string;
     isDemo: boolean;
+    sandboxMode?: boolean;
     interpreterReviewMode: string;
     clinicPhoneNumbers?: PhoneEntry[];
   } | null;
@@ -64,6 +65,25 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Settings saved", description: "Tenant settings have been updated." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const sandboxMutation = useMutation({
+    mutationFn: async (data: { sandboxMode: boolean }) => {
+      const res = await apiRequest("PATCH", "/api/tenant/settings", data);
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({
+        title: variables.sandboxMode ? "Simulation mode enabled" : "Simulation mode disabled",
+        description: variables.sandboxMode
+          ? "No patient data will be saved. All uploads use pseudonymized data."
+          : "Normal operation restored. Data will be persisted as usual.",
+      });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -152,6 +172,37 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card className={user.tenant.sandboxMode ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20" : ""}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FlaskConical className="h-5 w-5" />
+              Simulation Mode
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              When enabled, the platform runs in simulation mode for pilot demonstrations. Patient data is pseudonymized, nothing is saved to the database, and all emails are redirected to the admin.
+            </p>
+            {user.tenant.sandboxMode && (
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-medium" data-testid="text-sandbox-active">
+                <AlertTriangle className="h-4 w-4" />
+                Simulation mode is active — no data is being saved
+              </div>
+            )}
+            <Button
+              variant={user.tenant.sandboxMode ? "destructive" : "outline"}
+              onClick={() => sandboxMutation.mutate({ sandboxMode: !user.tenant!.sandboxMode })}
+              disabled={sandboxMutation.isPending}
+              data-testid="button-toggle-sandbox"
+            >
+              {sandboxMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {user.tenant.sandboxMode ? "Disable Simulation Mode" : "Enable Simulation Mode"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {isAdmin && <ClinicPhoneNumbersSection phoneNumbers={user.tenant?.clinicPhoneNumbers || []} />}
 
