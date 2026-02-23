@@ -74,7 +74,7 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 - Scratch Pad (formerly "Reference Notes"): Collapsible textarea on care plan review using `sessionStorage` — never sent to server, vanishes on browser close
 - Settings page: "Simulation Mode" card with enable/disable toggle, active state indicator; toggling OFF clears all in-memory sandbox data
 - Patient portal: Dual-lookup pattern (database first, then sandbox in-memory) since portal lacks tenant session context
-- Document viewer: `originalFileData` preserved in sandbox memory (only `originalContent` text scrubbed) so uploaded documents remain viewable
+- Document viewer: Disabled in sandbox mode — `originalFileData`, `originalFileName`, and `originalContent` all nulled; document endpoint returns 403; frontend hides document link and shows "Discharge Instructions (simulation)"
 - Non-sandbox tenants completely unaffected — all sandbox logic is conditional/additive
 
 ### QA Audit & Code Cleanup (Complete)

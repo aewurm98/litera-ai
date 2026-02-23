@@ -1341,7 +1341,7 @@ export default function ClinicianDashboard() {
                   <Stethoscope className="h-5 w-5 text-primary" />
                   {selectedCarePlan.patient?.name || selectedCarePlan.extractedPatientName || "New Care Plan"}
                 </h1>
-                {selectedCarePlan.originalFileName ? (
+                {selectedCarePlan.originalFileName && !currentUser?.tenant?.sandboxMode ? (
                   <button
                     className="text-sm text-primary hover:underline flex items-center gap-1"
                     onClick={() => window.open(`/api/care-plans/${selectedCarePlan.id}/document`, "_blank")}
@@ -1351,7 +1351,7 @@ export default function ClinicianDashboard() {
                     {selectedCarePlan.originalFileName}
                   </button>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Discharge Summary</p>
+                  <p className="text-sm text-muted-foreground">Discharge Instructions {currentUser?.tenant?.sandboxMode ? "(simulation)" : ""}</p>
                 )}
               </div>
               <div className="flex items-center gap-2">

@@ -82,7 +82,7 @@ async function createCarePlanFromExtracted(
 
   if (sandbox) {
     const scrubbed = scrubCarePlanData(cpData, pseudoName);
-    cpData = { ...cpData, ...scrubbed, originalFileData: fileData, originalFileName: "upload.pdf" };
+    cpData = { ...cpData, ...scrubbed, originalFileData: null, originalFileName: null };
   }
 
   const carePlan = await store.createCarePlan(cpData);
@@ -482,7 +482,11 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      // If we have stored file data, serve it
+      const tenantInSandbox = carePlan.tenantId ? await isSandboxTenant(carePlan.tenantId) : false;
+      if (tenantInSandbox) {
+        return res.status(403).json({ error: "Document viewing is disabled in simulation mode" });
+      }
+
       if (carePlan.originalFileData) {
         const buffer = Buffer.from(carePlan.originalFileData, "base64");
         const filename = carePlan.originalFileName || "document.pdf";
@@ -1008,7 +1012,7 @@ export async function registerRoutes(
           adminEmail
         );
         const scrubbed = scrubCarePlanData(cpData, pseudoData.name);
-        cpData = { ...cpData, ...scrubbed };
+        cpData = { ...cpData, ...scrubbed, originalFileName: null };
       }
 
       const carePlan = await store.createCarePlan(cpData);
