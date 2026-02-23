@@ -16,6 +16,7 @@ import {
   Phone,
   FlaskConical,
 } from "lucide-react";
+import { formatContent } from "@/lib/utils";
 import CarePlanChatbot from "@/components/care-plan-chatbot";
 
 const SAMPLE_CARE_PLAN = {
@@ -51,10 +52,6 @@ const SAMPLE_CARE_PLAN = {
     ],
   },
 };
-
-function formatContent(content: string): string {
-  return content;
-}
 
 export default function ExperimentComprehension() {
   const [showEnglish, setShowEnglish] = useState(false);

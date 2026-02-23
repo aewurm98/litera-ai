@@ -21,6 +21,13 @@ export default function ResetPassword() {
   const [step, setStep] = useState<"request" | "reset">(token ? "reset" : "request");
   const [submitted, setSubmitted] = useState(false);
 
+  const hasMinLength = newPassword.length >= 8;
+  const hasUppercase = /[A-Z]/.test(newPassword);
+  const hasLowercase = /[a-z]/.test(newPassword);
+  const hasNumber = /[0-9]/.test(newPassword);
+  const hasSpecial = /[^A-Za-z0-9]/.test(newPassword);
+  const passwordValid = hasMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial;
+
   const requestResetMutation = useMutation({
     mutationFn: async (data: { email: string }) => {
       const res = await apiRequest("POST", "/api/auth/forgot-password", data);
@@ -59,11 +66,12 @@ export default function ResetPassword() {
       toast({ title: "Passwords don't match", variant: "destructive" });
       return;
     }
-    if (newPassword.length < 6) {
-      toast({ title: "Password must be at least 6 characters", variant: "destructive" });
+    if (!passwordValid) {
+      toast({ title: "Password must be at least 8 characters with uppercase, lowercase, number, and special character", variant: "destructive" });
       return;
     }
-    resetPasswordMutation.mutate({ token: token!, newPassword });
+    if (!token) return;
+    resetPasswordMutation.mutate({ token, newPassword });
   };
 
   return (
@@ -108,7 +116,7 @@ export default function ResetPassword() {
 
           {step === "request" && submitted && (
             <div className="text-center space-y-4">
-              <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+              <CheckCircle className="h-12 w-12 text-green-500 dark:text-green-400 mx-auto" />
               <p className="text-sm text-muted-foreground">
                 If an account with that recovery email exists, a reset link has been sent. Check your inbox.
               </p>
@@ -125,13 +133,37 @@ export default function ResetPassword() {
                 <Input
                   id="new-password"
                   type="password"
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 characters"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                   data-testid="input-new-password"
                 />
+                {newPassword.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1 mt-1">
+                    <div className={`flex items-center gap-1.5 text-xs ${hasMinLength ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                      {hasMinLength ? <CheckCircle className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-muted-foreground/40 inline-block" />}
+                      8+ characters
+                    </div>
+                    <div className={`flex items-center gap-1.5 text-xs ${hasUppercase ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                      {hasUppercase ? <CheckCircle className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-muted-foreground/40 inline-block" />}
+                      Uppercase
+                    </div>
+                    <div className={`flex items-center gap-1.5 text-xs ${hasLowercase ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                      {hasLowercase ? <CheckCircle className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-muted-foreground/40 inline-block" />}
+                      Lowercase
+                    </div>
+                    <div className={`flex items-center gap-1.5 text-xs ${hasNumber ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                      {hasNumber ? <CheckCircle className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-muted-foreground/40 inline-block" />}
+                      Number
+                    </div>
+                    <div className={`flex items-center gap-1.5 text-xs ${hasSpecial ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                      {hasSpecial ? <CheckCircle className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-muted-foreground/40 inline-block" />}
+                      Special char
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">Confirm Password</Label>
@@ -154,7 +186,7 @@ export default function ResetPassword() {
 
           {step === "reset" && submitted && (
             <div className="text-center space-y-4">
-              <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+              <CheckCircle className="h-12 w-12 text-green-500 dark:text-green-400 mx-auto" />
               <p className="text-sm text-muted-foreground">
                 Your password has been reset. You can now sign in with your new password.
               </p>

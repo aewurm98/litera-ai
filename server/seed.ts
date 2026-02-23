@@ -1,8 +1,11 @@
 import { db } from "./db";
 import { users, patients, carePlans, checkIns, auditLogs, tenants, chatMessages } from "@shared/schema";
-import { eq, inArray, and, isNotNull } from "drizzle-orm";
+import { eq, inArray, and, isNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { hashPassword } from "./auth";
+
+const DEMO_PASSWORD = "Password123!";
+const DEMO_PIN = "1234";
 
 function generateToken(): string {
   return randomBytes(32).toString("hex");
@@ -37,7 +40,7 @@ export async function seedDatabase(force: boolean = false) {
   await db.delete(users);
   await db.delete(tenants);
 
-  const hashedPassword = await hashPassword("Password123!");
+  const hashedPassword = await hashPassword(DEMO_PASSWORD);
 
   const [admin1] = await db.insert(users).values({
     username: "admin",
@@ -91,7 +94,7 @@ export async function resetDemoTenant() {
       inArray(auditLogs.userId, 
         db.select({ id: users.id }).from(users).where(inArray(users.tenantId, demoTenantIds))
       ),
-      eq(auditLogs.carePlanId, null as any)
+      isNull(auditLogs.carePlanId)
     )
   );
 
@@ -125,7 +128,7 @@ export async function resetDemoTenant() {
 }
 
 async function seedDemoData() {
-  const hashedPassword = await hashPassword("Password123!");
+  const hashedPassword = await hashPassword(DEMO_PASSWORD);
 
   // === TENANT 1: Riverside Community Health ===
   const [tenant1] = await db.insert(tenants).values({
@@ -231,7 +234,7 @@ async function seedDemoContent(
   clinician2: typeof users.$inferSelect,
   interpreter2: typeof users.$inferSelect,
 ) {
-  const hashedPin = await hashPassword("1234");
+  const hashedPin = await hashPassword(DEMO_PIN);
 
   // === Riverside Patients ===
   const [patient1] = await db.insert(patients).values({

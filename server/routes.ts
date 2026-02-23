@@ -1,5 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
-import { createServer, type Server } from "http";
+import { type Server } from "http";
 import multer from "multer";
 import { z } from "zod";
 import bcrypt from "bcrypt";
@@ -18,7 +18,7 @@ import { isDemoMode } from "./index";
 
 // Helper to generate a 4-digit PIN for patient verification
 function generatePin(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+  return crypto.randomInt(1000, 10000).toString();
 }
 
 // Helper to extract last name from full name
@@ -699,7 +699,7 @@ export async function registerRoutes(
 
     const hashed = await bcrypt.hash(parsed.data.newPassword, 10);
     await storage.updateUserPassword(user.id, hashed);
-    await storage.updateUser(user.id, { passwordResetToken: null as any, passwordResetExpiry: null as any });
+    await storage.updateUser(user.id, { passwordResetToken: null, passwordResetExpiry: null } as any);
 
     res.json({ message: "Password has been reset successfully. You can now log in." });
   });
@@ -829,7 +829,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "File is too large. Maximum size is 20MB." });
       }
       
-      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
       let extractedText = "";
 
@@ -888,7 +888,7 @@ export async function registerRoutes(
       }
 
       const { text, method, existingPatientId, patientName: inputPatientName, patientEmail: inputPatientEmail, patientYearOfBirth: inputYob, patientDateOfBirth: inputDob, preferredLanguage: inputLang } = parsed.data;
-      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
       const extracted = await extractDischargeContent(text);
@@ -964,7 +964,7 @@ export async function registerRoutes(
       const id = req.params.id as string;
       const { language, readingLevel: reqReadingLevel } = req.body;
       const readingLevel = typeof reqReadingLevel === "number" && reqReadingLevel >= 1 && reqReadingLevel <= 12 ? reqReadingLevel : 5;
-      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
       const carePlan = await storage.getCarePlan(id);
@@ -1054,7 +1054,7 @@ export async function registerRoutes(
   app.post("/api/care-plans/:id/save-draft", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
       const carePlan = await storage.getCarePlan(id);
@@ -1139,7 +1139,7 @@ export async function registerRoutes(
   app.post("/api/care-plans/:id/retranslate", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
       const carePlan = await storage.getCarePlan(id);
@@ -1266,7 +1266,7 @@ export async function registerRoutes(
   app.post("/api/care-plans/:id/approve", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
       const carePlan = await storage.getCarePlan(id);
@@ -1401,7 +1401,7 @@ export async function registerRoutes(
     try {
       const id = req.params.id as string;
       const { name, email, phone, yearOfBirth, dateOfBirth, preferredLanguage } = req.body;
-      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
 
       const carePlan = await storage.getCarePlan(id);
@@ -1521,7 +1521,7 @@ export async function registerRoutes(
   app.post("/api/care-plans/:id/send-test", requireClinicianAuth, async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const clinicianId = (req as any).clinicianId || "clinician-1";
+      const clinicianId = (req as any).clinicianId;
       const tenantId = req.session.tenantId;
       const user = await storage.getUser(clinicianId);
 
@@ -2262,18 +2262,17 @@ ${contextText}`
       if (typeof question === "string" && question.length > 2000) {
         return res.status(400).json({ error: "Question is too long (max 2000 characters)" });
       }
+      const contextString = JSON.stringify(carePlanContext);
+      if (contextString.length > 50000) {
+        return res.status(400).json({ error: "Care plan context is too large" });
+      }
       const ctx = carePlanContext;
       if (!ctx.diagnosis && !ctx.instructions && !ctx.warnings && !ctx.medications?.length && !ctx.appointments?.length) {
         return res.status(400).json({ error: "Care plan context must include at least one field (diagnosis, instructions, warnings, medications, or appointments)" });
       }
 
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        ...(process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && !process.env.OPENAI_API_KEY
-          ? { baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL }
-          : {}),
-      });
+      const { getOpenAIClient } = await import("./services/openai");
+      const openai = getOpenAIClient();
 
       const contextText = `
 Diagnosis: ${carePlanContext.diagnosis || ""}
@@ -3681,11 +3680,12 @@ ${contextText}`
   app.post("/api/internal/send-pending-check-ins", async (req: Request, res: Response) => {
     try {
       const internalSecret = process.env.INTERNAL_API_SECRET;
-      if (internalSecret) {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || authHeader !== `Bearer ${internalSecret}`) {
-          return res.status(401).json({ error: "Unauthorized" });
-        }
+      if (!internalSecret) {
+        return res.status(503).json({ error: "Internal API not configured" });
+      }
+      const authHeader = req.headers.authorization;
+      if (!authHeader || authHeader !== `Bearer ${internalSecret}`) {
+        return res.status(401).json({ error: "Unauthorized" });
       }
 
       const pendingCheckIns = await storage.getPendingCheckIns();
@@ -3727,14 +3727,7 @@ ${contextText}`
   });
 
   // Email diagnostic endpoint — checks if email service is configured and reachable
-  app.get("/api/admin/email-diagnostics", async (req: any, res) => {
-    if (!req.session?.userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const user = await storage.getUser(req.session.userId);
-    if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
-      return res.status(403).json({ error: "Admin access required" });
-    }
+  app.get("/api/admin/email-diagnostics", requireAdminAuth, async (req: Request, res: Response) => {
 
     const diagnostics: any = {
       timestamp: new Date().toISOString(),

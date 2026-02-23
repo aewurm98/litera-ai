@@ -39,6 +39,7 @@ import {
   Globe,
 } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
+import { getLanguageName } from "@/lib/utils";
 import { format, differenceInHours } from "date-fns";
 
 interface CarePlan {
@@ -71,10 +72,6 @@ interface CarePlan {
   updatedAt: string;
   patient?: { name: string; email: string; preferredLanguage: string } | null;
   clinician?: { name: string } | null;
-}
-
-function getLanguageName(code: string): string {
-  return SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code;
 }
 
 function ReviewPanel({ carePlan, onBack }: { carePlan: CarePlan; onBack: () => void }) {

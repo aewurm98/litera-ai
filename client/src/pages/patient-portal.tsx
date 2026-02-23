@@ -41,37 +41,10 @@ import {
 } from "lucide-react";
 import type { CarePlan, Patient, CheckIn } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
+import { formatContent, getLanguageName } from "@/lib/utils";
 import CarePlanChatbot from "@/components/care-plan-chatbot";
 
 type CarePlanWithPatient = CarePlan & { patient: Patient; checkIns?: CheckIn[] };
-
-// Helper function to format content that may be array or string
-function formatContent(content: string | string[] | null | undefined): string {
-  if (!content) return "";
-
-  const addNumbering = (items: string[]) => {
-    return items.map((item, i) => {
-      const cleaned = item.replace(/^\d+\.\s*/, '').trim();
-      return `${i + 1}. ${cleaned}`;
-    }).join("\n");
-  };
-
-  if (Array.isArray(content)) {
-    return addNumbering(content);
-  }
-
-  // Handle JSON string that looks like an array
-  if (typeof content === "string" && content.startsWith("{") && content.includes('","')) {
-    try {
-      // Try to parse as JSON array-like object
-      const cleaned = content.replace(/^\{"|"\}$/g, '').split('","');
-      return addNumbering(cleaned);
-    } catch {
-      return content;
-    }
-  }
-  return content;
-}
 
 // UI translations for patient portal
 const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
@@ -729,10 +702,6 @@ export default function PatientPortal() {
     setPasswordMutation.mutate({ password: newPassword });
   };
 
-  const getLanguageName = (code: string) => {
-    return SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code;
-  };
-
   const getLanguageCode = (code: string): string => {
     const languageMap: Record<string, string> = {
       en: "en-US", es: "es-ES", zh: "zh-CN", vi: "vi-VN", tl: "fil-PH",
@@ -1007,7 +976,7 @@ export default function PatientPortal() {
     y = doc.internal.pageSize.getHeight() - 20;
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("Emergency: Call 911 | Clinic: (555) 123-4567", pageWidth / 2, y, { align: "center" });
+    doc.text("Emergency: Call 911", pageWidth / 2, y, { align: "center" });
     
     // Save
     const fileName = `care-plan-${carePlan.patient.name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
@@ -1261,9 +1230,9 @@ export default function PatientPortal() {
                   {getTranslation(responseLang, "theyWillCall")}
                 </p>
                 <Button size="lg" className="gap-2" asChild>
-                  <a href="tel:+15551234567">
+                  <a href="tel:911">
                     <Phone className="h-5 w-5" />
-                    {getTranslation(responseLang, "callClinic")}: (555) 123-4567
+                    {getTranslation(responseLang, "emergency911")}
                   </a>
                 </Button>
               </>
@@ -1849,9 +1818,9 @@ export default function PatientPortal() {
             className="flex-1 h-14 text-lg gap-2"
             asChild
           >
-            <a href="tel:+15551234567">
+            <a href="tel:911">
               <Phone className="h-5 w-5" />
-              {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "callClinic")}
+              {getTranslation(showEnglish ? "en" : carePlan.translatedLanguage, "emergency911")}
             </a>
           </Button>
           <Button 

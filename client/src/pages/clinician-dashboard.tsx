@@ -85,43 +85,7 @@ import type {
   SimplifiedAppointment,
 } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
-
-// Helper function to format content that may be array or string (for display in textareas)
-function formatContent(content: string | string[] | null | undefined): string {
-  if (!content) return "";
-  
-  const addNumbering = (items: string[]) => {
-    return items.map((item, i) => {
-      const cleaned = item.replace(/^\d+\.\s*/, '').trim();
-      return `${i + 1}. ${cleaned}`;
-    }).join("\n");
-  };
-
-  if (Array.isArray(content)) {
-    return addNumbering(content);
-  }
-  
-  // Handle JSON string that looks like an array
-  if (typeof content === "string" && content.startsWith("{") && content.includes('","')) {
-    try {
-      const cleaned = content.replace(/^\{"|"\}$/g, '').split('","');
-      return addNumbering(cleaned);
-    } catch {
-      return content;
-    }
-  }
-  return content;
-}
-
-// Form field validation helpers
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function isValidYearOfBirth(year: string): boolean {
-  const yearNum = parseInt(year);
-  return !isNaN(yearNum) && yearNum >= 1900 && yearNum <= new Date().getFullYear();
-}
+import { formatContent, isValidEmail, isValidYearOfBirth, getLanguageName, viewAsPatient } from "@/lib/utils";
 
 function isValidDateOfBirth(dob: string): boolean {
   if (!dob) return false;
@@ -561,6 +525,7 @@ export default function ClinicianDashboard() {
         const response = await fetch("/api/care-plans/upload", {
           method: "POST",
           body: formData,
+          credentials: "include",
         });
         if (!response.ok) {
           const errBody = await response.json().catch(() => ({}));
@@ -1013,17 +978,9 @@ export default function ClinicianDashboard() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const handleViewAsPatient = async () => {
+  const handleViewAsPatient = () => {
     if (!selectedCarePlan?.accessToken || !selectedCarePlan?.id) return;
-    try {
-      await fetch(`/api/admin/preview-access/${selectedCarePlan.accessToken}`, {
-        method: "POST",
-        credentials: "include",
-      });
-      window.open(`/p/${selectedCarePlan.accessToken}`, "_blank");
-    } catch {
-      window.open(`/p/${selectedCarePlan.accessToken}`, "_blank");
-    }
+    viewAsPatient(selectedCarePlan.accessToken);
   };
 
   const handleScroll =
@@ -1877,9 +1834,7 @@ export default function ClinicianDashboard() {
                     <CardHeader className="pb-2 flex-shrink-0 bg-primary/5">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <Languages className="h-4 w-4 text-primary" />
-                        {SUPPORTED_LANGUAGES.find(
-                          (l) => l.code === selectedCarePlan.translatedLanguage,
-                        )?.name || "Translated"}
+                        {getLanguageName(selectedCarePlan.translatedLanguage || "") || "Translated"}
                       </CardTitle>
                       <CardDescription>
                         Patient's language

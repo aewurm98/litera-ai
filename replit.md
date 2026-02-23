@@ -63,6 +63,14 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 - Clinic phone numbers are passed into the simplification prompt so AI includes the most relevant number in each appointment's phone field
 - "Send Test to Me" flow now shows read-only preview mode (no password setup, no check-ins, preview banner)
 
+### QA Audit & Code Cleanup (Complete)
+- **Security fixes**: Closed unprotected internal scheduler endpoint (requires `INTERNAL_API_SECRET`), removed hardcoded `clinician-1` fallback from 8 routes, enforced consistent password policy in reset flow (8+ chars with complexity), fixed `Math.random()` → `crypto.randomInt()` for PIN generation, added `credentials: "include"` to upload and invite fetch calls, added context size limits to experiment chat endpoint
+- **Dead code removal**: Deleted `server/services/twilio.ts` and uninstalled `twilio` npm package (SMS removed in Phase A)
+- **Code deduplication**: Extracted 6 shared utilities to `client/src/lib/utils.ts` — `formatContent`, `getLanguageName`, `viewAsPatient`, `validatePassword`, `isValidEmail`, `isValidYearOfBirth` — replacing duplicates across 7 files
+- **Type safety**: Typed Resend connector response (removed `any`), replaced `isNotNull` with `isNull` in seed.ts, extracted demo constants (`DEMO_PASSWORD`, `DEMO_PIN`), fixed stale comments across schema/openai
+- **Moderate fixes**: Removed hardcoded placeholder phone `(555) 123-4567` from patient portal PDF/buttons, scoped chatbot localStorage dismissal key per care plan
+- **Documentation**: Updated `MIGRATION_GUIDE.md` (removed Twilio references, updated architecture diagram, added QA summary and recommended future work), updated `replit.md`
+
 ## System Architecture
 
 Litera.ai is built with a clear separation between its frontend, backend, and shared components.

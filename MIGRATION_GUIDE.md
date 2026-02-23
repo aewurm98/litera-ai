@@ -41,10 +41,6 @@
   │ Postgres│ │ OpenAI │ │ Resend  │
   │ (Neon)  │ │ GPT-4o │ │ (Email) │
   └─────────┘ └────────┘ └─────────┘
-                          ┌─────────┐
-                          │ Twilio  │
-                          │ (SMS)   │
-                          └─────────┘
 ```
 
 The app is a **monolithic Express server** that serves both the API and the pre-built React frontend. In development, Vite runs as middleware on the same server (server/vite.ts). In production, Express serves static files from `dist/public/` (server/static.ts).
@@ -97,10 +93,7 @@ The app is a **monolithic Express server** that serves both the API and the pre-
 
 | Variable | Feature | Notes |
 |---|---|---|
-| `TWILIO_ACCOUNT_SID` | SMS delivery | From twilio.com console |
-| `TWILIO_AUTH_TOKEN` | SMS delivery | |
-| `TWILIO_FROM_NUMBER` | SMS delivery | Twilio phone number with SMS capability |
-| `INTERNAL_API_SECRET` | Scheduler endpoint protection | Bearer token for `POST /api/internal/send-pending-check-ins` |
+| `INTERNAL_API_SECRET` | Scheduler endpoint protection | **Required** to enable `POST /api/internal/send-pending-check-ins`. Endpoint returns 503 if not set. |
 | `DEMO_MODE` | Force demo mode | Set to `"false"` to disable. Auto-disabled when `NODE_ENV=production`. |
 
 ### No Longer Needed (Replit-only)
@@ -395,7 +388,6 @@ Ensure these records exist for your sending domain:
 - [ ] Patient portal accessible via magic link
 - [ ] Care plan creation pipeline works (upload → extract → simplify → translate)
 - [ ] Email delivery works (Resend with `RESEND_API_KEY`)
-- [ ] SMS delivery works (if Twilio is configured)
 - [ ] Patient check-in (traffic light) submits correctly
 - [ ] Admin CSV export produces valid data
 - [ ] Analytics page loads with correct data
@@ -425,8 +417,23 @@ The code is designed for **dual-environment compatibility**: it works on both Re
 
 | File | Change |
 |---|---|
-| `server/services/resend.ts` | Added `RESEND_API_KEY` / `RESEND_FROM_EMAIL` env var fallback before Replit connector path |
-| `server/services/openai.ts` | Prefers `OPENAI_API_KEY` (standard) over `AI_INTEGRATIONS_OPENAI_API_KEY` (Replit proxy) |
-| `server/routes.ts` | Experiments chat endpoint uses same OpenAI fallback pattern |
-| `server/routes.ts` | Fixed send-test route (was referencing non-existent schema fields) |
-| `server/routes.ts` | Fixed `Set` iteration compatibility in analytics route |
+| `server/services/resend.ts` | Added `RESEND_API_KEY` / `RESEND_FROM_EMAIL` env var fallback before Replit connector path. Typed connector response shape. |
+| `server/services/openai.ts` | Prefers `OPENAI_API_KEY` (standard) over `AI_INTEGRATIONS_OPENAI_API_KEY` (Replit proxy). Exports `getOpenAIClient()` for shared usage. |
+| `server/routes.ts` | Experiments chat endpoint reuses shared OpenAI client. Internal check-in endpoint requires `INTERNAL_API_SECRET`. Removed all hardcoded user ID fallbacks. |
+| `server/services/twilio.ts` | **Deleted** — SMS/Twilio support removed in Phase A. `twilio` npm package uninstalled. |
+| `client/src/lib/utils.ts` | Shared utilities: `formatContent`, `getLanguageName`, `viewAsPatient`, `validatePassword`, `isValidEmail`, `isValidYearOfBirth`. |
+
+## QA Audit Summary (Feb 2026)
+
+### Changes Applied
+- **7 critical security fixes**: Unprotected internal endpoint, hardcoded `clinician-1` fallback, password policy bypass in reset flow, missing `credentials: "include"` on fetch calls, dead Twilio code removal, unauthenticated experiment chat context limits, `Math.random()` PIN generation → `crypto.randomInt()`
+- **6 code deduplication extractions**: `formatContent`, `getLanguageName`, `viewAsPatient`, `validatePassword`, `isValidEmail`, `isValidYearOfBirth` → shared `client/src/lib/utils.ts`
+- **Type safety improvements**: Removed `as any` casts where possible, proper null handling in seed data, typed Resend connector response
+- **Stale code cleanup**: Removed unused imports, fixed stale comments, extracted demo constants
+
+### Recommended Future Work
+- **Component extraction**: clinician-dashboard (2700 LOC), admin-dashboard (2100 LOC), patient-portal (1870 LOC) would benefit from sub-component extraction
+- **Express Request typing**: Extend Express `Request` interface to include `clinicianId`, `tenantId`, etc. instead of `(req as any).clinicianId`
+- **Query caching**: Current `staleTime: Infinity` means data never auto-refreshes; consider shorter stale times for multi-user scenarios
+- **Storage layer**: `getAlerts()` fetches all check-ins and filters in memory; should use SQL join for tenant filtering
+- **Database pool**: Add `pool.on('error', ...)` handler and configure connection limits

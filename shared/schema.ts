@@ -111,7 +111,7 @@ export const carePlans = pgTable("care_plans", {
   instructions: text("instructions"),
   warnings: text("warnings"),
   
-  // Simplified content (5th grade reading level)
+  // Simplified content (configurable reading level)
   simplifiedDiagnosis: text("simplified_diagnosis"),
   simplifiedMedications: jsonb("simplified_medications").$type<SimplifiedMedication[]>(),
   simplifiedAppointments: jsonb("simplified_appointments").$type<SimplifiedAppointment[]>(),

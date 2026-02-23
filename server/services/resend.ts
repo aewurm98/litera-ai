@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-let connectionSettings: any;
+let connectionSettings: { settings: { api_key: string; from_email?: string } } | null = null;
 
 async function getCredentials(): Promise<{ apiKey: string; fromEmail: string }> {
   if (process.env.RESEND_API_KEY) {

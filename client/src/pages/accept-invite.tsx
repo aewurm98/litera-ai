@@ -23,7 +23,7 @@ export default function AcceptInvite() {
   }>({
     queryKey: ["/api/invitations", token],
     queryFn: async () => {
-      const res = await fetch(`/api/invitations/${token}`);
+      const res = await fetch(`/api/invitations/${token}`, { credentials: "include" });
       if (!res.ok) throw new Error("Invalid invitation");
       return res.json();
     },
@@ -44,6 +44,7 @@ export default function AcceptInvite() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, username, password }),
+        credentials: "include",
       });
       if (!res.ok) {
         const data = await res.json();

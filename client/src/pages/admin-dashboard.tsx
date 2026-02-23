@@ -50,6 +50,7 @@ import {
 import { DialogFooter } from "@/components/ui/dialog";
 import type { CarePlan, Patient, CheckIn, AuditLog } from "@shared/schema";
 import { SUPPORTED_LANGUAGES } from "@shared/schema";
+import { viewAsPatient, getLanguageName } from "@/lib/utils";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 
 function formatDob(dateOfBirth: string | null, yearOfBirth: number): string {
@@ -116,15 +117,6 @@ type EnrichedPatient = {
   latestAccessToken: string | null;
 };
 
-async function viewAsPatient(accessToken: string) {
-  try {
-    await fetch(`/api/admin/preview-access/${accessToken}`, { method: "POST", credentials: "include" });
-    window.open(`/p/${accessToken}`, "_blank");
-  } catch {
-    window.open(`/p/${accessToken}`, "_blank");
-  }
-}
-
 function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPatient; getStatusBadge: (status: string) => JSX.Element }) {
   const [showDemographics, setShowDemographics] = useState(false);
   const { data: patientCarePlans = [], isLoading: carePlansLoading } = useQuery<CarePlanWithDetails[]>({
@@ -138,7 +130,7 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
   const latestCheckIn = latestCarePlan?.checkIns?.length
     ? latestCarePlan.checkIns.filter(c => c.response).sort((a, b) => new Date(b.respondedAt!).getTime() - new Date(a.respondedAt!).getTime())[0]
     : null;
-  const preferredLangName = SUPPORTED_LANGUAGES.find(l => l.code === patient.preferredLanguage)?.name || patient.preferredLanguage;
+  const preferredLangName = getLanguageName(patient.preferredLanguage);
 
   return (
     <ScrollArea className="flex-1 pr-4">
@@ -268,7 +260,7 @@ function PatientDetailContent({ patient, getStatusBadge }: { patient: EnrichedPa
                     <TableCell>{cp.clinician?.name || "\u2014"}</TableCell>
                     <TableCell>
                       {cp.translatedLanguage
-                        ? SUPPORTED_LANGUAGES.find(l => l.code === cp.translatedLanguage)?.name || cp.translatedLanguage
+                        ? getLanguageName(cp.translatedLanguage)
                         : <span className="text-muted-foreground">{preferredLangName} <span className="text-xs">(pending)</span></span>}
                     </TableCell>
                     <TableCell>
@@ -970,7 +962,7 @@ export default function AdminDashboard() {
                         <TableCell>{patient.phone || "\u2014"}</TableCell>
                         <TableCell>
                           <Badge variant="secondary">
-                            {SUPPORTED_LANGUAGES.find(l => l.code === patient.preferredLanguage)?.name || patient.preferredLanguage}
+                            {getLanguageName(patient.preferredLanguage)}
                           </Badge>
                         </TableCell>
                         <TableCell>{patient.carePlanCount}</TableCell>
@@ -1109,7 +1101,7 @@ export default function AdminDashboard() {
                                   )}
                                 </div>
                                 <Badge variant="secondary" className="text-[10px] shrink-0">
-                                  {SUPPORTED_LANGUAGES.find(l => l.code === patient.preferredLanguage)?.name || patient.preferredLanguage}
+                                  {getLanguageName(patient.preferredLanguage)}
                                 </Badge>
                               </div>
                               <p className="text-xs text-muted-foreground truncate" data-testid={`kanban-email-${patient.id}`}>{patient.email}</p>
@@ -1967,7 +1959,7 @@ export default function AdminDashboard() {
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground uppercase">Language</Label>
-                        <p>{SUPPORTED_LANGUAGES.find(l => l.code === selectedCarePlan.translatedLanguage)?.name || "-"}</p>
+                        <p>{selectedCarePlan.translatedLanguage ? getLanguageName(selectedCarePlan.translatedLanguage) : "-"}</p>
                       </div>
                     </div>
 
@@ -2083,7 +2075,7 @@ export default function AdminDashboard() {
                                     }
                                   </span>
                                   <span>
-                                    {SUPPORTED_LANGUAGES.find(l => l.code === plan.translatedLanguage)?.name || "-"}
+                                    {plan.translatedLanguage ? getLanguageName(plan.translatedLanguage) : "-"}
                                   </span>
                                 </div>
                               </div>

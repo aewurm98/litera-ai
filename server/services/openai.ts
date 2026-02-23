@@ -8,6 +8,10 @@ const openai = new OpenAI({
     : {}),
 });
 
+export function getOpenAIClient() {
+  return openai;
+}
+
 interface ExtractedContent {
   patientName: string;
   diagnosis: string;
@@ -128,7 +132,7 @@ interface SimplifyOptions {
   clinicPhoneNumbers?: Array<{ label: string; number: string }>;
 }
 
-// Simplify content to 5th grade reading level
+// Simplify content to specified reading level (default: 5th grade)
 export async function simplifyContent(extracted: ExtractedContent, readingLevelOrOptions: number | SimplifyOptions = 5): Promise<SimplifiedContent> {
   const options: SimplifyOptions = typeof readingLevelOrOptions === "number"
     ? { readingLevel: readingLevelOrOptions }

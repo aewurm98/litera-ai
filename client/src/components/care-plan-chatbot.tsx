@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageCircle, X, Send, Loader2 } from "lucide-react";
+import { getLanguageName } from "@/lib/utils";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -59,13 +60,6 @@ function getChatTranslation(lang: string, key: keyof typeof CHAT_UI["en"]): stri
   return CHAT_UI[lang]?.[key] || CHAT_UI["en"][key];
 }
 
-const LANG_NAMES: Record<string, string> = {
-  en: "English", es: "Spanish", zh: "Chinese", vi: "Vietnamese",
-  ar: "Arabic", ko: "Korean", tl: "Tagalog", fr: "French",
-  pt: "Portuguese", hi: "Hindi", ur: "Urdu", ru: "Russian",
-  ja: "Japanese", fa: "Farsi", pl: "Polish", ht: "Haitian Creole",
-};
-
 interface CarePlanChatbotProps {
   apiEndpoint: string;
   language: string;
@@ -74,9 +68,10 @@ interface CarePlanChatbotProps {
 }
 
 export default function CarePlanChatbot({ apiEndpoint, language, carePlanContext, bottomOffset = "6" }: CarePlanChatbotProps) {
+  const storageKey = `litera_chat_dismissed_${apiEndpoint.split('/').pop() || 'default'}`;
   const [chatOpen, setChatOpen] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('litera_chat_dismissed') !== 'true';
+      return localStorage.getItem(storageKey) !== 'true';
     }
     return false;
   });
@@ -102,7 +97,7 @@ export default function CarePlanChatbot({ apiEndpoint, language, carePlanContext
     try {
       const body: any = {
         question: userMsg,
-        language: LANG_NAMES[language] || language,
+        language: getLanguageName(language),
       };
       if (carePlanContext) {
         body.carePlanContext = carePlanContext;
@@ -142,7 +137,7 @@ export default function CarePlanChatbot({ apiEndpoint, language, carePlanContext
         <button
           onClick={() => {
             setChatOpen(false);
-            localStorage.setItem('litera_chat_dismissed', 'true');
+            localStorage.setItem(storageKey, 'true');
           }}
           className="fixed right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg z-50 print:hidden"
           style={{ bottom: `${parseInt(bottomOffset) * 4}px` }}
@@ -164,7 +159,7 @@ export default function CarePlanChatbot({ apiEndpoint, language, carePlanContext
             </div>
             <Button variant="ghost" size="icon" onClick={() => {
               setChatOpen(false);
-              localStorage.setItem('litera_chat_dismissed', 'true');
+              localStorage.setItem(storageKey, 'true');
             }} data-testid="button-chat-close-panel">
               <X className="h-4 w-4" />
             </Button>
