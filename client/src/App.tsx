@@ -63,6 +63,7 @@ import ExperimentLoginDemo from "@/pages/experiment-login-demo";
 import ExperimentInterpreter from "@/pages/experiment-interpreter";
 import AcceptInvite from "@/pages/accept-invite";
 import ResetPassword from "@/pages/reset-password";
+import { SandboxBanner } from "@/components/sandbox-banner";
 
 interface User {
   id: string;
@@ -70,7 +71,7 @@ interface User {
   role: string;
   roles: string[];
   tenantId?: string | null;
-  tenant?: { id: string; name: string; isDemo: boolean } | null;
+  tenant?: { id: string; name: string; isDemo: boolean; sandboxMode?: boolean } | null;
 }
 
 type DashboardTab = "clinician" | "admin" | "interpreter";
@@ -430,6 +431,7 @@ function MainLayout({ children, user }: { children: React.ReactNode; user: User 
       <div className="flex h-screen w-full">
         <AppSidebar user={user} />
         <div className="flex flex-col flex-1 overflow-hidden">
+          {user.tenant?.sandboxMode && <SandboxBanner />}
           <header className="flex items-center justify-between h-14 px-4 border-b bg-card shrink-0">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <ThemeToggle />

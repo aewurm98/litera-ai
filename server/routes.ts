@@ -2011,7 +2011,8 @@ export async function registerRoutes(
 
       // Strip internal AI-extraction field before returning to patient portal
       const { extractedPatientName: _omit, ...safePlan } = carePlan;
-      res.json({ ...safePlan, patient: safePatient, checkIns });
+      const tenantForPortal = carePlan.tenantId ? await store.getTenant(carePlan.tenantId) : null;
+      res.json({ ...safePlan, patient: safePatient, checkIns, sandboxMode: tenantForPortal?.sandboxMode === true });
     } catch (error) {
       console.error("Error fetching patient care plan:", error);
       res.status(500).json({ error: "Failed to fetch care plan" });

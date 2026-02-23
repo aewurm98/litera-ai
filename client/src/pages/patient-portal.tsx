@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
+import { SandboxBanner } from "@/components/sandbox-banner";
 import { 
   Heart, 
   Pill, 
@@ -1370,6 +1371,7 @@ export default function PatientPortal() {
 
   return (
     <div className="min-h-screen bg-background">
+      {(carePlan as any)?.sandboxMode && <SandboxBanner />}
       {/* Password Setup Dialog - shown after first successful verification */}
       <Dialog open={showPasswordSetup} onOpenChange={setShowPasswordSetup}>
         <DialogContent className="max-w-md">
