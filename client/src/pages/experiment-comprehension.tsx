@@ -193,14 +193,11 @@ export default function ExperimentComprehension() {
                     <Clock className="h-4 w-4" />
                     <span>{med.frequency}</span>
                   </div>
-                  {med.instructions && (
-                    <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 mt-1">
-                      {med.instructions.split('\n').map((line, i) => {
-                        const cleaned = line.replace(/^\d+\.\s*/, '').trim();
-                        return cleaned ? <li key={i}>{cleaned}</li> : null;
-                      })}
-                    </ol>
-                  )}
+                  {med.instructions && (() => {
+                    const lines = med.instructions.split('\n').map((l: string) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
+                    if (lines.length <= 1) return <p className="text-sm text-muted-foreground mt-1">{lines[0] || ""}</p>;
+                    return <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 mt-1">{lines.map((l: string, i: number) => <li key={i}>{l}</li>)}</ol>;
+                  })()}
                 </div>
               ))}
             </CardContent>

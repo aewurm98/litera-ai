@@ -218,12 +218,11 @@ function MedicationsList({
                         data-testid={`input-med-instr-${columnId}-${index}`}
                       />
                     ) : (
-                      <ol className="text-xs text-muted-foreground mt-1 list-decimal list-inside space-y-0.5">
-                        {instrVal.split('\n').map((line: string, i: number) => {
-                          const cleaned = line.replace(/^\d+\.\s*/, '').trim();
-                          return cleaned ? <li key={i}>{cleaned}</li> : null;
-                        })}
-                      </ol>
+                      (() => {
+                        const lines = instrVal.split('\n').map((l: string) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean);
+                        if (lines.length <= 1) return <p className="text-xs text-muted-foreground mt-1">{lines[0] || ""}</p>;
+                        return <ol className="text-xs text-muted-foreground mt-1 list-decimal list-inside space-y-0.5">{lines.map((l: string, i: number) => <li key={i}>{l}</li>)}</ol>;
+                      })()
                     )
                   )}
                 </>);
