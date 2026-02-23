@@ -65,15 +65,16 @@ Litera.ai is a healthcare companion platform that assists clinicians in generati
 
 ### Phase H - PHIPA-Compliant Sandbox Mode (Complete)
 - Per-tenant `sandboxMode` boolean toggle in settings (admin-only)
-- `server/sandbox.ts`: In-memory storage adapter for patients, care plans, check-ins, audit logs, and chat messages — no PHI persisted to database
-- Pseudonymization: Patient names replaced with "Patient A/B/C...", emails/phones scrubbed, DOB generalized to year-only
-- Storage adapter pattern: `getStore(req)` routes operations to sandbox or database storage transparently
-- Email redirection: All patient emails in sandbox mode redirect to tenant admin's recovery email
+- `server/sandbox.ts`: Copy-on-write in-memory storage adapter — DB seed data visible read-only, new/modified records stored in-memory only, deleted IDs tracked to hide from listings
+- Pseudonymization: Patient names replaced with "Patient A/B/C..." in all upload paths (file, text, paste), emails/phones scrubbed, DOB generalized to year-only
+- Storage adapter pattern: `createSandboxAdapter(storage, tenantId)` wraps IStorage with copy-on-write semantics; `getStore(req)` routes operations transparently
+- Email redirection: All patient emails in sandbox mode redirect to tenant admin's recovery email; Send Care Plan dialog shows amber notice about redirection
 - AI integration: Initial extraction unavoidable, but all downstream AI calls (simplification, translation, chatbot) use pseudonymized data only
 - `SandboxBanner` component: Persistent amber banner ("Simulation Mode — No data is saved") across clinician dashboard, patient portal, and admin pages
-- Session-only reference notes: Collapsible textarea on care plan review using `sessionStorage` — never sent to server, vanishes on browser close
-- Settings page: "Simulation Mode" card with enable/disable toggle, active state indicator
+- Scratch Pad (formerly "Reference Notes"): Collapsible textarea on care plan review using `sessionStorage` — never sent to server, vanishes on browser close
+- Settings page: "Simulation Mode" card with enable/disable toggle, active state indicator; toggling OFF clears all in-memory sandbox data
 - Patient portal: Dual-lookup pattern (database first, then sandbox in-memory) since portal lacks tenant session context
+- Document viewer: `originalFileData` preserved in sandbox memory (only `originalContent` text scrubbed) so uploaded documents remain viewable
 - Non-sandbox tenants completely unaffected — all sandbox logic is conditional/additive
 
 ### QA Audit & Code Cleanup (Complete)
