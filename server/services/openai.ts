@@ -155,7 +155,7 @@ export async function simplifyContent(extracted: ExtractedContent, readingLevelO
         content: `You are a health literacy expert. Rewrite medical content for patients with limited health literacy.
 
 RULES:
-1. Use ${gradeLabel} reading level (simple words, short sentences)
+1. Use ${gradeLabel} reading level (simple words, short sentences). Be CONCISE — use the fewest words needed to convey meaning clearly. Avoid filler phrases, repetition, and unnecessary elaboration.
 2. Keep drug names EXACTLY as written (do not simplify medication names)
 3. Use "you" and active voice
 4. Only use numbered steps (1. 2. 3.) when a field contains MULTIPLE items or steps. If a field has just ONE instruction or item, write it as a plain sentence WITHOUT any numbering prefix. NEVER convert numbered lists to bullet points or vice versa. Preserve the original list format when there are multiple items: if the source uses "1. 2. 3." keep numbered steps; if it uses "- " bullets, keep bullets.

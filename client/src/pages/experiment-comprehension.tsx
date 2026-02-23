@@ -85,25 +85,25 @@ const SAMPLE_CARE_PLAN = {
   },
   es: {
     diagnosis:
-      "Usted tiene neumonía en la parte baja de su pulmón derecho. Este tipo de neumonía se llama neumonía adquirida en la comunidad. También tiene asma leve que va y viene, y alergias de temporada como la primavera. Cuando llegó al hospital, su oxígeno estaba bajo, pero ahora está mejor. Fue dada de alta del hospital el 18 de febrero y debe seguir las instrucciones a continuación.",
+      "Usted tiene neumonía en la parte baja de su pulmón derecho. Este tipo de neumonía se llama neumonía adquirida en la comunidad. También tiene asma leve que va y viene, y alergias estacionales como en la primavera. Cuando llegó al hospital, su oxígeno estaba bajo, pero ahora está mejor. Fue dada de alta del hospital el 18 de febrero y debe seguir las instrucciones a continuación.",
     instructions:
-      "1. Descanse pero aumente su actividad un poco cuando se sienta más fuerte.\n2. Duerma con la cabeza elevada para ayudarle a respirar.\n3. Tome de 6 a 8 vasos de agua cada día. Evite el alcohol hasta que termine todos sus antibióticos.\n4. Haga ejercicios de respiración tres veces al día para ayudar a sus pulmones. Respire lentamente por la nariz durante 4 segundos, mantenga por 2 segundos, luego exhale lentamente por la boca durante 6 segundos. Repita diez veces.\n5. Solo vuelva al trabajo o a actividades pesadas cuando el doctor se lo permita.\n6. Manténgase alejado del humo de cigarrillo, el polvo y los olores fuertes mientras se recupera.\n7. Llame a su doctor o vaya al hospital si sus síntomas empeoran o no mejora.",
+      "1. Descanse, pero aumente su actividad poco a poco cuando se sienta más fuerte.\n2. Duerma con la cabeza elevada para respirar mejor.\n3. Tome de 6 a 8 vasos de agua al día. No tome alcohol hasta terminar todos los antibióticos.\n4. Haga ejercicios de respiración tres veces al día. Respire lentamente por la nariz durante 4 segundos, sostenga por 2 segundos, luego exhale lentamente por la boca durante 6 segundos. Repita diez veces.\n5. Vuelva al trabajo o a actividades pesadas solo cuando el doctor se lo permita.\n6. Manténgase alejado del humo de cigarrillo, el polvo y los olores fuertes mientras se recupera.\n7. Llame a su doctor o vaya al hospital si sus síntomas empeoran o no mejora.",
     warnings:
-      "1. Llame al 911 o vaya a la sala de emergencias de inmediato si:\n- Tiene dificultad grave para respirar mientras descansa.\n- Sus labios o dedos están azules o grises.\n- Tiene dolor agudo en el pecho que se mueve al brazo o la mandíbula.\n- Tiene fiebre de más de 39.5°C que no baja con medicina.\n- Está tosiendo mucha sangre.\n- Se siente confundido o se desmaya.\n\n2. Llame a su doctor si:\n- Todavía tiene fiebre de más de 38°C después de 2 días con antibióticos.\n- Le sale un sarpullido o tiene reacción a la medicina.\n- Su silbido al respirar no se detiene aún después de usar el inhalador.\n- Su tos empeora o tiene otros síntomas nuevos como hinchazón en la pierna.",
+      "1. Llame al 911 o vaya a la sala de emergencias de inmediato si:\n- Tiene dificultad grave para respirar estando en reposo.\n- Sus labios o dedos se ponen azules o grises.\n- Tiene dolor agudo en el pecho que se extiende al brazo o la mandíbula.\n- Tiene fiebre de más de 39.5°C que no baja con medicina.\n- Tose mucha sangre.\n- Se siente confundido o se desmaya.\n\n2. Llame a su doctor si:\n- Todavía tiene fiebre de más de 38°C después de 2 días con antibióticos.\n- Le sale un sarpullido o tiene una reacción a la medicina.\n- Su silbido al respirar no se detiene después de usar el inhalador.\n- Su tos empeora o tiene síntomas nuevos como hinchazón en la pierna.",
     medications: [
       {
         name: "Azitromicina",
         dose: "250 mg",
         frequency: "Una vez al día",
         instructions:
-          "1. Tome 1 tableta todos los días a la misma hora.\n2. Puede tomarla con o sin comida.\n3. Tome los 4 días completos de medicina. No deje de tomarla antes, aunque se sienta mejor.\n4. No tome antiácidos con aluminio o magnesio 1 hora antes o 2 horas después de esta medicina.\n5. Llame a su doctor si tiene diarrea fuerte o sangre en las heces.\n6. No tome esta medicina si es alérgico a la azitromicina, eritromicina o macrólidos.\n7. No tome esta medicina si usa medicinas para el corazón como amiodarona o sotalol.",
+          "1. Tome 1 tableta todos los días a la misma hora.\n2. Puede tomarla con o sin comida.\n3. Tome los 4 días completos de medicina. No deje de tomarla antes, aunque se sienta mejor.\n4. No tome antiácidos con aluminio o magnesio 1 hora antes o 2 horas después de esta medicina.\n5. Llame a su doctor si tiene diarrea fuerte o sangre en las heces.",
       },
       {
         name: "Prednisona",
         dose: "40 mg",
         frequency: "Una vez al día (mañana, con comida)",
         instructions:
-          "1. Tome 1 tableta por la mañana con comida o leche.\n2. Tómela exactamente por 3 días y termine todas las dosis.\n3. No la tome con el estómago vacío.\n4. Manténgase alejado de personas con varicela o herpes zóster.\n5. Dígale a su doctor antes de recibir vacunas.\n6. Esta medicina puede aumentar el hambre, causar irritabilidad, dificultad para dormir, enrojecimiento facial o aumento del azúcar en la sangre.\n7. No tome esta medicina si tiene una infección por hongos sin tratar o es alérgico a los corticosteroides.",
+          "1. Tome 1 tableta por la mañana con comida o leche.\n2. Tómela exactamente por 3 días y termine todas las dosis.\n3. No la tome con el estómago vacío.",
       },
       {
         name: "Salbutamol",
@@ -117,13 +117,13 @@ const SAMPLE_CARE_PLAN = {
         dose: "10 mg",
         frequency: "Una vez al día",
         instructions:
-          "1. Tome 1 tableta todos los días a la misma hora.\n2. Puede tomarla con o sin comida.\n3. Esta medicina puede causar sueño. No conduzca ni use máquinas si tiene sueño.\n4. No beba alcohol mientras toma esta medicina porque le dará más sueño.\n5. No tome esta medicina si tiene problemas graves de riñón o es alérgico a la cetirizina o levocetirizina.",
+          "1. Tome 1 tableta todos los días a la misma hora.\n2. Puede tomarla con o sin comida.\n3. Esta medicina puede causar sueño. No conduzca ni use máquinas si tiene sueño.\n4. No beba alcohol mientras toma esta medicina porque le dará más sueño.",
       },
     ],
     appointments: [
       {
         purpose:
-          "Cita 1: Necesita un control después de la neumonía en su clínica de médico general. El doctor se asegurará de que está mejor, revisará su radiografía de pecho, verificará que haya tomado todos sus antibióticos, le preguntará si tiene síntomas y revisará su plan de asma.",
+          "Cita 1: Necesita un control después de la neumonía en su clínica de médico general. El doctor verificará que esté mejor, revisará su radiografía de pecho, confirmará que tomó todos los antibióticos, preguntará por sus síntomas y revisará su plan de asma.",
         date: "En o antes del 28 de febrero de 2026",
         time: "Por confirmar",
         location: "Médico General",

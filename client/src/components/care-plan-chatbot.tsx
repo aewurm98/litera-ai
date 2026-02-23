@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageCircle, X, Send, Loader2 } from "lucide-react";
 import { getLanguageName } from "@/lib/utils";
 
@@ -164,7 +163,7 @@ export default function CarePlanChatbot({ apiEndpoint, language, carePlanContext
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <ScrollArea className="flex-1 p-4" style={{ maxHeight: "calc(60vh - 8rem)" }}>
+          <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: "calc(60vh - 8rem)" }}>
             <div className="space-y-3">
               {chatMessages.length === 0 && (
                 <div className="p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
@@ -192,7 +191,7 @@ export default function CarePlanChatbot({ apiEndpoint, language, carePlanContext
               )}
               <div ref={chatEndRef} />
             </div>
-          </ScrollArea>
+          </div>
           <div className="p-3 border-t flex gap-2">
             <Input
               value={chatInput}
