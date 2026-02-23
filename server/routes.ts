@@ -15,7 +15,7 @@ import {
 import { sendCarePlanEmail, sendCheckInEmail, sendTeamInviteEmail, sendPasswordResetEmail, getUncachableResendClient } from "./services/resend";
 import { SUPPORTED_LANGUAGES, insertPatientSchema, type Patient } from "@shared/schema";
 import { isDemoMode } from "./index";
-import { isSandboxTenant, getAdminEmailForTenant, pseudonymizePatientData, scrubCarePlanData, createSandboxAdapter, findSandboxCarePlanByToken } from "./sandbox";
+import { isSandboxTenant, getAdminEmailForTenant, pseudonymizePatientData, scrubCarePlanData, createSandboxAdapter, findSandboxCarePlanByToken, clearSandboxData } from "./sandbox";
 
 // Helper to generate a 4-digit PIN for patient verification
 function generatePin(): string {
@@ -51,7 +51,18 @@ async function createCarePlanFromExtracted(
     }
   }
 
-  const pseudoName = matchedPatientId ? (await store.getPatient(matchedPatientId))?.name : undefined;
+  let pseudoName: string | undefined;
+  if (sandbox && tenantId) {
+    const adminEmail = await getAdminEmailForTenant(tenantId);
+    const pseudoData = pseudonymizePatientData(
+      { name: extracted.patientName || "Unknown", email: "placeholder@sandbox", yearOfBirth: 1970, tenantId },
+      tenantId,
+      adminEmail
+    );
+    pseudoName = pseudoData.name;
+  } else if (matchedPatientId) {
+    pseudoName = (await store.getPatient(matchedPatientId))?.name;
+  }
 
   let cpData: any = {
     clinicianId,
@@ -70,7 +81,8 @@ async function createCarePlanFromExtracted(
   };
 
   if (sandbox) {
-    cpData = { ...cpData, ...scrubCarePlanData(cpData, pseudoName || extracted.patientName) };
+    const scrubbed = scrubCarePlanData(cpData, pseudoName);
+    cpData = { ...cpData, ...scrubbed, originalFileData: fileData, originalFileName: "upload.pdf" };
   }
 
   const carePlan = await store.createCarePlan(cpData);
@@ -765,6 +777,9 @@ export async function registerRoutes(
       }
       if (parsed.data.sandboxMode !== undefined) {
         updateData.sandboxMode = parsed.data.sandboxMode;
+        if (!parsed.data.sandboxMode) {
+          clearSandboxData(tenantId);
+        }
       }
       if (parsed.data.clinicPhoneNumbers !== undefined) {
         updateData.clinicPhoneNumbers = parsed.data.clinicPhoneNumbers;
@@ -985,9 +1000,15 @@ export async function registerRoutes(
         warnings: extracted.warnings,
       };
 
-      if (sandbox) {
-        const pseudoName = matchedPatientId ? (await store.getPatient(matchedPatientId))?.name : undefined;
-        cpData = { ...cpData, ...scrubCarePlanData(cpData, pseudoName || extracted.patientName) };
+      if (sandbox && tenantId) {
+        const adminEmail = await getAdminEmailForTenant(tenantId);
+        const pseudoData = pseudonymizePatientData(
+          { name: extracted.patientName || "Unknown", email: "placeholder@sandbox", yearOfBirth: 1970, tenantId },
+          tenantId,
+          adminEmail
+        );
+        const scrubbed = scrubCarePlanData(cpData, pseudoData.name);
+        cpData = { ...cpData, ...scrubbed };
       }
 
       const carePlan = await store.createCarePlan(cpData);

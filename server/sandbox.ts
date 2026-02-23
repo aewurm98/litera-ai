@@ -5,9 +5,9 @@ import type {
   CheckIn, InsertCheckIn,
   AuditLog, InsertAuditLog,
   ChatMessage, InsertChatMessage,
-  Tenant,
 } from "@shared/schema";
 import crypto from "crypto";
+import type { IStorage } from "./storage";
 
 const tenantPatientCounters = new Map<string, number>();
 const sandboxPatients = new Map<string, Map<string, Patient>>();
@@ -15,9 +15,16 @@ const sandboxCarePlans = new Map<string, Map<string, CarePlan>>();
 const sandboxCheckIns = new Map<string, Map<string, CheckIn>>();
 const sandboxAuditLogs = new Map<string, Map<string, AuditLog>>();
 const sandboxChatMessages = new Map<string, Map<string, ChatMessage>>();
+const sandboxDeletedCarePlanIds = new Map<string, Set<string>>();
+const sandboxDeletedPatientIds = new Map<string, Set<string>>();
 
 function getMap<T>(store: Map<string, Map<string, T>>, tenantId: string): Map<string, T> {
   if (!store.has(tenantId)) store.set(tenantId, new Map());
+  return store.get(tenantId)!;
+}
+
+function getDeletedSet(store: Map<string, Set<string>>, tenantId: string): Set<string> {
+  if (!store.has(tenantId)) store.set(tenantId, new Set());
   return store.get(tenantId)!;
 }
 
@@ -61,12 +68,14 @@ export function pseudonymizePatientData(
 export function scrubCarePlanData(data: Partial<CarePlan>, pseudoName?: string): Partial<CarePlan> {
   const scrubbed = { ...data };
   scrubbed.originalContent = null;
-  scrubbed.originalFileData = null;
-  if (data.originalFileName) {
-    scrubbed.originalFileName = "upload.pdf";
-  }
   if (pseudoName) {
     scrubbed.extractedPatientName = pseudoName;
+    if (scrubbed.diagnosis && typeof scrubbed.diagnosis === "string") {
+      const realName = data.extractedPatientName;
+      if (realName) {
+        scrubbed.diagnosis = scrubbed.diagnosis.replace(new RegExp(realName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), pseudoName);
+      }
+    }
   }
   return scrubbed;
 }
@@ -91,302 +100,20 @@ export async function getAdminEmailForTenant(tenantId: string): Promise<string> 
   return admin?.recoveryEmail || admin?.username || "admin@sandbox.local";
 }
 
-export const sandboxStorage = {
-  async createPatient(patient: InsertPatient, tenantId: string): Promise<Patient> {
-    const id = genId();
-    const now = new Date();
-    const record: Patient = {
-      id,
-      name: patient.name,
-      lastName: patient.lastName || null,
-      email: patient.email,
-      phone: patient.phone || null,
-      yearOfBirth: patient.yearOfBirth,
-      dateOfBirth: patient.dateOfBirth || null,
-      pin: patient.pin || null,
-      password: patient.password || null,
-      preferredLanguage: patient.preferredLanguage || "en",
-      isTestPatient: patient.isTestPatient || false,
-      tenantId: patient.tenantId || null,
-      createdAt: now,
-    };
-    getMap(sandboxPatients, tenantId).set(id, record);
-    return record;
-  },
-
-  async getPatient(id: string, tenantId: string): Promise<Patient | undefined> {
-    return getMap(sandboxPatients, tenantId).get(id);
-  },
-
-  async getPatientByEmail(email: string, tenantId: string): Promise<Patient | undefined> {
-    const map = getMap(sandboxPatients, tenantId);
-    for (const p of map.values()) {
-      if (p.email === email) return p;
-    }
-    return undefined;
-  },
-
-  async findPatientByName(name: string, tenantId: string): Promise<Patient | undefined> {
-    const normalized = name.toLowerCase().trim();
-    const map = getMap(sandboxPatients, tenantId);
-    for (const p of map.values()) {
-      if (p.name.toLowerCase().trim() === normalized) return p;
-    }
-    return undefined;
-  },
-
-  async getAllPatients(tenantId: string): Promise<Patient[]> {
-    return Array.from(getMap(sandboxPatients, tenantId).values())
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  },
-
-  async updatePatient(id: string, data: Partial<Patient>, tenantId: string): Promise<Patient | undefined> {
-    const map = getMap(sandboxPatients, tenantId);
-    const existing = map.get(id);
-    if (!existing) return undefined;
-    const updated = { ...existing, ...data };
-    map.set(id, updated);
-    return updated;
-  },
-
-  async updatePatientPassword(id: string, hashedPassword: string, tenantId: string): Promise<void> {
-    const map = getMap(sandboxPatients, tenantId);
-    const existing = map.get(id);
-    if (existing) {
-      map.set(id, { ...existing, password: hashedPassword });
-    }
-  },
-
-  async deletePatient(id: string, tenantId: string): Promise<boolean> {
-    return getMap(sandboxPatients, tenantId).delete(id);
-  },
-
-  async createCarePlan(data: InsertCarePlan, tenantId: string): Promise<CarePlan> {
-    const id = genId();
-    const now = new Date();
-    const record: CarePlan = {
-      id,
-      patientId: data.patientId || null,
-      clinicianId: data.clinicianId || null,
-      tenantId: data.tenantId || null,
-      status: data.status || "draft",
-      originalContent: data.originalContent || null,
-      originalFileName: data.originalFileName || null,
-      originalFileData: data.originalFileData || null,
-      extractedPatientName: data.extractedPatientName || null,
-      diagnosis: data.diagnosis || null,
-      medications: data.medications || null,
-      appointments: data.appointments || null,
-      instructions: data.instructions || null,
-      warnings: data.warnings || null,
-      simplifiedDiagnosis: data.simplifiedDiagnosis || null,
-      simplifiedMedications: data.simplifiedMedications || null,
-      simplifiedAppointments: data.simplifiedAppointments || null,
-      simplifiedInstructions: data.simplifiedInstructions || null,
-      simplifiedWarnings: data.simplifiedWarnings || null,
-      translatedLanguage: data.translatedLanguage || null,
-      translatedDiagnosis: data.translatedDiagnosis || null,
-      translatedMedications: data.translatedMedications || null,
-      translatedAppointments: data.translatedAppointments || null,
-      translatedInstructions: data.translatedInstructions || null,
-      translatedWarnings: data.translatedWarnings || null,
-      backTranslatedDiagnosis: data.backTranslatedDiagnosis || null,
-      backTranslatedInstructions: data.backTranslatedInstructions || null,
-      backTranslatedWarnings: data.backTranslatedWarnings || null,
-      accessToken: data.accessToken || null,
-      accessTokenExpiry: data.accessTokenExpiry || null,
-      interpreterReviewedBy: data.interpreterReviewedBy || null,
-      interpreterReviewedAt: data.interpreterReviewedAt || null,
-      interpreterNotes: data.interpreterNotes || null,
-      readingLevel: data.readingLevel ?? 5,
-      approvedBy: data.approvedBy || null,
-      approvedAt: data.approvedAt || null,
-      dischargeDate: data.dischargeDate || null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    getMap(sandboxCarePlans, tenantId).set(id, record);
-    return record;
-  },
-
-  async getCarePlan(id: string, tenantId: string): Promise<CarePlan | undefined> {
-    return getMap(sandboxCarePlans, tenantId).get(id);
-  },
-
-  async getCarePlanByToken(token: string, tenantId: string): Promise<CarePlan | undefined> {
-    const map = getMap(sandboxCarePlans, tenantId);
-    for (const cp of map.values()) {
-      if (cp.accessToken === token) return cp;
-    }
-    return undefined;
-  },
-
-  async getCarePlansByClinicianId(clinicianId: string, tenantId: string): Promise<CarePlan[]> {
-    return Array.from(getMap(sandboxCarePlans, tenantId).values())
-      .filter(cp => cp.clinicianId === clinicianId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  },
-
-  async getAllCarePlans(tenantId: string): Promise<CarePlan[]> {
-    return Array.from(getMap(sandboxCarePlans, tenantId).values())
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  },
-
-  async updateCarePlan(id: string, data: Partial<CarePlan>, tenantId: string): Promise<CarePlan | undefined> {
-    const map = getMap(sandboxCarePlans, tenantId);
-    const existing = map.get(id);
-    if (!existing) return undefined;
-    const updated = { ...existing, ...data, updatedAt: new Date() };
-    map.set(id, updated);
-    return updated;
-  },
-
-  async deleteCarePlan(id: string, tenantId: string): Promise<boolean> {
-    const cpMap = getMap(sandboxCarePlans, tenantId);
-    const ciMap = getMap(sandboxCheckIns, tenantId);
-    const alMap = getMap(sandboxAuditLogs, tenantId);
-    const cmMap = getMap(sandboxChatMessages, tenantId);
-    for (const [k, v] of ciMap) { if (v.carePlanId === id) ciMap.delete(k); }
-    for (const [k, v] of alMap) { if (v.carePlanId === id) alMap.delete(k); }
-    for (const [k, v] of cmMap) { if (v.carePlanId === id) cmMap.delete(k); }
-    return cpMap.delete(id);
-  },
-
-  async getCarePlansByPatientId(patientId: string, tenantId: string): Promise<CarePlan[]> {
-    return Array.from(getMap(sandboxCarePlans, tenantId).values())
-      .filter(cp => cp.patientId === patientId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  },
-
-  async createCheckIn(data: InsertCheckIn, tenantId: string): Promise<CheckIn> {
-    const id = genId();
-    const record: CheckIn = {
-      id,
-      carePlanId: data.carePlanId,
-      patientId: data.patientId,
-      scheduledFor: data.scheduledFor,
-      sentAt: data.sentAt || null,
-      attemptNumber: data.attemptNumber ?? 1,
-      response: data.response || null,
-      respondedAt: data.respondedAt || null,
-      responseNotes: data.responseNotes || null,
-      alertCreated: data.alertCreated || false,
-      alertResolvedAt: data.alertResolvedAt || null,
-      alertResolvedBy: data.alertResolvedBy || null,
-      createdAt: new Date(),
-    };
-    getMap(sandboxCheckIns, tenantId).set(id, record);
-    return record;
-  },
-
-  async getCheckIn(id: string, tenantId: string): Promise<CheckIn | undefined> {
-    return getMap(sandboxCheckIns, tenantId).get(id);
-  },
-
-  async getCheckInsByCarePlanId(carePlanId: string, tenantId: string): Promise<CheckIn[]> {
-    return Array.from(getMap(sandboxCheckIns, tenantId).values())
-      .filter(ci => ci.carePlanId === carePlanId);
-  },
-
-  async getCheckInsByPatientId(patientId: string, tenantId: string): Promise<CheckIn[]> {
-    return Array.from(getMap(sandboxCheckIns, tenantId).values())
-      .filter(ci => ci.patientId === patientId);
-  },
-
-  async updateCheckIn(id: string, data: Partial<CheckIn>, tenantId: string): Promise<CheckIn | undefined> {
-    const map = getMap(sandboxCheckIns, tenantId);
-    const existing = map.get(id);
-    if (!existing) return undefined;
-    const updated = { ...existing, ...data };
-    map.set(id, updated);
-    return updated;
-  },
-
-  async createAuditLog(data: InsertAuditLog, tenantId: string): Promise<AuditLog> {
-    const id = genId();
-    const scrubbed = scrubAuditLogData(data);
-    const record: AuditLog = {
-      id,
-      carePlanId: scrubbed.carePlanId || null,
-      userId: scrubbed.userId || null,
-      action: scrubbed.action,
-      details: scrubbed.details || null,
-      ipAddress: null,
-      userAgent: null,
-      createdAt: new Date(),
-    };
-    getMap(sandboxAuditLogs, tenantId).set(id, record);
-    return record;
-  },
-
-  async getAuditLogsByCarePlanId(carePlanId: string, tenantId: string): Promise<AuditLog[]> {
-    return Array.from(getMap(sandboxAuditLogs, tenantId).values())
-      .filter(al => al.carePlanId === carePlanId)
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  },
-
-  async createChatMessage(data: InsertChatMessage, tenantId: string): Promise<ChatMessage> {
-    const id = genId();
-    const record: ChatMessage = {
-      id,
-      carePlanId: data.carePlanId,
-      patientId: data.patientId,
-      role: data.role,
-      content: data.content,
-      language: data.language || "en",
-      createdAt: new Date(),
-    };
-    getMap(sandboxChatMessages, tenantId).set(id, record);
-    return record;
-  },
-
-  async getChatMessages(carePlanId: string, patientId: string, tenantId: string): Promise<ChatMessage[]> {
-    return Array.from(getMap(sandboxChatMessages, tenantId).values())
-      .filter(cm => cm.carePlanId === carePlanId && cm.patientId === patientId)
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  },
-
-  async getAlerts(tenantId: string): Promise<Array<{
-    id: string;
-    carePlanId: string;
-    patientName: string;
-    response: "yellow" | "red";
-    respondedAt: Date;
-    resolved: boolean;
-    resolvedAt?: Date | null;
-  }>> {
-    const checkIns = Array.from(getMap(sandboxCheckIns, tenantId).values())
-      .filter(ci => ci.response === "yellow" || ci.response === "red");
-    const cpMap = getMap(sandboxCarePlans, tenantId);
-    const pMap = getMap(sandboxPatients, tenantId);
-
-    return checkIns.map(ci => {
-      const cp = cpMap.get(ci.carePlanId);
-      const patientName = (cp?.patientId && pMap.get(cp.patientId)?.name) || "Unknown";
-      return {
-        id: ci.id,
-        carePlanId: ci.carePlanId,
-        patientName,
-        response: ci.response as "yellow" | "red",
-        respondedAt: ci.respondedAt || new Date(),
-        resolved: !!ci.alertResolvedAt,
-        resolvedAt: ci.alertResolvedAt,
-      };
-    }).sort((a, b) => b.respondedAt.getTime() - a.respondedAt.getTime());
-  },
-
-  async resolveAlert(checkInId: string, resolvedBy: string, tenantId: string): Promise<void> {
-    const map = getMap(sandboxCheckIns, tenantId);
-    const ci = map.get(checkInId);
-    if (ci) {
-      map.set(checkInId, { ...ci, alertResolvedAt: new Date(), alertResolvedBy: resolvedBy });
-    }
-  },
-};
+export function clearSandboxData(tenantId: string): void {
+  getMap(sandboxPatients, tenantId).clear();
+  getMap(sandboxCarePlans, tenantId).clear();
+  getMap(sandboxCheckIns, tenantId).clear();
+  getMap(sandboxAuditLogs, tenantId).clear();
+  getMap(sandboxChatMessages, tenantId).clear();
+  getDeletedSet(sandboxDeletedCarePlanIds, tenantId).clear();
+  getDeletedSet(sandboxDeletedPatientIds, tenantId).clear();
+  tenantPatientCounters.delete(tenantId);
+}
 
 export function findSandboxCarePlanByToken(token: string): { carePlan: CarePlan; tenantId: string } | undefined {
-  for (const [tenantId, cpMap] of sandboxCarePlans) {
-    for (const cp of cpMap.values()) {
+  for (const [tenantId, cpMap] of Array.from(sandboxCarePlans.entries())) {
+    for (const cp of Array.from(cpMap.values())) {
       if (cp.accessToken === token) return { carePlan: cp, tenantId };
     }
   }
@@ -394,16 +121,79 @@ export function findSandboxCarePlanByToken(token: string): { carePlan: CarePlan;
 }
 
 export function findSandboxCheckIn(checkInId: string): { checkIn: CheckIn; tenantId: string } | undefined {
-  for (const [tenantId, ciMap] of sandboxCheckIns) {
+  for (const [tenantId, ciMap] of Array.from(sandboxCheckIns.entries())) {
     const ci = ciMap.get(checkInId);
     if (ci) return { checkIn: ci, tenantId };
   }
   return undefined;
 }
 
-import type { IStorage } from "./storage";
+function makeCarePlanRecord(data: InsertCarePlan, id: string): CarePlan {
+  const now = new Date();
+  return {
+    id,
+    patientId: data.patientId || null,
+    clinicianId: data.clinicianId || null,
+    tenantId: data.tenantId || null,
+    status: data.status || "draft",
+    originalContent: data.originalContent || null,
+    originalFileName: data.originalFileName || null,
+    originalFileData: data.originalFileData || null,
+    extractedPatientName: data.extractedPatientName || null,
+    diagnosis: data.diagnosis || null,
+    medications: data.medications || null,
+    appointments: data.appointments || null,
+    instructions: data.instructions || null,
+    warnings: data.warnings || null,
+    simplifiedDiagnosis: data.simplifiedDiagnosis || null,
+    simplifiedMedications: data.simplifiedMedications || null,
+    simplifiedAppointments: data.simplifiedAppointments || null,
+    simplifiedInstructions: data.simplifiedInstructions || null,
+    simplifiedWarnings: data.simplifiedWarnings || null,
+    translatedLanguage: data.translatedLanguage || null,
+    translatedDiagnosis: data.translatedDiagnosis || null,
+    translatedMedications: data.translatedMedications || null,
+    translatedAppointments: data.translatedAppointments || null,
+    translatedInstructions: data.translatedInstructions || null,
+    translatedWarnings: data.translatedWarnings || null,
+    backTranslatedDiagnosis: data.backTranslatedDiagnosis || null,
+    backTranslatedInstructions: data.backTranslatedInstructions || null,
+    backTranslatedWarnings: data.backTranslatedWarnings || null,
+    accessToken: data.accessToken || null,
+    accessTokenExpiry: data.accessTokenExpiry || null,
+    interpreterReviewedBy: data.interpreterReviewedBy || null,
+    interpreterReviewedAt: data.interpreterReviewedAt || null,
+    interpreterNotes: data.interpreterNotes || null,
+    readingLevel: data.readingLevel ?? 5,
+    approvedBy: data.approvedBy || null,
+    approvedAt: data.approvedAt || null,
+    dischargeDate: data.dischargeDate || null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 export function createSandboxAdapter(tenantId: string): IStorage {
+  const sbPatients = () => getMap(sandboxPatients, tenantId);
+  const sbCarePlans = () => getMap(sandboxCarePlans, tenantId);
+  const sbCheckIns = () => getMap(sandboxCheckIns, tenantId);
+  const sbAuditLogs = () => getMap(sandboxAuditLogs, tenantId);
+  const sbChatMessages = () => getMap(sandboxChatMessages, tenantId);
+  const deletedCpIds = () => getDeletedSet(sandboxDeletedCarePlanIds, tenantId);
+  const deletedPtIds = () => getDeletedSet(sandboxDeletedPatientIds, tenantId);
+
+  async function copyCarePlanToSandbox(dbCarePlan: CarePlan): Promise<CarePlan> {
+    const copy = { ...dbCarePlan };
+    sbCarePlans().set(copy.id, copy);
+    return copy;
+  }
+
+  async function copyPatientToSandbox(dbPatient: Patient): Promise<Patient> {
+    const copy = { ...dbPatient };
+    sbPatients().set(copy.id, copy);
+    return copy;
+  }
+
   return {
     getUser: (id) => storage.getUser(id),
     getUserByUsername: (u) => storage.getUserByUsername(u),
@@ -425,46 +215,357 @@ export function createSandboxAdapter(tenantId: string): IStorage {
     getTeamInvitations: (t) => storage.getTeamInvitations(t),
     updateTeamInvitation: (id, d) => storage.updateTeamInvitation(id, d),
 
-    getPatient: (id) => sandboxStorage.getPatient(id, tenantId),
-    getPatientByEmail: (email, _t) => sandboxStorage.getPatientByEmail(email, tenantId),
-    findPatientByName: (name, _t) => sandboxStorage.findPatientByName(name, tenantId),
-    getAllPatients: (_t) => sandboxStorage.getAllPatients(tenantId),
-    createPatient: (p) => sandboxStorage.createPatient(p, tenantId),
-    updatePatient: (id, d) => sandboxStorage.updatePatient(id, d, tenantId),
-    updatePatientPassword: (id, p) => sandboxStorage.updatePatientPassword(id, p, tenantId),
-    deletePatient: (id) => sandboxStorage.deletePatient(id, tenantId),
-    cleanupOldTestPatients: async () => 0,
-    getCarePlansByPatientId: (pid, _t) => sandboxStorage.getCarePlansByPatientId(pid, tenantId),
-
-    getCarePlan: (id) => sandboxStorage.getCarePlan(id, tenantId),
-    getCarePlanByToken: (token) => sandboxStorage.getCarePlanByToken(token, tenantId),
-    getCarePlansByClinicianId: (cid, _t) => sandboxStorage.getCarePlansByClinicianId(cid, tenantId),
-    getAllCarePlans: (_t) => sandboxStorage.getAllCarePlans(tenantId),
-    createCarePlan: (cp) => sandboxStorage.createCarePlan(cp, tenantId),
-    updateCarePlan: (id, d) => sandboxStorage.updateCarePlan(id, d, tenantId),
-    deleteCarePlan: (id) => sandboxStorage.deleteCarePlan(id, tenantId),
-
-    getCheckIn: (id) => sandboxStorage.getCheckIn(id, tenantId),
-    getCheckInsByCarePlanId: (cpid) => sandboxStorage.getCheckInsByCarePlanId(cpid, tenantId),
-    getCheckInsByPatientId: (pid) => sandboxStorage.getCheckInsByPatientId(pid, tenantId),
-    getPendingCheckIns: async () => [],
-    createCheckIn: (ci) => sandboxStorage.createCheckIn(ci, tenantId),
-    updateCheckIn: (id, d) => sandboxStorage.updateCheckIn(id, d, tenantId),
-
-    getAuditLogsByCarePlanId: (cpid) => sandboxStorage.getAuditLogsByCarePlanId(cpid, tenantId),
-    createAuditLog: (log) => sandboxStorage.createAuditLog(log, tenantId),
-
-    getAlerts: (_t) => sandboxStorage.getAlerts(tenantId),
-    resolveAlert: (ciid, by) => sandboxStorage.resolveAlert(ciid, by, tenantId),
-    clearAllData: async () => {
-      getMap(sandboxPatients, tenantId).clear();
-      getMap(sandboxCarePlans, tenantId).clear();
-      getMap(sandboxCheckIns, tenantId).clear();
-      getMap(sandboxAuditLogs, tenantId).clear();
-      getMap(sandboxChatMessages, tenantId).clear();
+    async getPatient(id) {
+      if (deletedPtIds().has(id)) return undefined;
+      const sbPt = sbPatients().get(id);
+      if (sbPt) return sbPt;
+      return storage.getPatient(id);
     },
 
-    getChatMessages: (cpid, pid) => sandboxStorage.getChatMessages(cpid, pid, tenantId),
-    createChatMessage: (msg) => sandboxStorage.createChatMessage(msg, tenantId),
+    async getPatientByEmail(email, _t) {
+      for (const p of Array.from(sbPatients().values())) {
+        if (p.email === email) return p;
+      }
+      const dbPt = await storage.getPatientByEmail(email, tenantId);
+      if (dbPt && !deletedPtIds().has(dbPt.id)) return dbPt;
+      return undefined;
+    },
+
+    async findPatientByName(name, _t) {
+      const normalized = name.toLowerCase().trim();
+      for (const p of Array.from(sbPatients().values())) {
+        if (p.name.toLowerCase().trim() === normalized) return p;
+      }
+      const dbPt = await storage.findPatientByName(name, tenantId);
+      if (dbPt && !deletedPtIds().has(dbPt.id)) return dbPt;
+      return undefined;
+    },
+
+    async getAllPatients(_t) {
+      const dbPatients = await storage.getAllPatients(tenantId);
+      const sbMap = sbPatients();
+      const deleted = deletedPtIds();
+      const merged = new Map<string, Patient>();
+      for (const p of dbPatients) {
+        if (!deleted.has(p.id) && !sbMap.has(p.id)) {
+          merged.set(p.id, p);
+        }
+      }
+      for (const p of Array.from(sbMap.values())) {
+        merged.set(p.id, p);
+      }
+      return Array.from(merged.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    },
+
+    async createPatient(p) {
+      const id = genId();
+      const now = new Date();
+      const record: Patient = {
+        id,
+        name: p.name,
+        lastName: p.lastName || null,
+        email: p.email,
+        phone: p.phone || null,
+        yearOfBirth: p.yearOfBirth,
+        dateOfBirth: p.dateOfBirth || null,
+        pin: p.pin || null,
+        password: p.password || null,
+        preferredLanguage: p.preferredLanguage || "en",
+        isTestPatient: p.isTestPatient || false,
+        tenantId: p.tenantId || null,
+        createdAt: now,
+      };
+      sbPatients().set(id, record);
+      return record;
+    },
+
+    async updatePatient(id, d) {
+      let record = sbPatients().get(id);
+      if (!record) {
+        const dbPt = await storage.getPatient(id);
+        if (!dbPt || deletedPtIds().has(id)) return undefined;
+        record = await copyPatientToSandbox(dbPt);
+      }
+      const updated = { ...record, ...d };
+      sbPatients().set(id, updated);
+      return updated;
+    },
+
+    async updatePatientPassword(id, p) {
+      let record = sbPatients().get(id);
+      if (!record) {
+        const dbPt = await storage.getPatient(id);
+        if (!dbPt) return;
+        record = await copyPatientToSandbox(dbPt);
+      }
+      sbPatients().set(id, { ...record, password: p });
+    },
+
+    async deletePatient(id) {
+      const sbMap = sbPatients();
+      if (sbMap.has(id)) {
+        sbMap.delete(id);
+        return true;
+      }
+      deletedPtIds().add(id);
+      return true;
+    },
+
+    cleanupOldTestPatients: async () => 0,
+
+    async getCarePlansByPatientId(pid, _t) {
+      const dbPlans = await storage.getCarePlansByPatientId(pid, tenantId);
+      const sbMap = sbCarePlans();
+      const deleted = deletedCpIds();
+      const merged = new Map<string, CarePlan>();
+      for (const cp of dbPlans) {
+        if (!deleted.has(cp.id) && !sbMap.has(cp.id)) {
+          merged.set(cp.id, cp);
+        }
+      }
+      for (const cp of Array.from(sbMap.values())) {
+        if (cp.patientId === pid) merged.set(cp.id, cp);
+      }
+      return Array.from(merged.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    },
+
+    async getCarePlan(id) {
+      if (deletedCpIds().has(id)) return undefined;
+      const sbCp = sbCarePlans().get(id);
+      if (sbCp) return sbCp;
+      return storage.getCarePlan(id);
+    },
+
+    async getCarePlanByToken(token) {
+      for (const cp of Array.from(sbCarePlans().values())) {
+        if (cp.accessToken === token) return cp;
+      }
+      return storage.getCarePlanByToken(token);
+    },
+
+    async getCarePlansByClinicianId(cid, _t) {
+      const dbPlans = await storage.getCarePlansByClinicianId(cid, tenantId);
+      const sbMap = sbCarePlans();
+      const deleted = deletedCpIds();
+      const merged = new Map<string, CarePlan>();
+      for (const cp of dbPlans) {
+        if (!deleted.has(cp.id) && !sbMap.has(cp.id)) {
+          merged.set(cp.id, cp);
+        }
+      }
+      for (const cp of Array.from(sbMap.values())) {
+        if (cp.clinicianId === cid) merged.set(cp.id, cp);
+      }
+      return Array.from(merged.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    },
+
+    async getAllCarePlans(_t) {
+      const dbPlans = await storage.getAllCarePlans(tenantId);
+      const sbMap = sbCarePlans();
+      const deleted = deletedCpIds();
+      const merged = new Map<string, CarePlan>();
+      for (const cp of dbPlans) {
+        if (!deleted.has(cp.id) && !sbMap.has(cp.id)) {
+          merged.set(cp.id, cp);
+        }
+      }
+      for (const cp of Array.from(sbMap.values())) {
+        merged.set(cp.id, cp);
+      }
+      return Array.from(merged.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    },
+
+    async createCarePlan(cp) {
+      const id = genId();
+      const record = makeCarePlanRecord(cp, id);
+      sbCarePlans().set(id, record);
+      return record;
+    },
+
+    async updateCarePlan(id, d) {
+      let record = sbCarePlans().get(id);
+      if (!record) {
+        if (deletedCpIds().has(id)) return undefined;
+        const dbCp = await storage.getCarePlan(id);
+        if (!dbCp) return undefined;
+        record = await copyCarePlanToSandbox(dbCp);
+      }
+      const updated = { ...record, ...d, updatedAt: new Date() };
+      sbCarePlans().set(id, updated);
+      return updated;
+    },
+
+    async deleteCarePlan(id) {
+      const sbMap = sbCarePlans();
+      if (sbMap.has(id)) {
+        sbMap.delete(id);
+        for (const [k, v] of Array.from(sbCheckIns().entries())) {
+          if (v.carePlanId === id) sbCheckIns().delete(k);
+        }
+        for (const [k, v] of Array.from(sbAuditLogs().entries())) {
+          if (v.carePlanId === id) sbAuditLogs().delete(k);
+        }
+        for (const [k, v] of Array.from(sbChatMessages().entries())) {
+          if (v.carePlanId === id) sbChatMessages().delete(k);
+        }
+        return true;
+      }
+      deletedCpIds().add(id);
+      return true;
+    },
+
+    async getCheckIn(id) {
+      const sbCi = sbCheckIns().get(id);
+      if (sbCi) return sbCi;
+      return storage.getCheckIn(id);
+    },
+
+    async getCheckInsByCarePlanId(cpid) {
+      const dbCheckIns = await storage.getCheckInsByCarePlanId(cpid);
+      const sbMap = sbCheckIns();
+      const merged = new Map<string, CheckIn>();
+      for (const ci of dbCheckIns) {
+        if (!sbMap.has(ci.id)) merged.set(ci.id, ci);
+      }
+      for (const ci of Array.from(sbMap.values())) {
+        if (ci.carePlanId === cpid) merged.set(ci.id, ci);
+      }
+      return Array.from(merged.values());
+    },
+
+    async getCheckInsByPatientId(pid) {
+      const dbCheckIns = await storage.getCheckInsByPatientId(pid);
+      const sbMap = sbCheckIns();
+      const merged = new Map<string, CheckIn>();
+      for (const ci of dbCheckIns) {
+        if (!sbMap.has(ci.id)) merged.set(ci.id, ci);
+      }
+      for (const ci of Array.from(sbMap.values())) {
+        if (ci.patientId === pid) merged.set(ci.id, ci);
+      }
+      return Array.from(merged.values());
+    },
+
+    getPendingCheckIns: async () => [],
+
+    async createCheckIn(ci) {
+      const id = genId();
+      const record: CheckIn = {
+        id,
+        carePlanId: ci.carePlanId,
+        patientId: ci.patientId,
+        scheduledFor: ci.scheduledFor,
+        sentAt: ci.sentAt || null,
+        attemptNumber: ci.attemptNumber ?? 1,
+        response: ci.response || null,
+        respondedAt: ci.respondedAt || null,
+        responseNotes: ci.responseNotes || null,
+        alertCreated: ci.alertCreated || false,
+        alertResolvedAt: ci.alertResolvedAt || null,
+        alertResolvedBy: ci.alertResolvedBy || null,
+        createdAt: new Date(),
+      };
+      sbCheckIns().set(id, record);
+      return record;
+    },
+
+    async updateCheckIn(id, d) {
+      let record = sbCheckIns().get(id);
+      if (!record) {
+        const dbCi = await storage.getCheckIn(id);
+        if (!dbCi) return undefined;
+        record = { ...dbCi };
+        sbCheckIns().set(id, record);
+      }
+      const updated = { ...record, ...d };
+      sbCheckIns().set(id, updated);
+      return updated;
+    },
+
+    async getAuditLogsByCarePlanId(cpid) {
+      const dbLogs = await storage.getAuditLogsByCarePlanId(cpid);
+      const sbLogs = Array.from(sbAuditLogs().values()).filter(al => al.carePlanId === cpid);
+      const merged = new Map<string, AuditLog>();
+      for (const al of dbLogs) merged.set(al.id, al);
+      for (const al of sbLogs) merged.set(al.id, al);
+      return Array.from(merged.values()).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    },
+
+    async createAuditLog(log) {
+      const id = genId();
+      const scrubbed = scrubAuditLogData(log);
+      const record: AuditLog = {
+        id,
+        carePlanId: scrubbed.carePlanId || null,
+        userId: scrubbed.userId || null,
+        action: scrubbed.action,
+        details: scrubbed.details || null,
+        ipAddress: null,
+        userAgent: null,
+        createdAt: new Date(),
+      };
+      sbAuditLogs().set(id, record);
+      return record;
+    },
+
+    async getAlerts(_t) {
+      const dbAlerts = await storage.getAlerts(tenantId);
+      const sbCiList = Array.from(sbCheckIns().values())
+        .filter(ci => ci.response === "yellow" || ci.response === "red");
+      const sbAlerts = await Promise.all(sbCiList.map(async (ci) => {
+        const cp = sbCarePlans().get(ci.carePlanId) || await storage.getCarePlan(ci.carePlanId);
+        const patient = cp?.patientId ? (sbPatients().get(cp.patientId) || await storage.getPatient(cp.patientId)) : undefined;
+        return {
+          id: ci.id,
+          carePlanId: ci.carePlanId,
+          patientName: patient?.name || "Unknown",
+          response: ci.response as "yellow" | "red",
+          respondedAt: ci.respondedAt || new Date(),
+          resolved: !!ci.alertResolvedAt,
+          resolvedAt: ci.alertResolvedAt,
+        };
+      }));
+      return [...dbAlerts, ...sbAlerts].sort((a, b) => b.respondedAt.getTime() - a.respondedAt.getTime());
+    },
+
+    async resolveAlert(ciid, by) {
+      let ci = sbCheckIns().get(ciid);
+      if (!ci) {
+        const dbCi = await storage.getCheckIn(ciid);
+        if (!dbCi) return;
+        ci = { ...dbCi };
+        sbCheckIns().set(ciid, ci);
+      }
+      sbCheckIns().set(ciid, { ...ci, alertResolvedAt: new Date(), alertResolvedBy: by });
+    },
+
+    async clearAllData() {
+      clearSandboxData(tenantId);
+    },
+
+    async getChatMessages(cpid, pid) {
+      const dbMsgs = await storage.getChatMessages(cpid, pid);
+      const sbMsgs = Array.from(sbChatMessages().values())
+        .filter(cm => cm.carePlanId === cpid && cm.patientId === pid);
+      const merged = new Map<string, ChatMessage>();
+      for (const m of dbMsgs) merged.set(m.id, m);
+      for (const m of sbMsgs) merged.set(m.id, m);
+      return Array.from(merged.values()).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    },
+
+    async createChatMessage(msg) {
+      const id = genId();
+      const record: ChatMessage = {
+        id,
+        carePlanId: msg.carePlanId,
+        patientId: msg.patientId,
+        role: msg.role,
+        content: msg.content,
+        language: msg.language || "en",
+        createdAt: new Date(),
+      };
+      sbChatMessages().set(id, record);
+      return record;
+    },
   };
 }

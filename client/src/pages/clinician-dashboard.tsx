@@ -1615,7 +1615,7 @@ export default function ClinicianDashboard() {
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" size="sm" className="flex items-center gap-2 text-muted-foreground hover:text-foreground" data-testid="button-toggle-reference-notes">
                       <StickyNote className="h-4 w-4" />
-                      Reference Notes
+                      Scratch Pad (session only)
                       {referenceNotes && <span className="h-2 w-2 rounded-full bg-amber-500" />}
                       <ChevronsUpDown className="h-3 w-3" />
                     </Button>
@@ -1623,7 +1623,7 @@ export default function ClinicianDashboard() {
                   <CollapsibleContent>
                     <div className="mt-2 p-3 border border-dashed border-amber-300 rounded-md bg-amber-50/50 dark:bg-amber-950/20">
                       <Textarea
-                        placeholder="Private notes for this session only — never saved or sent anywhere..."
+                        placeholder="Jot your own notes here — they stay in your browser tab only and are never saved or sent..."
                         value={referenceNotes}
                         onChange={(e) => handleReferenceNotesChange(e.target.value)}
                         className="min-h-[80px] bg-transparent border-none focus-visible:ring-0 resize-none text-sm"
@@ -2471,6 +2471,12 @@ export default function ClinicianDashboard() {
                 : "Select an existing patient or enter new patient information."}
             </DialogDescription>
           </DialogHeader>
+          {currentUser?.tenant?.sandboxMode && (
+            <div className="flex items-center gap-2 p-3 rounded-md border border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400 text-sm" data-testid="text-sandbox-email-notice">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              <span>Simulation mode: the email will be redirected to the admin's recovery email. Patient data entered here will be pseudonymized and not saved.</span>
+            </div>
+          )}
           <div className="space-y-4">
             {!selectedCarePlan?.patient && existingPatients.length > 0 && (
               <div className="space-y-2">
