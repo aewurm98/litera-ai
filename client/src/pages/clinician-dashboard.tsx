@@ -409,8 +409,7 @@ export default function ClinicianDashboard() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [forceDeleteConfirmation, setForceDeleteConfirmation] = useState("");
-  const [forceDeleteExpectedName, setForceDeleteExpectedName] = useState("");
+  const [forceDeletePassword, setForceDeletePassword] = useState("");
   const [isForceDeleteMode, setIsForceDeleteMode] = useState(false);
   const [isOverrideDialogOpen, setIsOverrideDialogOpen] = useState(false);
   const [overrideJustification, setOverrideJustification] = useState("");
@@ -907,13 +906,10 @@ export default function ClinicianDashboard() {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: async ({ carePlanId, force, confirmationName }: { carePlanId: string; force?: boolean; confirmationName?: string }) => {
+    mutationFn: async ({ carePlanId, force, password }: { carePlanId: string; force?: boolean; password?: string }) => {
       let url = `/api/care-plans/${carePlanId}`;
-      const params = new URLSearchParams();
-      if (force) params.set("force", "true");
-      if (confirmationName) params.set("confirmationName", confirmationName);
-      if (params.toString()) url += `?${params.toString()}`;
-      const res = await apiRequest("DELETE", url);
+      if (force) url += `?force=true`;
+      const res = await apiRequest("DELETE", url, password ? { password } : undefined);
       return res.json();
     },
     onSuccess: () => {
@@ -921,8 +917,7 @@ export default function ClinicianDashboard() {
       setSelectedCarePlan(null);
       setIsDeleteDialogOpen(false);
       setIsForceDeleteMode(false);
-      setForceDeleteConfirmation("");
-      setForceDeleteExpectedName("");
+      setForceDeletePassword("");
       toast({
         title: "Care plan deleted",
         description: "The care plan has been removed",
@@ -935,20 +930,20 @@ export default function ClinicianDashboard() {
         const jsonStart = msg.indexOf("{");
         if (jsonStart >= 0) body = JSON.parse(msg.slice(jsonStart));
       } catch {}
-      if (body.requiresForceDelete) {
-        setIsForceDeleteMode(true);
-        const name = body.expectedConfirmation
-          || (selectedCarePlan?.patient?.name
-            ? `${selectedCarePlan.patient.name}${selectedCarePlan.patient.lastName ? ` ${selectedCarePlan.patient.lastName}` : ""}`
-            : selectedCarePlan?.extractedPatientName || "DELETE");
-        setForceDeleteExpectedName(name);
-        return;
+      if (isForceDeleteMode && body.requiresForceDelete) {
+        setForceDeletePassword("");
+        toast({
+          title: "Incorrect password",
+          description: body.error || "Please try again with the correct password.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Cannot delete",
+          description: body.error || error?.message || "This care plan cannot be deleted",
+          variant: "destructive",
+        });
       }
-      toast({
-        title: "Cannot delete",
-        description: body.error || error?.message || "This care plan cannot be deleted",
-        variant: "destructive",
-      });
     },
   });
 
@@ -1614,12 +1609,8 @@ export default function ClinicianDashboard() {
                       const isProtected = selectedCarePlan && protectedStatuses.includes(selectedCarePlan.status);
                       const userIsAdmin = currentUser?.roles?.includes("admin") || currentUser?.roles?.includes("super_admin") || currentUser?.role === "admin" || currentUser?.role === "super_admin";
                       if (isProtected && userIsAdmin) {
-                        const patientName = selectedCarePlan?.patient?.name
-                          ? `${selectedCarePlan.patient.name}${selectedCarePlan.patient.lastName ? ` ${selectedCarePlan.patient.lastName}` : ""}`
-                          : selectedCarePlan?.extractedPatientName || "DELETE";
                         setIsForceDeleteMode(true);
-                        setForceDeleteExpectedName(patientName);
-                        setForceDeleteConfirmation("");
+                        setForceDeletePassword("");
                       } else if (isProtected && !userIsAdmin) {
                         toast({
                           title: "Cannot delete",
@@ -1629,8 +1620,7 @@ export default function ClinicianDashboard() {
                         return;
                       } else {
                         setIsForceDeleteMode(false);
-                        setForceDeleteConfirmation("");
-                        setForceDeleteExpectedName("");
+                        setForceDeletePassword("");
                       }
                       setIsDeleteDialogOpen(true);
                     }}
@@ -2834,8 +2824,7 @@ export default function ClinicianDashboard() {
         setIsDeleteDialogOpen(open);
         if (!open) {
           setIsForceDeleteMode(false);
-          setForceDeleteConfirmation("");
-          setForceDeleteExpectedName("");
+          setForceDeletePassword("");
         }
       }}>
         <DialogContent className="sm:max-w-md">
@@ -2845,7 +2834,7 @@ export default function ClinicianDashboard() {
               {isForceDeleteMode ? (
                 <>
                   This care plan is currently <strong>{selectedCarePlan?.status?.replace(/_/g, " ")}</strong>.
-                  To confirm deletion, type <strong>{forceDeleteExpectedName}</strong> below.
+                  Enter your login password to confirm deletion.
                   This action cannot be undone.
                 </>
               ) : (
@@ -2860,11 +2849,11 @@ export default function ClinicianDashboard() {
           {isForceDeleteMode && (
             <div className="py-2">
               <Input
-                placeholder={`Type "${forceDeleteExpectedName}" to confirm`}
-                value={forceDeleteConfirmation}
-                onChange={(e) => setForceDeleteConfirmation(e.target.value)}
-                className="font-mono"
-                data-testid="input-force-delete-confirmation"
+                type="password"
+                placeholder="Enter your password to confirm"
+                value={forceDeletePassword}
+                onChange={(e) => setForceDeletePassword(e.target.value)}
+                data-testid="input-force-delete-password"
               />
             </div>
           )}
@@ -2874,8 +2863,7 @@ export default function ClinicianDashboard() {
               onClick={() => {
                 setIsDeleteDialogOpen(false);
                 setIsForceDeleteMode(false);
-                setForceDeleteConfirmation("");
-                setForceDeleteExpectedName("");
+                setForceDeletePassword("");
               }}
               data-testid="button-delete-cancel"
             >
@@ -2889,13 +2877,13 @@ export default function ClinicianDashboard() {
                   deleteMutation.mutate({
                     carePlanId: selectedCarePlan.id,
                     force: true,
-                    confirmationName: forceDeleteConfirmation,
+                    password: forceDeletePassword,
                   });
                 } else {
                   deleteMutation.mutate({ carePlanId: selectedCarePlan.id });
                 }
               }}
-              disabled={deleteMutation.isPending || (isForceDeleteMode && forceDeleteConfirmation.trim().toLowerCase() !== forceDeleteExpectedName.trim().toLowerCase())}
+              disabled={deleteMutation.isPending || (isForceDeleteMode && forceDeletePassword.trim().length === 0)}
               data-testid="button-delete-confirm"
             >
               {deleteMutation.isPending ? (

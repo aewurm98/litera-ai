@@ -1792,7 +1792,6 @@ export async function registerRoutes(
       const protectedStatuses = ["approved", "sent", "completed", "interpreter_review", "interpreter_approved"];
       if (protectedStatuses.includes(carePlan.status)) {
         const forceDelete = req.query.force === "true";
-        const confirmationName = req.query.confirmationName as string | undefined;
         const userRoles = req.session.userRoles && req.session.userRoles.length > 0
           ? req.session.userRoles
           : (req.session.userRole ? [req.session.userRole] : []);
@@ -1805,14 +1804,26 @@ export async function registerRoutes(
           });
         }
 
-        const patient = carePlan.patientId ? await store.getPatient(carePlan.patientId) : null;
-        const expectedName = patient
-          ? `${patient.name}${patient.lastName ? ` ${patient.lastName}` : ""}`
-          : carePlan.extractedPatientName || "DELETE";
-        if (!confirmationName || confirmationName.trim().toLowerCase() !== expectedName.trim().toLowerCase()) {
+        const password = req.body?.password as string | undefined;
+        if (!password) {
           return res.status(400).json({
-            error: `Type "${expectedName}" to confirm deletion`,
-            expectedConfirmation: expectedName,
+            error: "Password is required to force-delete a protected care plan",
+            requiresForceDelete: true,
+          });
+        }
+
+        const userId = req.session.userId;
+        if (!userId) {
+          return res.status(401).json({ error: "Not authenticated" });
+        }
+        const user = await store.getUser(userId);
+        if (!user || !user.password) {
+          return res.status(401).json({ error: "User not found" });
+        }
+        const passwordValid = await bcrypt.compare(password, user.password);
+        if (!passwordValid) {
+          return res.status(403).json({
+            error: "Incorrect password. Force-delete denied.",
             requiresForceDelete: true,
           });
         }
