@@ -67,7 +67,7 @@ const SAMPLE_CARE_PLAN = {
     appointments: [
       {
         purpose:
-          "Appointment 1: You need a check-up after pneumonia in your GP clinic. The doctor will make sure you are better, look at your chest X-ray, check that you have taken all your antibiotics, ask if you have symptoms, and go over your asthma plan.",
+          "Appointment 1: Within the next 2 days, call the number below to book an appointment with your GP clinic. Do not wait for them to contact you.",
         date: "On or before February 28, 2026",
         time: "To be confirmed",
         location: "General Doctor (GP)",
@@ -75,7 +75,7 @@ const SAMPLE_CARE_PLAN = {
       },
       {
         purpose:
-          "Appointment 2: You need to check your breathing and asthma in an outpatient respiratory clinic. The doctor will do tests to see how your lungs work and decide if you need long-term asthma medicine.",
+          "Appointment 2: Within 4-6 weeks, return to your lung specialist. You will receive a letter or phone call to schedule your appointment. If you have not heard by March 7, 2026, call number below.",
         date: "To be confirmed within 4-6 weeks",
         time: "To be scheduled",
         location: "Lung Clinic (Outpatient Respiratory Clinic)",
@@ -123,7 +123,7 @@ const SAMPLE_CARE_PLAN = {
     appointments: [
       {
         purpose:
-          "Cita 1: Necesita un control después de la neumonía en su clínica de médico general. El doctor verificará que esté mejor, revisará su radiografía de pecho, confirmará que tomó todos los antibióticos, preguntará por sus síntomas y revisará su plan de asma.",
+          "Cita 1: Dentro de los próximos 2 días, llame al número que aparece abajo para programar una cita en su clínica de médico de cabecera. No espere a que ellos se comuniquen con usted.",
         date: "En o antes del 28 de febrero de 2026",
         time: "Por confirmar",
         location: "Médico General",
@@ -131,7 +131,7 @@ const SAMPLE_CARE_PLAN = {
       },
       {
         purpose:
-          "Cita 2: Necesita revisar su respiración y asma en una clínica respiratoria ambulatoria. El doctor hará pruebas para ver cómo funcionan sus pulmones y decidirá si necesita medicina para el asma a largo plazo.",
+          "Cita 2: Dentro de 4-6 semanas, regrese con su especialista en pulmones. Recibirá una carta o llamada telefónica para programar su cita. Si no ha recibido noticias antes del 7 de marzo de 2026, llame al número que aparece abajo.",
         date: "Por confirmar dentro de 4-6 semanas",
         time: "Por agendar",
         location: "Clínica Pulmonar (Clínica Respiratoria Ambulatoria)",
