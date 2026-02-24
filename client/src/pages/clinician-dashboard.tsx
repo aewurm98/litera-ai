@@ -1603,11 +1603,37 @@ export default function ClinicianDashboard() {
                   selectedCarePlan.status === "pending_review" ||
                   selectedCarePlan.status === "approved" ||
                   selectedCarePlan.status === "interpreter_review" ||
-                  selectedCarePlan.status === "interpreter_approved") && (
+                  selectedCarePlan.status === "interpreter_approved" ||
+                  ((selectedCarePlan.status === "sent" || selectedCarePlan.status === "completed") &&
+                    (currentUser?.roles?.includes("admin") || currentUser?.roles?.includes("super_admin") || currentUser?.role === "admin" || currentUser?.role === "super_admin"))) && (
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => setIsDeleteDialogOpen(true)}
+                    onClick={() => {
+                      const protectedStatuses = ["approved", "sent", "completed", "interpreter_review", "interpreter_approved"];
+                      const isProtected = selectedCarePlan && protectedStatuses.includes(selectedCarePlan.status);
+                      const userIsAdmin = currentUser?.roles?.includes("admin") || currentUser?.roles?.includes("super_admin") || currentUser?.role === "admin" || currentUser?.role === "super_admin";
+                      if (isProtected && userIsAdmin) {
+                        const patientName = selectedCarePlan?.patient?.name
+                          ? `${selectedCarePlan.patient.name}${selectedCarePlan.patient.lastName ? ` ${selectedCarePlan.patient.lastName}` : ""}`
+                          : selectedCarePlan?.extractedPatientName || "DELETE";
+                        setIsForceDeleteMode(true);
+                        setForceDeleteExpectedName(patientName);
+                        setForceDeleteConfirmation("");
+                      } else if (isProtected && !userIsAdmin) {
+                        toast({
+                          title: "Cannot delete",
+                          description: "This care plan is in a protected status. Only admins can force-delete it.",
+                          variant: "destructive",
+                        });
+                        return;
+                      } else {
+                        setIsForceDeleteMode(false);
+                        setForceDeleteConfirmation("");
+                        setForceDeleteExpectedName("");
+                      }
+                      setIsDeleteDialogOpen(true);
+                    }}
                     data-testid="button-delete"
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />

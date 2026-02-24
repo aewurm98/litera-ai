@@ -1789,7 +1789,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const protectedStatuses = ["sent", "completed", "interpreter_review", "interpreter_approved"];
+      const protectedStatuses = ["approved", "sent", "completed", "interpreter_review", "interpreter_approved"];
       if (protectedStatuses.includes(carePlan.status)) {
         const forceDelete = req.query.force === "true";
         const confirmationName = req.query.confirmationName as string | undefined;
