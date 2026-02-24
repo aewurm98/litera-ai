@@ -354,6 +354,7 @@ type UserWithTenant = {
   id: string;
   name: string;
   role: string;
+  roles?: string[];
   tenantId?: string | null;
   tenant?: { id: string; name: string; slug: string; isDemo: boolean; sandboxMode?: boolean; interpreterReviewMode?: string } | null;
 };
@@ -408,6 +409,9 @@ export default function ClinicianDashboard() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [forceDeleteConfirmation, setForceDeleteConfirmation] = useState("");
+  const [forceDeleteExpectedName, setForceDeleteExpectedName] = useState("");
+  const [isForceDeleteMode, setIsForceDeleteMode] = useState(false);
   const [isOverrideDialogOpen, setIsOverrideDialogOpen] = useState(false);
   const [overrideJustification, setOverrideJustification] = useState("");
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
@@ -903,23 +907,46 @@ export default function ClinicianDashboard() {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: async (carePlanId: string) => {
-      const res = await apiRequest("DELETE", `/api/care-plans/${carePlanId}`);
+    mutationFn: async ({ carePlanId, force, confirmationName }: { carePlanId: string; force?: boolean; confirmationName?: string }) => {
+      let url = `/api/care-plans/${carePlanId}`;
+      const params = new URLSearchParams();
+      if (force) params.set("force", "true");
+      if (confirmationName) params.set("confirmationName", confirmationName);
+      if (params.toString()) url += `?${params.toString()}`;
+      const res = await apiRequest("DELETE", url);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-plans"] });
       setSelectedCarePlan(null);
       setIsDeleteDialogOpen(false);
+      setIsForceDeleteMode(false);
+      setForceDeleteConfirmation("");
+      setForceDeleteExpectedName("");
       toast({
         title: "Care plan deleted",
         description: "The care plan has been removed",
       });
     },
     onError: (error: any) => {
+      let body: any = {};
+      try {
+        const msg = error?.message || "";
+        const jsonStart = msg.indexOf("{");
+        if (jsonStart >= 0) body = JSON.parse(msg.slice(jsonStart));
+      } catch {}
+      if (body.requiresForceDelete) {
+        setIsForceDeleteMode(true);
+        const name = body.expectedConfirmation
+          || (selectedCarePlan?.patient?.name
+            ? `${selectedCarePlan.patient.name}${selectedCarePlan.patient.lastName ? ` ${selectedCarePlan.patient.lastName}` : ""}`
+            : selectedCarePlan?.extractedPatientName || "DELETE");
+        setForceDeleteExpectedName(name);
+        return;
+      }
       toast({
         title: "Cannot delete",
-        description: error?.message || "This care plan cannot be deleted",
+        description: body.error || error?.message || "This care plan cannot be deleted",
         variant: "destructive",
       });
     },
@@ -2777,28 +2804,72 @@ export default function ClinicianDashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <Dialog open={isDeleteDialogOpen} onOpenChange={(open) => {
+        setIsDeleteDialogOpen(open);
+        if (!open) {
+          setIsForceDeleteMode(false);
+          setForceDeleteConfirmation("");
+          setForceDeleteExpectedName("");
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete Care Plan</DialogTitle>
+            <DialogTitle>{isForceDeleteMode ? "Force Delete Care Plan" : "Delete Care Plan"}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this care plan for{" "}
-              <strong>{selectedCarePlan?.patient?.name || "this patient"}</strong>?
-              This action cannot be undone.
+              {isForceDeleteMode ? (
+                <>
+                  This care plan is currently <strong>{selectedCarePlan?.status?.replace(/_/g, " ")}</strong>.
+                  To confirm deletion, type <strong>{forceDeleteExpectedName}</strong> below.
+                  This action cannot be undone.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to delete this care plan for{" "}
+                  <strong>{selectedCarePlan?.patient?.name || "this patient"}</strong>?
+                  This action cannot be undone.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
+          {isForceDeleteMode && (
+            <div className="py-2">
+              <Input
+                placeholder={`Type "${forceDeleteExpectedName}" to confirm`}
+                value={forceDeleteConfirmation}
+                onChange={(e) => setForceDeleteConfirmation(e.target.value)}
+                className="font-mono"
+                data-testid="input-force-delete-confirmation"
+              />
+            </div>
+          )}
           <DialogFooter className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setIsForceDeleteMode(false);
+                setForceDeleteConfirmation("");
+                setForceDeleteExpectedName("");
+              }}
               data-testid="button-delete-cancel"
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={() => selectedCarePlan && deleteMutation.mutate(selectedCarePlan.id)}
-              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (!selectedCarePlan) return;
+                if (isForceDeleteMode) {
+                  deleteMutation.mutate({
+                    carePlanId: selectedCarePlan.id,
+                    force: true,
+                    confirmationName: forceDeleteConfirmation,
+                  });
+                } else {
+                  deleteMutation.mutate({ carePlanId: selectedCarePlan.id });
+                }
+              }}
+              disabled={deleteMutation.isPending || (isForceDeleteMode && forceDeleteConfirmation.trim().toLowerCase() !== forceDeleteExpectedName.trim().toLowerCase())}
               data-testid="button-delete-confirm"
             >
               {deleteMutation.isPending ? (
@@ -2806,7 +2877,7 @@ export default function ClinicianDashboard() {
               ) : (
                 <Trash2 className="h-4 w-4 mr-2" />
               )}
-              Delete
+              {isForceDeleteMode ? "Force Delete" : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

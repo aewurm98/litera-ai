@@ -1789,9 +1789,33 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      // [M1.6] Only allow deletion if not in-flight — block sent, completed, and interpreter review
-      if (["sent", "completed", "interpreter_review", "interpreter_approved"].includes(carePlan.status)) {
-        return res.status(400).json({ error: "Cannot delete a care plan that has been sent to the patient or is under interpreter review" });
+      const protectedStatuses = ["sent", "completed", "interpreter_review", "interpreter_approved"];
+      if (protectedStatuses.includes(carePlan.status)) {
+        const forceDelete = req.query.force === "true";
+        const confirmationName = req.query.confirmationName as string | undefined;
+        const userRoles = req.session.userRoles && req.session.userRoles.length > 0
+          ? req.session.userRoles
+          : (req.session.userRole ? [req.session.userRole] : []);
+        const isAdmin = userRoles.includes("admin") || userRoles.includes("super_admin");
+
+        if (!forceDelete || !isAdmin) {
+          return res.status(400).json({
+            error: "Cannot delete a care plan that has been sent to the patient or is under interpreter review",
+            requiresForceDelete: isAdmin,
+          });
+        }
+
+        const patient = carePlan.patientId ? await store.getPatient(carePlan.patientId) : null;
+        const expectedName = patient
+          ? `${patient.name}${patient.lastName ? ` ${patient.lastName}` : ""}`
+          : carePlan.extractedPatientName || "DELETE";
+        if (!confirmationName || confirmationName.trim().toLowerCase() !== expectedName.trim().toLowerCase()) {
+          return res.status(400).json({
+            error: `Type "${expectedName}" to confirm deletion`,
+            expectedConfirmation: expectedName,
+            requiresForceDelete: true,
+          });
+        }
       }
       
       const deleted = await store.deleteCarePlan(id);
